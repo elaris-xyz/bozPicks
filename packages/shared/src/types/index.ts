@@ -12,7 +12,32 @@ export interface OddsSnapshot {
     draw: number;
     away: number;
   };
+  bookmaker?: string;   // TxLINE Bookmaker (undefined = consensus/StablePrice)
+  inRunning?: boolean;  // true = in-play, false = pre-match
 }
+
+/**
+ * Live match statistics from TxLINE's SoccerScore period breakdown +
+ * possession/danger state. All per-team; `possession` is home's share (0–100).
+ */
+export interface MatchStats {
+  cornersHome: number;
+  cornersAway: number;
+  yellowHome: number;
+  yellowAway: number;
+  redHome: number;
+  redAway: number;
+  /** home possession share, 0–100 (away = 100 − this) */
+  possession?: number;
+  /** live attacking pressure per side, from TxLINE possessionType */
+  danger?: { home: DangerLevel; away: DangerLevel };
+  /** first-half score, once known */
+  halfTime?: { home: number; away: number };
+  /** live match clock in seconds, if streamed */
+  clockSeconds?: number;
+}
+
+export type DangerLevel = 'SAFE' | 'ATTACK' | 'DANGER' | 'HIGH_DANGER';
 
 export interface MatchState {
   id: string;
@@ -27,6 +52,11 @@ export interface MatchState {
   kickoffTime: string;
   currentOdds?: OddsSnapshot;
   lastUpdated: string;
+  /** competition name from the fixtures feed (e.g. "FIFA World Cup") */
+  competition?: string;
+  competitionId?: number;
+  /** live stats — corners, cards, possession, danger */
+  stats?: MatchStats;
 }
 
 // ─── Events ─────────────────────────────────────────────────────────────────
@@ -36,11 +66,16 @@ export type BozEventType =
   | 'RED_CARD'
   | 'YELLOW_CARD'
   | 'SUBSTITUTION'
+  | 'CORNER'
+  | 'PENALTY'
+  | 'VAR'
   | 'ODDS_UPDATE'
   | 'SCORE_UPDATE'
   | 'MATCH_START'
   | 'MATCH_END'
   | 'HALFTIME';
+
+export type GoalKind = 'SHOT' | 'HEAD' | 'PENALTY' | 'OWN_GOAL' | 'OTHER';
 
 export interface BozEvent {
   id: string;
@@ -49,11 +84,22 @@ export interface BozEvent {
   timestamp: string;
   matchMinute: number;
   team?: string;
-  player?: string;
+  player?: string;         // resolved from lineups by PlayerId when possible
   score?: { home: number; away: number };
   odds?: OddsSnapshot;
   rawPayload: object;
   txlineSignature?: string;
+  /** TxLINE canonical sequence number — used for Merkle proof lookups */
+  seq?: number;
+  // ── rich event detail (optional, populated from SoccerData) ──
+  goalKind?: GoalKind;
+  isPenalty?: boolean;
+  isOwnGoal?: boolean;
+  isVAR?: boolean;
+  playerIn?: string;       // substitution in
+  playerOut?: string;      // substitution out
+  /** stats snapshot at the moment of this event — for the Hi-Lo game */
+  stats?: MatchStats;
 }
 
 // ─── AI Explanation ──────────────────────────────────────────────────────────
@@ -129,6 +175,62 @@ export interface Prediction {
   claimTx?: string;
 }
 
+// ─── Prop / parametric markets (Track 1) ─────────────────────────────────────
+
+/**
+ * Market kinds derived from TxLINE stats. Each resolves deterministically from
+ * the final SoccerScore, so a keeper can settle it trustlessly via a Merkle
+ * proof + CPI into validate_stat.
+ */
+export type MarketKind =
+  | 'MATCH_WINNER'    // outcomes: HOME | DRAW | AWAY
+  | 'TOTAL_GOALS'     // outcomes: OVER | UNDER  (needs line)
+  | 'TOTAL_CORNERS'   // outcomes: OVER | UNDER  (needs line)
+  | 'TOTAL_CARDS'     // outcomes: OVER | UNDER  (needs line)
+  | 'BTTS'            // outcomes: YES | NO
+  | 'FIRST_SCORER';   // outcomes: HOME | AWAY | NONE
+
+/** The TxLINE stat a market resolves against (used as the validate_stat key). */
+export type StatKey =
+  | 'GOALS_TOTAL' | 'CORNERS_TOTAL' | 'CARDS_TOTAL'
+  | 'GOALS_HOME' | 'GOALS_AWAY' | 'RESULT' | 'FIRST_SCORER';
+
+export type MarketStatus = 'OPEN' | 'LOCKED' | 'SETTLED' | 'VOID';
+
+export interface PropMarket {
+  id: string;
+  matchId: string;
+  kind: MarketKind;
+  label: string;               // e.g. "Total Corners Over/Under 9.5"
+  statKey: StatKey;
+  line?: number;               // O/U threshold (e.g. 9.5)
+  outcomes: string[];          // ordered outcome keys
+  pools: Record<string, number>; // outcome key → USDC micro-units staked
+  totalPool: number;
+  feeBps: number;
+  status: MarketStatus;
+  escrowPda: string;
+  winningOutcome?: string;
+  settledAt?: string;
+  settlementTx?: string;
+  receipt?: SettlementReceipt;
+}
+
+/**
+ * The verifiable-resolution "receipt": proof that the settlement value came
+ * from TxLINE's on-chain-anchored data, not a self-asserted oracle.
+ */
+export interface SettlementReceipt {
+  statKey: StatKey;
+  statValue: number;           // the resolved value (e.g. 11 total corners)
+  fixtureId: string;
+  txlineRecordId: string;      // TxScores.id / seq that carried the final stat
+  merkleRoot: string;          // on-chain root the record proves against
+  merkleProof: string[];       // sibling hashes
+  validateTx: string;          // Solana tx that CPI'd validate_stat
+  verifiedAt: string;
+}
+
 // ─── Replay ──────────────────────────────────────────────────────────────────
 
 export interface ReplayEvent {
@@ -141,10 +243,11 @@ export interface ReplayEvent {
 
 // ─── SSE Message ─────────────────────────────────────────────────────────────
 
-export type SSEMessageType = 'event' | 'match_update' | 'signal' | 'ping';
+export type SSEMessageType =
+  | 'event' | 'match_update' | 'signal' | 'market_update' | 'ping';
 
 export interface SSEMessage {
   type: SSEMessageType;
-  data: BozEvent | MatchState | AgentSignal | null;
+  data: BozEvent | MatchState | AgentSignal | PropMarket | null;
   ts: string;
 }

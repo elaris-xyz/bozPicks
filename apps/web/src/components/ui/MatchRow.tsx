@@ -14,11 +14,13 @@ import type { OddsTrend } from './MatchCard';
  * of matches at a glance, the way a real sportsbook list does.
  */
 export function MatchRow({
-  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', trend,
+  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', trend, large = false,
 }: {
   match: MatchState; activeSignals?: number;
   isFav?: boolean; onToggleFav?: (id: string) => void;
   oddsFormat?: OddsFormat; trend?: OddsTrend;
+  /** inflated variant — bigger flags, names, scores; used for the live section */
+  large?: boolean;
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const showScore = isLive || match.status === 'FINISHED';
@@ -33,7 +35,15 @@ export function MatchRow({
 
   return (
     <Link href={`/match/${match.id}`} className="group block">
-      <div className="poster-card glass-hover flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3.5 py-2.5">
+      <div className={`poster-card glass-hover flex items-center relative overflow-hidden
+                      ${large ? 'gap-3.5 sm:gap-4 px-4 sm:px-5 py-4' : 'gap-2.5 sm:gap-3 px-2.5 sm:px-3.5 py-2.5'}`}
+           style={large && isLive ? { boxShadow: '0 0 22px rgba(16,185,129,0.10)' } : undefined}>
+
+        {/* live accent edge on inflated live rows */}
+        {large && isLive && (
+          <span className="absolute left-0 top-0 bottom-0 w-[3px]"
+                style={{ background: 'linear-gradient(to bottom, transparent, var(--green), transparent)' }} />
+        )}
 
         {/* star */}
         {onToggleFav && (
@@ -51,22 +61,22 @@ export function MatchRow({
         )}
 
         {/* status / time — fixed column */}
-        <div className="w-12 sm:w-14 flex-shrink-0 flex flex-col items-center justify-center">
+        <div className={`flex-shrink-0 flex flex-col items-center justify-center ${large ? 'w-16 sm:w-20' : 'w-12 sm:w-14'}`}>
           {isLive ? (
             <>
-              <span className="w-1.5 h-1.5 rounded-full badge-live mb-1" style={{ background: 'var(--green)' }} />
-              <span className="text-[10px] font-bold tabular-nums leading-none" style={{ color: 'var(--green)' }}>
+              <span className={`rounded-full badge-live mb-1 ${large ? 'w-2 h-2' : 'w-1.5 h-1.5'}`} style={{ background: 'var(--green)' }} />
+              <span className={`font-bold tabular-nums leading-none ${large ? 'text-sm' : 'text-[10px]'}`} style={{ color: 'var(--green)' }}>
                 {match.status === 'HALFTIME' ? 'HT' : `${match.currentMinute}'`}
               </span>
             </>
           ) : match.status === 'FINISHED' ? (
-            <span className="text-[10px] font-bold text-gray-600">FT</span>
+            <span className={`font-bold text-gray-600 ${large ? 'text-xs' : 'text-[10px]'}`}>FT</span>
           ) : match.kickoffTime ? (
             <>
-              <span className="text-xs font-bold tabular-nums leading-tight" style={{ color: 'var(--blue)' }}>
+              <span className={`font-bold tabular-nums leading-tight ${large ? 'text-base' : 'text-xs'}`} style={{ color: 'var(--blue)' }}>
                 {new Date(match.kickoffTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </span>
-              <span className="text-[8px] text-gray-600 leading-tight">
+              <span className={`text-gray-600 leading-tight ${large ? 'text-[10px]' : 'text-[8px]'}`}>
                 {new Date(match.kickoffTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </span>
             </>
@@ -74,22 +84,22 @@ export function MatchRow({
         </div>
 
         {/* teams (stacked) + score */}
-        <div className="flex-1 min-w-0">
+        <div className={`flex-1 min-w-0 ${large ? 'space-y-1.5' : ''}`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2 min-w-0 text-[13px] font-semibold truncate">
-              <Flag team={match.homeTeam} size="xs" /> <span className="truncate">{match.homeTeam}</span>
+            <span className={`flex items-center min-w-0 font-semibold truncate ${large ? 'gap-2.5 text-base sm:text-lg' : 'gap-2 text-[13px]'}`}>
+              <Flag team={match.homeTeam} size={large ? 'md' : 'xs'} /> <span className="truncate">{match.homeTeam}</span>
             </span>
             {showScore && (
-              <span className="font-display text-sm font-bold tabular-nums flex-shrink-0"
+              <span className={`font-display font-bold tabular-nums flex-shrink-0 ${large ? 'text-2xl sm:text-3xl' : 'text-sm'}`}
                     style={{ color: isLive ? '#fff' : '#cbd5e1' }}>{match.homeScore}</span>
             )}
           </div>
-          <div className="flex items-center justify-between gap-2 mt-0.5">
-            <span className="flex items-center gap-2 min-w-0 text-[13px] font-semibold truncate">
-              <Flag team={match.awayTeam} size="xs" /> <span className="truncate">{match.awayTeam}</span>
+          <div className={`flex items-center justify-between gap-2 ${large ? '' : 'mt-0.5'}`}>
+            <span className={`flex items-center min-w-0 font-semibold truncate ${large ? 'gap-2.5 text-base sm:text-lg' : 'gap-2 text-[13px]'}`}>
+              <Flag team={match.awayTeam} size={large ? 'md' : 'xs'} /> <span className="truncate">{match.awayTeam}</span>
             </span>
             {showScore && (
-              <span className="font-display text-sm font-bold tabular-nums flex-shrink-0"
+              <span className={`font-display font-bold tabular-nums flex-shrink-0 ${large ? 'text-2xl sm:text-3xl' : 'text-sm'}`}
                     style={{ color: isLive ? '#fff' : '#cbd5e1' }}>{match.awayScore}</span>
             )}
           </div>

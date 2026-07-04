@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { MatchCard, type OddsTrend } from './MatchCard';
 import { MatchRow } from './MatchRow';
+import { LiveHero } from './LiveHero';
+import { Reveal } from './Reveal';
+import { Collapsible } from './Collapsible';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useOddsFormat, type OddsFormat } from '@/hooks/useOddsFormat';
 import type { MatchState, BozEvent, AgentSignal, SSEMessage, OddsSnapshot } from '@bozpicks/shared';
@@ -39,6 +42,7 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
   const [signalCounts, setSignalCounts] = useState<Record<string, number>>({});
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('all');
+  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
   const { favorites, toggle: toggleFav, isFav } = useFavorites();
   const { format: oddsFormat, setFormat: setOddsFormat } = useOddsFormat();
 
@@ -155,51 +159,73 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
 
   if (!hydrated) return <MatchListSkeleton />;
 
-  const renderMatches = (list: MatchState[]) =>
-    view === 'list' ? (
-      <div className="space-y-2">
-        {list.map(m => (
-          <MatchRow key={m.id} match={m} trend={trends[m.id]}
-            activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
-            onToggleFav={toggleFav} oddsFormat={oddsFormat} />
-        ))}
-      </div>
-    ) : (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {list.map((m, i) => (
-          <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]}
-            activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
-            onToggleFav={toggleFav} oddsFormat={oddsFormat} />
-        ))}
-      </div>
-    );
+  // Single poster card (used by the live hero + finished grid).
+  const renderCard = (m: MatchState, i: number) => (
+    <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]}
+      activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
+      onToggleFav={toggleFav} oddsFormat={oddsFormat} />
+  );
+
+  // Full-width scan rows (list view). `large` inflates the live section.
+  const renderRows = (list: MatchState[], large = false) => (
+    <div className={large ? 'space-y-2.5' : 'space-y-2'}>
+      {list.map(m => (
+        <MatchRow key={m.id} match={m} trend={trends[m.id]} large={large}
+          activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
+          onToggleFav={toggleFav} oddsFormat={oddsFormat} />
+      ))}
+    </div>
+  );
 
   /**
-   * Horizontal rail: one day's fixtures in a single row that scrolls sideways,
-   * with compact cards. Keeps each day to one line instead of a tall grid, so
-   * the whole schedule reads as a timeline of days stacked top-to-bottom.
-   * In list view we fall back to the vertical rows (scanning is better there).
+   * Poster view, one day: a single horizontal rail of compact cards that
+   * scrolls sideways, edge-faded so cards dissolve as they scroll out.
    */
-  const renderRail = (list: MatchState[]) =>
-    view === 'list' ? (
-      <div className="space-y-2">
-        {list.map(m => (
-          <MatchRow key={m.id} match={m} trend={trends[m.id]}
+  const renderRail = (list: MatchState[]) => (
+    <div className="flex gap-3 overflow-x-auto pb-2 rail-scroll rail-fade snap-x">
+      {list.map((m, i) => (
+        <div key={m.id} className="flex-shrink-0 w-[180px] sm:w-[210px] snap-start">
+          <MatchCard index={i} match={m} trend={trends[m.id]} compact
             activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
             onToggleFav={toggleFav} oddsFormat={oddsFormat} />
-        ))}
-      </div>
-    ) : (
-      <div className="flex gap-3 overflow-x-auto pb-2 rail-scroll snap-x">
-        {list.map((m, i) => (
-          <div key={m.id} className="flex-shrink-0 w-[180px] sm:w-[210px] snap-start">
-            <MatchCard index={i} match={m} trend={trends[m.id]}
-              activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
-              onToggleFav={toggleFav} oddsFormat={oddsFormat} compact />
-          </div>
-        ))}
-      </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // List view, one day: dense grid of up to 5 compact cards per row.
+  const renderGrid5 = (list: MatchState[]) => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+      {list.map((m, i) => (
+        <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]} compact
+          activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
+          onToggleFav={toggleFav} oddsFormat={oddsFormat} />
+      ))}
+    </div>
+  );
+
+  // A day's fixtures — rail (poster) or dense grid (list).
+  const renderDay = (list: MatchState[]) =>
+    view === 'poster' ? renderRail(list) : renderGrid5(list);
+
+  // A day group with its timeline-style header (dot + label + rule + count).
+  const dayNode = (g: { label: string; count: number; matches: MatchState[] }, idx: number) => {
+    const isToday = g.label === 'Today';
+    return (
+      <Reveal key={g.label} className="space-y-2" delay={Math.min(idx, 4) * 40}>
+        <div className="flex items-center gap-2.5">
+          <span className="w-[7px] h-[7px] rounded-full flex-shrink-0"
+                style={{ background: isToday ? 'var(--blue)' : '#475569',
+                         boxShadow: isToday ? '0 0 10px rgba(59,130,246,0.6)' : 'none' }} />
+          <span className="text-[10px] font-bold uppercase tracking-widest"
+                style={{ color: isToday ? 'var(--blue)' : '#64748b' }}>{g.label}</span>
+          <div className="flex-1 h-px" style={{ background: 'var(--glass-border)' }} />
+          <span className="text-[10px] text-gray-700 tabular-nums">{g.count}</span>
+        </div>
+        {renderDay(g.matches)}
+      </Reveal>
     );
+  };
 
   return (
     <div className="space-y-5">
@@ -295,63 +321,66 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
         </div>
       )}
 
-      {/* Live */}
+      {/* Live — poster: cards + striker hero fill the row; list: big rows */}
       {visLive.length > 0 && (
-        <section className="space-y-3">
+        <Reveal as="section" className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full badge-live" style={{ background: 'var(--green)' }} />
             <h2 className="section-label" style={{ color: 'var(--green)' }}>
               Live · {visLive.length}
             </h2>
           </div>
-          {renderMatches(visLive)}
-        </section>
+          {view === 'poster'
+            ? <LiveHero matches={visLive} renderCard={renderCard} />
+            : renderRows(visLive, true)}
+        </Reveal>
       )}
 
-      {/* Upcoming — a vertical timeline of days; each day is a horizontal rail */}
-      {visUpcoming.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="section-label">Upcoming · {visUpcoming.length}</h2>
-          <div className={view === 'poster' ? 'relative pl-5' : ''}>
-            {/* the spine connecting the day nodes (poster view only) */}
-            {view === 'poster' && (
-              <div className="absolute left-[3px] top-2 bottom-2 w-px"
-                   style={{ background: 'linear-gradient(to bottom, var(--glass-border), transparent)' }} />
-            )}
+      {/* Upcoming — day groups; first two shown, the rest behind "More matches" */}
+      {visUpcoming.length > 0 && (() => {
+        const groups = groupByDay(visUpcoming);
+        const head = groups.slice(0, 2);
+        const rest = groups.slice(2);
+        const hiddenCount = rest.reduce((n, g) => n + g.count, 0);
+        return (
+          <section className="space-y-3">
+            <h2 className="section-label">Upcoming · {visUpcoming.length}</h2>
             <div className="space-y-4">
-              {groupByDay(visUpcoming).map(g => {
-                const isToday = g.label === 'Today';
-                return (
-                  <div key={g.label} className="space-y-2 relative">
-                    {/* day node on the spine (poster view) */}
-                    {view === 'poster' && (
-                      <span className="absolute -left-5 top-1.5 w-[7px] h-[7px] rounded-full"
-                            style={{
-                              background: isToday ? 'var(--blue)' : '#475569',
-                              boxShadow: isToday ? '0 0 0 3px var(--bg-deep), 0 0 10px rgba(59,130,246,0.5)' : '0 0 0 3px var(--bg-deep)',
-                            }} />
-                    )}
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-[10px] font-bold uppercase tracking-widest"
-                            style={{ color: isToday ? 'var(--blue)' : '#64748b' }}>{g.label}</span>
-                      <div className="flex-1 h-px" style={{ background: 'var(--glass-border)' }} />
-                      <span className="text-[10px] text-gray-700 tabular-nums">{g.count}</span>
-                    </div>
-                    {renderRail(g.matches)}
-                  </div>
-                );
-              })}
+              {head.map((g, i) => dayNode(g, i))}
             </div>
-          </div>
-        </section>
-      )}
 
-      {/* Finished */}
+            {rest.length > 0 && (
+              <>
+                <Collapsible open={upcomingExpanded}>
+                  <div className="space-y-4 pt-4">
+                    {rest.map((g, i) => dayNode(g, i + 2))}
+                  </div>
+                </Collapsible>
+
+                <button
+                  onClick={() => setUpcomingExpanded(v => !v)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all hover:brightness-125"
+                  style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--blue)' }}>
+                  {upcomingExpanded ? 'Show less' : `More matches · ${hiddenCount}`}
+                  <svg className={`w-3.5 h-3.5 transition-transform duration-300 ${upcomingExpanded ? 'rotate-180' : ''}`}
+                       fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </>
+            )}
+          </section>
+        );
+      })()}
+
+      {/* Finished — dense grid in list view, poster grid otherwise */}
       {visFinished.length > 0 && (
-        <section className="space-y-3">
+        <Reveal as="section" className="space-y-3">
           <h2 className="section-label">Finished</h2>
-          {renderMatches(visFinished)}
-        </section>
+          {view === 'list'
+            ? renderGrid5(visFinished)
+            : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{visFinished.map(renderCard)}</div>}
+        </Reveal>
       )}
     </div>
   );

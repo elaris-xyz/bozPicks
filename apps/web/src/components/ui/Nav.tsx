@@ -10,14 +10,23 @@ import { IconPulse, IconChart, IconRadar, IconTrendUp, IconTrophy, IconClock, Ic
 
 type NavVariant = 'desktop' | 'mobile-header' | 'mobile-tabs';
 
+const GameIcon = ({ size = 18 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8}
+       strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M6 12h4M8 10v4M15 11h.01M18 13h.01" />
+    <rect x="2" y="6" width="20" height="12" rx="4" />
+  </svg>
+);
+
 const tabs = [
   { href: '/',         label: 'Live',     icon: <IconPulse size={18} /> },
-  { href: '/insights', label: 'Insights', icon: <IconChart size={18} /> },
+  { href: '/play',     label: 'Play',     icon: <GameIcon size={18} /> },
   { href: '/agent',    label: 'Agent',    icon: <IconRadar size={18} /> },
   { href: '/stats',    label: 'Stats',    icon: <IconTrendUp size={18} /> },
 ];
 
 const desktopExtra = [
+  { href: '/insights',    label: 'Insights',    icon: <IconChart size={18} /> },
   { href: '/schedule',    label: 'Schedule',    icon: <IconClock size={18} /> },
   { href: '/leaderboard', label: 'Leaderboard', icon: <IconTrophy size={18} /> },
 ];

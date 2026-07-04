@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (await redis.get(cooldownKey)) {
     return NextResponse.json({ error: 'Demo cooling down, try again shortly' }, { status: 429 });
   }
-  await redis.set(cooldownKey, '1', 'EX', 20);
+  await redis.set(cooldownKey, '1', 'EX', 8);
 
   await purgeDemoMatches();
 

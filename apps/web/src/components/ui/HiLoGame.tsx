@@ -1,0 +1,174 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useSSE } from '@/hooks/useSSE';
+import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
+import { DemoButton } from './DemoButton';
+
+/**
+ * Hi-Lo: guess whether the next TxLINE stat reading will be higher or lower.
+ * Live, replayable across matches, streak-based, shareable. Uses possession —
+ * the one soccer stat that genuinely swings both ways minute to minute — so a
+ * guess is a real read of the game, not a coin flip on a monotonic counter.
+ */
+
+type Guess = 'HIGHER' | 'LOWER';
+type Round = { value: number; guess: Guess; result: 'WIN' | 'LOSE' } | null;
+
+const BEST_KEY = 'boz_hilo_best';
+
+export function HiLoGame() {
+  const [current, setCurrent] = useState<number | null>(null);
+  const [pending, setPending] = useState<{ value: number; guess: Guess } | null>(null);
+  const [streak, setStreak] = useState(0);
+  const [best, setBest] = useState(0);
+  const [rounds, setRounds] = useState(0);
+  const [last, setLast] = useState<Round>(null);
+  const [ctx, setCtx] = useState<{ home?: string; away?: string; hs: number; as: number; min: number; live: boolean }>({ hs: 0, as: 0, min: 0, live: false });
+  const [flash, setFlash] = useState<'win' | 'lose' | null>(null);
+
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+
+  useEffect(() => {
+    const b = Number(localStorage.getItem(BEST_KEY) || 0);
+    if (b) setBest(b);
+  }, []);
+
+  useSSE({
+    onMessage: (msg: SSEMessage) => {
+      if (msg.type !== 'event' || !msg.data) return;
+      const e = msg.data as BozEvent;
+      const stats = e.stats as MatchStats | undefined;
+
+      if (e.score) {
+        setCtx(c => ({
+          ...c,
+          hs: e.score!.home, as: e.score!.away, min: e.matchMinute,
+          live: e.type !== 'MATCH_END',
+        }));
+      }
+      if (e.type === 'MATCH_END') { setCtx(c => ({ ...c, live: false })); return; }
+      if (!stats || typeof stats.possession !== 'number') return;
+
+      const next = stats.possession;
+      const p = pendingRef.current;
+      if (p) {
+        const win = p.guess === 'HIGHER' ? next > p.value : next < p.value;
+        // ties don't count — keep the guess alive against the next reading
+        if (next === p.value) { setCurrent(next); return; }
+        setLast({ value: next, guess: p.guess, result: win ? 'WIN' : 'LOSE' });
+        setRounds(r => r + 1);
+        setFlash(win ? 'win' : 'lose');
+        setTimeout(() => setFlash(null), 700);
+        if (win) {
+          setStreak(s => {
+            const ns = s + 1;
+            setBest(b => { const nb = Math.max(b, ns); localStorage.setItem(BEST_KEY, String(nb)); return nb; });
+            return ns;
+          });
+        } else {
+          setStreak(0);
+        }
+        setPending(null);
+      }
+      setCurrent(next);
+    },
+  });
+
+  const guess = (g: Guess) => {
+    if (current == null || pending || !ctx.live) return;
+    setPending({ value: current, guess: g });
+  };
+
+  const share = () => {
+    const text = `🔥 I hit a streak of ${best} on bozPicks Hi-Lo — reading the World Cup live from TxLINE data. Beat it:`;
+    if (navigator.share) navigator.share({ text }).catch(() => {});
+    else navigator.clipboard?.writeText(text).catch(() => {});
+  };
+
+  const homePoss = current ?? 50;
+  const awayPoss = 100 - homePoss;
+
+  return (
+    <div className="glass p-5 relative overflow-hidden"
+         style={{ boxShadow: flash === 'win' ? '0 0 40px rgba(16,185,129,0.35)' : flash === 'lose' ? '0 0 40px rgba(239,68,68,0.3)' : undefined, transition: 'box-shadow .3s' }}>
+      {/* header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="section-label">Hi-Lo · Possession</p>
+          <p className="text-[11px] text-gray-500 mt-0.5">
+            {ctx.live && ctx.home
+              ? <>Live: {ctx.home} {ctx.hs}–{ctx.as} {ctx.away} · {ctx.min}&rsquo;</>
+              : 'Guess the next possession swing'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 text-right">
+          <div>
+            <p className="text-2xl font-black tabular-nums" style={{ color: streak > 0 ? 'var(--green)' : '#94a3b8' }}>
+              {streak}{streak > 2 ? ' 🔥' : ''}
+            </p>
+            <p className="text-[9px] uppercase tracking-widest text-gray-600">streak</p>
+          </div>
+          <div>
+            <p className="text-2xl font-black tabular-nums text-amber-300">{best}</p>
+            <p className="text-[9px] uppercase tracking-widest text-gray-600">best</p>
+          </div>
+        </div>
+      </div>
+
+      {/* possession bar */}
+      <div className="mb-2 flex items-center justify-between text-xs font-bold">
+        <span className="text-[var(--green)]">{homePoss}%</span>
+        <span className="text-gray-500 text-[10px] uppercase tracking-widest">possession</span>
+        <span className="text-[var(--blue)]">{awayPoss}%</span>
+      </div>
+      <div className="h-3 rounded-full overflow-hidden flex mb-5" style={{ background: 'rgba(255,255,255,0.05)' }}>
+        <div style={{ width: `${homePoss}%`, background: 'linear-gradient(90deg,var(--green),rgba(16,185,129,0.6))', transition: 'width .5s' }} />
+        <div style={{ width: `${awayPoss}%`, background: 'linear-gradient(90deg,rgba(59,130,246,0.6),var(--blue))', transition: 'width .5s' }} />
+      </div>
+
+      {!ctx.live ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-gray-400 mb-3">No live match right now — start one to play.</p>
+          <DemoButton />
+        </div>
+      ) : pending ? (
+        <div className="text-center py-3">
+          <p className="text-sm text-gray-300">
+            You picked <span className="font-bold" style={{ color: pending.guess === 'HIGHER' ? 'var(--green)' : 'var(--red)' }}>{pending.guess}</span> from <span className="tabular-nums font-bold">{pending.value}%</span>
+          </p>
+          <p className="text-[11px] text-gray-500 mt-1 animate-pulse">waiting for the next reading…</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => guess('HIGHER')}
+            className="py-3 rounded-xl font-black uppercase tracking-wider text-sm transition-all hover:scale-[1.02] active:scale-95"
+            style={{ background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.4)' }}>
+            ▲ Higher
+          </button>
+          <button onClick={() => guess('LOWER')}
+            className="py-3 rounded-xl font-black uppercase tracking-wider text-sm transition-all hover:scale-[1.02] active:scale-95"
+            style={{ background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.4)' }}>
+            ▼ Lower
+          </button>
+        </div>
+      )}
+
+      {/* last result + share */}
+      <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <p className="text-[11px] text-gray-500">
+          {last ? (
+            <>Last: <span style={{ color: last.result === 'WIN' ? 'var(--green)' : 'var(--red)' }}>{last.result}</span> → {last.value}% · {rounds} rounds</>
+          ) : `${rounds} rounds played`}
+        </p>
+        <button onClick={share} className="text-[11px] font-bold text-[var(--blue)] hover:brightness-125 flex items-center gap-1">
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M4 12v8h16v-8M16 6l-4-4-4 4M12 2v14" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Share
+        </button>
+      </div>
+    </div>
+  );
+}

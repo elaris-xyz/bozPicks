@@ -21,13 +21,13 @@ const GameIcon = ({ size = 18 }: { size?: number }) => (
 const tabs = [
   { href: '/',         label: 'Live',     icon: <IconPulse size={18} /> },
   { href: '/play',     label: 'Play',     icon: <GameIcon size={18} /> },
+  { href: '/markets',  label: 'Markets',  icon: <IconTrendUp size={18} /> },
   { href: '/agent',    label: 'Agent',    icon: <IconRadar size={18} /> },
-  { href: '/stats',    label: 'Stats',    icon: <IconTrendUp size={18} /> },
 ];
 
 const desktopExtra = [
+  { href: '/stats',       label: 'Stats',       icon: <IconTrendUp size={18} /> },
   { href: '/insights',    label: 'Insights',    icon: <IconChart size={18} /> },
-  { href: '/schedule',    label: 'Schedule',    icon: <IconClock size={18} /> },
   { href: '/leaderboard', label: 'Leaderboard', icon: <IconTrophy size={18} /> },
 ];
 

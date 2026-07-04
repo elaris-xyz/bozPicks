@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import { randomUUID } from 'crypto';
 import { generateMatchReplay } from '@/lib/replay';
+import { buildMarketsForMatch, rowToMarket } from '@/lib/markets';
+import { settleMarketRow } from '@/lib/settle';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -68,6 +70,24 @@ export async function POST(req: NextRequest) {
   });
   await redis.expire(`boz:match:${id}:state`, 7200);
 
+  // ── Prop markets for this match (Total Corners/Goals/Cards, BTTS, …) ─────────
+  const markets = buildMarketsForMatch(id, homeTeam, awayTeam, `escrow-${id.slice(-8)}`);
+  for (const mk of markets) {
+    await db.query(
+      `INSERT INTO boz_markets (id, match_id, kind, label, stat_key, line, outcomes, pools, total_pool, fee_bps, status, escrow_pda)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,$9,'OPEN',$10) ON CONFLICT (id) DO NOTHING`,
+      [mk.id, mk.matchId, mk.kind, mk.label, mk.statKey, mk.line ?? null,
+       JSON.stringify(mk.outcomes), JSON.stringify(mk.pools), mk.feeBps, mk.escrowPda]
+    ).catch(() => {});
+  }
+  // seed a little liquidity so the demo shows live odds
+  for (const mk of markets) {
+    const seeded = Object.fromEntries(mk.outcomes.map((o, i) => [o, (i === 0 ? 8 : 5) * 1_000_000]));
+    const total = Object.values(seeded).reduce((a, b) => a + b, 0);
+    await db.query(`UPDATE boz_markets SET pools=$1, total_pool=$2 WHERE id=$3`,
+      [JSON.stringify(seeded), total, mk.id]).catch(() => {});
+  }
+
   // ── Generate + play the replay ──────────────────────────────────────────────
   const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: 42_000 / speed });
 
@@ -130,7 +150,18 @@ export async function POST(req: NextRequest) {
   // stash the resolved stats so prop-market settlement can read them
   await redis.set(`boz:match:${id}:final`, JSON.stringify(final), 'EX', 86400);
 
-  return NextResponse.json({ ok: true, matchId: id, homeTeam, awayTeam, steps: steps.length, final });
+  // ── Auto-settle every prop market trustlessly from the final stats ──────────
+  const settledMarkets: { label: string; winningOutcome?: string; validateTx?: string }[] = [];
+  for (const mk of markets) {
+    try {
+      const { rows } = await db.query(`SELECT * FROM boz_markets WHERE id=$1`, [mk.id]);
+      if (!rows[0]) continue;
+      const settled = await settleMarketRow(rowToMarket(rows[0]), final);
+      settledMarkets.push({ label: settled.label, winningOutcome: settled.winningOutcome, validateTx: settled.settlementTx });
+    } catch { /* skip */ }
+  }
+
+  return NextResponse.json({ ok: true, matchId: id, homeTeam, awayTeam, steps: steps.length, final, markets: settledMarkets });
 }
 
 export async function DELETE() {

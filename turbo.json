@@ -1,5 +1,17 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "REDIS_URL",
+    "ANTHROPIC_API_KEY",
+    "TXLINE_API_KEY",
+    "SHARP_THRESHOLD",
+    "SHARP_WINDOW_MS",
+    "LOG_EVENTS",
+    "NEXT_PUBLIC_SOLANA_NETWORK",
+    "BOZPICKS_PROGRAM_ID",
+    "SETTLEMENT_KEEPER_KEYPAIR"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

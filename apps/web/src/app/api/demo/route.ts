@@ -1,53 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import { randomUUID } from 'crypto';
-import type { OddsSnapshot } from '@bozpicks/shared';
+import { generateMatchReplay } from '@/lib/replay';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-function makeOdds(home: number, draw: number, away: number): OddsSnapshot {
-  const invHome = 1 / home;
-  const invDraw = 1 / draw;
-  const invAway = 1 / away;
-  const total = invHome + invDraw + invAway;
-  return {
-    timestamp: new Date().toISOString(),
-    homeWin: home,
-    draw,
-    awayWin: away,
-    impliedProb: {
-      home: invHome / total,
-      draw: invDraw / total,
-      away: invAway / total,
-    },
-  };
-}
-
-type ScriptStep =
-  | { type: 'ODDS_UPDATE'; minute: number; odds: OddsSnapshot }
-  | { type: 'MATCH_START' | 'HALFTIME'; minute: number; extra: Record<string, unknown> }
-  | { type: 'YELLOW_CARD' | 'RED_CARD' | 'SUBSTITUTION'; minute: number; extra: { team: string; player: string } }
-  | { type: 'GOAL'; minute: number; extra: { team: string; player: string; score: { home: number; away: number } } };
-
-const SCRIPT: ScriptStep[] = [
-  { type: 'MATCH_START',  minute: 1,  extra: {} },
-  { type: 'ODDS_UPDATE',  minute: 2,  odds: makeOdds(2.10, 3.20, 3.50) },
-  { type: 'YELLOW_CARD',  minute: 15, extra: { team: 'Brazil', player: 'Casemiro' } },
-  { type: 'ODDS_UPDATE',  minute: 23, odds: makeOdds(2.40, 3.10, 2.90) },
-  { type: 'GOAL',         minute: 23, extra: { team: 'Argentina', player: 'L. Messi', score: { home: 0, away: 1 } } },
-  { type: 'ODDS_UPDATE',  minute: 24, odds: makeOdds(3.20, 2.80, 2.10) },
-  { type: 'GOAL',         minute: 39, extra: { team: 'Brazil', player: 'Vinicius Jr', score: { home: 1, away: 1 } } },
-  { type: 'ODDS_UPDATE',  minute: 40, odds: makeOdds(2.50, 3.00, 2.70) },
-  { type: 'HALFTIME',     minute: 45, extra: {} },
-  { type: 'ODDS_UPDATE',  minute: 46, odds: makeOdds(2.60, 3.10, 2.60) },
-  { type: 'SUBSTITUTION', minute: 58, extra: { team: 'Brazil', player: 'Richarlison → Pedro' } },
-  { type: 'RED_CARD',     minute: 67, extra: { team: 'Argentina', player: 'N. Di María' } },
-  { type: 'ODDS_UPDATE',  minute: 67, odds: makeOdds(1.80, 3.50, 4.20) },
-  { type: 'GOAL',         minute: 78, extra: { team: 'Brazil', player: 'Pedro', score: { home: 2, away: 1 } } },
-  { type: 'ODDS_UPDATE',  minute: 79, odds: makeOdds(1.35, 4.50, 7.00) },
-];
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /** Remove every artifact of previous demo runs (DB rows + Redis keys). */
 async function purgeDemoMatches() {
@@ -56,38 +16,40 @@ async function purgeDemoMatches() {
     .catch(() => ({ rows: [] as { id: string }[] }));
   for (const row of rows) {
     await redis.del(
-      `boz:match:${row.id}:state`,
-      `boz:match:${row.id}:odds`,
-      `boz:match:${row.id}:lastEvent`
+      `boz:match:${row.id}:state`, `boz:match:${row.id}:odds`,
+      `boz:match:${row.id}:lastEvent`, `boz:match:${row.id}:stats`,
     );
   }
   await db.query(`DELETE FROM boz_events      WHERE match_id LIKE 'demo-%'`).catch(() => {});
+  await db.query(`DELETE FROM boz_markets     WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_predictions WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_pools       WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_matches     WHERE id       LIKE 'demo-%'`).catch(() => {});
 }
 
-export async function POST() {
+/**
+ * Runs a live replay: publishes a rich, timed event stream to Redis so the whole
+ * app reacts in real time. Speed is controllable (?speed=8 → 8× faster).
+ */
+export async function POST(req: NextRequest) {
   const cooldownKey = 'boz:demo:cooldown';
-  const locked = await redis.get(cooldownKey);
-  if (locked) {
+  if (await redis.get(cooldownKey)) {
     return NextResponse.json({ error: 'Demo cooling down, try again shortly' }, { status: 429 });
   }
-  await redis.set(cooldownKey, '1', 'EX', 30);
+  await redis.set(cooldownKey, '1', 'EX', 20);
 
-  // only one demo match may exist at a time — a rerun replaces the old one
   await purgeDemoMatches();
 
+  const speed = Math.max(1, Math.min(90, Number(req.nextUrl.searchParams.get('speed')) || 4));
   const id = `demo-${Date.now()}`;
   const homeTeam = 'Brazil';
   const awayTeam = 'Argentina';
   const now = new Date();
 
-  // ── PostgreSQL: match + pool ────────────────────────────────────────────────
   await db.query(
     `INSERT INTO boz_matches
-       (id, home_team, away_team, home_score, away_score, status, current_minute, kickoff_time, last_updated)
-     VALUES ($1,$2,$3,0,0,'LIVE',1,NOW() - INTERVAL '1 minute',NOW())
+       (id, home_team, away_team, home_score, away_score, status, current_minute, kickoff_time, competition, last_updated)
+     VALUES ($1,$2,$3,0,0,'LIVE',0,NOW(),'FIFA World Cup',NOW())
      ON CONFLICT (id) DO NOTHING`,
     [id, homeTeam, awayTeam]
   ).catch(() => {});
@@ -99,95 +61,76 @@ export async function POST() {
     [id]
   ).catch(() => {});
 
-  // ── Redis: live state hash so /api/matches/[id] finds team names ────────────
   await redis.hset(`boz:match:${id}:state`, {
-    homeTeam,
-    awayTeam,
-    homeScore: '0',
-    awayScore: '0',
-    status: 'LIVE',
-    currentMinute: '1',
-    kickoffTime: now.toISOString(),
-    lastUpdated: now.toISOString(),
+    homeTeam, awayTeam, homeScore: '0', awayScore: '0',
+    status: 'LIVE', currentMinute: '0',
+    kickoffTime: now.toISOString(), lastUpdated: now.toISOString(),
   });
   await redis.expire(`boz:match:${id}:state`, 7200);
 
-  // ── Build & publish events ──────────────────────────────────────────────────
-  let latestScore = { home: 0, away: 0 };
+  // ── Generate + play the replay ──────────────────────────────────────────────
+  const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: 42_000 / speed });
 
-  for (const step of SCRIPT) {
-    const extra = 'extra' in step ? step.extra : {};
-    const odds  = 'odds'  in step ? step.odds  : undefined;
+  let prev = 0;
+  let redCardSeen = false;
+  for (const step of steps) {
+    await sleep(Math.max(0, step.delayMs - prev));
+    prev = step.delayMs;
 
-    const event: Record<string, unknown> = {
-      id: randomUUID(),
-      matchId: id,
-      type: step.type,
-      timestamp: new Date().toISOString(),
-      matchMinute: step.minute,
-      rawPayload: {},
-      ...extra,
-      ...(odds ? { odds } : {}),
-    };
-
-    if (step.type === 'GOAL' && 'extra' in step && step.extra.score) {
-      latestScore = step.extra.score;
-    }
-
+    const event = { ...step.event, timestamp: new Date().toISOString() };
     const payload = JSON.stringify(event);
+    const status = event.type === 'MATCH_END' ? 'FINISHED' : event.type === 'HALFTIME' ? 'HALFTIME' : 'LIVE';
 
-    // Store to boz_events table
-    await db.query(
-      `INSERT INTO boz_events (id, match_id, type, match_minute, payload)
-       VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING`,
-      [event.id, id, event.type, event.matchMinute, event]
+    // Broadcast is what drives the live UI — await only these (parallel).
+    // DB persistence is best-effort and must never stall the replay clock.
+    const redisOps: Promise<unknown>[] = [
+      redis.publish(`boz:events:${id}`, payload),
+      redis.publish('boz:global', payload),
+      redis.lpush('boz:global:history', payload),
+      redis.hset(`boz:match:${id}:state`, {
+        homeScore: String(event.score?.home ?? 0),
+        awayScore: String(event.score?.away ?? 0),
+        currentMinute: String(event.matchMinute),
+        status, lastUpdated: event.timestamp,
+      }),
+    ];
+    if (event.odds) redisOps.push(redis.lpush(`boz:match:${id}:odds`, JSON.stringify(event.odds)));
+    if (event.stats) redisOps.push(redis.set(`boz:match:${id}:stats`, JSON.stringify(event.stats), 'EX', 7200));
+    await Promise.all(redisOps);
+
+    // fire-and-forget persistence
+    void db.query(
+      `INSERT INTO boz_events (id, match_id, type, match_minute, timestamp, payload)
+       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
+      [event.id, id, event.type, event.matchMinute, event.timestamp, event]
+    ).catch(() => {});
+    void db.query(
+      `UPDATE boz_matches SET home_score=$1, away_score=$2, current_minute=$3, status=$4,
+         stats=COALESCE($5,stats), last_updated=NOW() WHERE id=$6`,
+      [event.score?.home ?? 0, event.score?.away ?? 0, event.matchMinute, status,
+       event.stats ? JSON.stringify(event.stats) : null, id]
     ).catch(() => {});
 
-    // Redis: odds history for sparklines
-    if (odds) {
-      const oddsKey = `boz:match:${id}:odds`;
-      await redis.lpush(oddsKey, JSON.stringify(odds));
-      await redis.expire(oddsKey, 7200);
+    // emit a sharp-move signal right after the red card swings the market
+    if (event.type === 'RED_CARD' && !redCardSeen) {
+      redCardSeen = true;
+      const signal = {
+        id: randomUUID(), matchId: id, type: 'SHARP_MOVE',
+        detectedAt: new Date().toISOString(),
+        oddsBefore: { homeWin: 2.60, draw: 3.10, awayWin: 2.60 },
+        oddsAfter: { homeWin: 1.80, draw: 3.50, awayWin: 4.20 },
+        deltaPercent: -30.8, affectedOutcome: 'HOME', confidence: 'HIGH',
+        context: `RED CARD min ${event.matchMinute} (${awayTeam}) → home shortens`,
+        outcomeVerified: false, verificationSource: 'PENDING',
+      };
+      await redis.publish('boz:signals', JSON.stringify(signal));
     }
-
-    // Redis: pub/sub broadcast + global history
-    await redis.lpush('boz:global:history', payload);
-    await redis.publish(`boz:events:${id}`, payload);
-    await redis.publish('boz:global', payload);
   }
 
-  await redis.ltrim('boz:global:history', 0, 49);
+  // stash the resolved stats so prop-market settlement can read them
+  await redis.set(`boz:match:${id}:final`, JSON.stringify(final), 'EX', 86400);
 
-  // Update final live state
-  await redis.hset(`boz:match:${id}:state`, {
-    homeScore: String(latestScore.home),
-    awayScore: String(latestScore.away),
-    currentMinute: '79',
-  });
-
-  await db.query(
-    `UPDATE boz_matches SET home_score=$1, away_score=$2, current_minute=79, last_updated=NOW() WHERE id=$3`,
-    [latestScore.home, latestScore.away, id]
-  ).catch(() => {});
-
-  // Fake sharp signal
-  const signal = {
-    id: randomUUID(),
-    matchId: id,
-    type: 'SHARP_MOVE',
-    detectedAt: new Date().toISOString(),
-    oddsBefore: makeOdds(2.10, 3.20, 3.50),
-    oddsAfter:  makeOdds(3.20, 2.80, 2.10),
-    deltaPercent: -34.2,
-    affectedOutcome: 'HOME',
-    confidence: 'HIGH',
-    context: `GOAL min 23 (${awayTeam})`,
-    outcomeVerified: false,
-    verificationSource: 'PENDING',
-  };
-  await redis.publish('boz:signals', JSON.stringify(signal));
-
-  return NextResponse.json({ ok: true, matchId: id, homeTeam, awayTeam, eventsPublished: SCRIPT.length });
+  return NextResponse.json({ ok: true, matchId: id, homeTeam, awayTeam, steps: steps.length, final });
 }
 
 export async function DELETE() {

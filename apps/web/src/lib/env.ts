@@ -17,6 +17,10 @@ const optional = {
 function validateEnv() {
   if (typeof window !== 'undefined') return; // client-side: skip
 
+  // `next build` imports every route to collect page data. It must not need
+  // live DB/Redis credentials — validate at request time, not build time.
+  if (process.env.NEXT_PHASE === 'phase-production-build') return;
+
   const missing = (Object.entries(required) as [string, string | undefined][])
     .filter(([, v]) => !v)
     .map(([k]) => k);

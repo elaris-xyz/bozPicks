@@ -1,0 +1,22 @@
+{
+  "name": "ingest",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file=../../.env -r tsx/cjs src/index.ts",
+    "dev": "node --env-file=../../.env -r tsx/cjs src/index.ts"
+  },
+  "dependencies": {
+    "@bozpicks/shared": "workspace:*",
+    "@bozpicks/txline-client": "workspace:*",
+    "ioredis": "^5.3.2",
+    "pg": "^8.11.0",
+    "eventsource": "^2.0.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "@types/pg": "^8.11.0",
+    "@types/node": "^20.0.0"
+  }
+}

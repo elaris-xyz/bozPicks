@@ -1,0 +1,24 @@
+{
+  "name": "keeper",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev":   "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bozpicks/shared": "workspace:*",
+    "@bozpicks/txline-client": "workspace:*",
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.91.0",
+    "ioredis": "^5.3.2",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

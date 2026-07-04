@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+.next-dev/
+.next-build/
+dist/
+.turbo/
+target/
+*.tsbuildinfo
+
+# env & secrets — never commit
+.env
+.env.*
+!.env.example
+*.keypair.json
+.txline-keypair.json
+*.pem
+id.json
+
+# os
+.DS_Store
+Thumbs.db
+
+# reference clone / scratch
+tmp-txodds/
+tmp-*/

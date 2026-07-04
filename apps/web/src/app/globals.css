@@ -1,0 +1,541 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import '@solana/wallet-adapter-react-ui/styles.css';
+
+/* ── Design tokens ──────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --bg-deep:       #0B1020;
+    --bg-surface:    #0F1629;
+    --bg-elevated:   #141d35;
+
+    --glass-bg:      rgba(15, 22, 41, 0.72);
+    --glass-border:  rgba(255, 255, 255, 0.08);
+    --glass-hover:   rgba(255, 255, 255, 0.05);
+
+    --blue:          #3B82F6;
+    --blue-dim:      rgba(59,130,246,0.15);
+    --green:         #10B981;
+    --green-dim:     rgba(16,185,129,0.15);
+    --orange:        #F97316;
+    --orange-dim:    rgba(249,115,22,0.15);
+    --red:           #EF4444;
+    --red-dim:       rgba(239,68,68,0.15);
+    --amber:         #F59E0B;
+    --purple:        #A78BFA;
+    --purple-dim:    rgba(167,139,250,0.15);
+
+    --radius-card:   18px;
+    --radius-pill:   999px;
+
+    /* fonts arrive via <link> in layout.tsx (build-time google fetch is
+       blocked on this network); stacks fall back to system UI cleanly */
+    --font-inter:   'Inter', 'Segoe UI', system-ui, sans-serif;
+    --font-display: 'Space Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+    /* ── Semantic tokens (bare RGB triplets → combine with any alpha) ── */
+    --c-blue:   59 130 246;
+    --c-green:  16 185 129;
+    --c-purple: 167 139 250;
+    --c-amber:  245 158 11;
+    --c-orange: 249 115 22;
+    --c-red:    239 68 68;
+    --c-slate:  148 163 184;
+
+    /* text hierarchy */
+    --text-1: #f1f5f9;   /* headings, scores */
+    --text-2: #94a3b8;   /* body, labels     */
+    --text-3: #64748b;   /* captions, meta   */
+
+    /* page accent — overridden per track by .theme-* wrappers */
+    --accent: var(--c-blue);
+  }
+
+  /* Track identities: one accent drives chips, headings, CTAs, glows */
+  .theme-picks  { --accent: var(--c-blue); }
+  .theme-agent  { --accent: var(--c-purple); }
+  .theme-settle { --accent: var(--c-green); }
+
+  body { font-family: var(--font-inter); }
+}
+
+/* ── Global base ────────────────────────────────────────────────────── */
+@layer base {
+  /* overflow-x: clip (not hidden) prevents full-bleed 100vw children from
+     adding a horizontal scrollbar, without creating a scroll container that
+     would break the sticky nav */
+  html { background: var(--bg-deep); overflow-x: clip; }
+  body { background: var(--bg-deep); color: #e2e8f0; overflow-x: clip; }
+
+  /* neon aurora + subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.10), transparent 60%),
+      radial-gradient(ellipse 45% 38% at 92% 108%, rgba(167,139,250,0.08), transparent 70%),
+      radial-gradient(ellipse 40% 32% at 4% 102%, rgba(16,185,129,0.06), transparent 70%),
+      linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  main { position: relative; z-index: 1; }
+
+  /* text selection matches brand */
+  ::selection { background: rgba(59,130,246,0.35); color: #fff; }
+
+  /* keyboard focus — visible but not intrusive */
+  :focus-visible {
+    outline: 2px solid rgba(59,130,246,0.6);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* slim dark scrollbar */
+  * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.12);
+    border-radius: 4px;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+}
+
+/* ── Glassmorphism utilities ────────────────────────────────────────── */
+@layer components {
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-card);
+  }
+
+  .glass-hover {
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  }
+  .glass-hover:hover {
+    background: rgba(15, 22, 55, 0.85);
+    border-color: rgba(255,255,255,0.14);
+    transform: translateY(-1px);
+  }
+
+  .glass-pill {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: var(--radius-pill);
+  }
+
+  /* glow rings */
+  .glow-blue  { box-shadow: 0 0 20px rgba(59,130,246,0.18); }
+  .glow-green { box-shadow: 0 0 20px rgba(16,185,129,0.18); }
+  .glow-red   { box-shadow: 0 0 20px rgba(239,68,68,0.18); }
+
+  /* display font for hero headings, scores, stat values */
+  .font-display {
+    font-family: var(--font-display), var(--font-inter), sans-serif;
+  }
+
+  /* stat value in dashboards */
+  .stat-value {
+    font-family: var(--font-display), var(--font-inter), sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  /* odds pill */
+  .odds-pill {
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+    transition: border-color 0.3s ease;
+  }
+  /* brief pop when the underlying odds value changes on a live update */
+  .odds-pill-flash { animation: odds-pop 0.5s ease; }
+
+  /* ── Card design language, reusable everywhere ──────────────────── */
+
+  /* like .glass but opaque — no backdrop-filter, so 30+ cards stay cheap */
+  .poster-card {
+    background: linear-gradient(180deg, #101a31 0%, #0c1426 100%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-card);
+  }
+
+  /* Glassy chip (from the match-card badges): tinted fill, stronger
+     stroke of the same hue, soft glow. Hue comes from --chip-c triplet. */
+  .chip-glass {
+    --chip-c: var(--accent);
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border-radius: var(--radius-pill);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: rgb(var(--chip-c));
+    background: rgb(var(--chip-c) / 0.13);
+    border: 1px solid rgb(var(--chip-c) / 0.5);
+    box-shadow: 0 0 12px rgb(var(--chip-c) / 0.18);
+    white-space: nowrap;
+  }
+  .chip-green  { --chip-c: var(--c-green); }
+  .chip-blue   { --chip-c: var(--c-blue); }
+  .chip-purple { --chip-c: var(--c-purple); }
+  .chip-amber  { --chip-c: var(--c-amber); }
+  .chip-orange { --chip-c: var(--c-orange); }
+  .chip-red    { --chip-c: var(--c-red); }
+  .chip-slate  { --chip-c: var(--c-slate); }
+
+  /* interactive odds button — lifts and brightens on hover, presses on tap */
+  .odds-btn {
+    transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .odds-btn:not(:disabled) { cursor: pointer; }
+  .odds-btn:not(:disabled):hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.2) !important;
+  }
+  .odds-btn:not(:disabled):active { transform: translateY(0) scale(0.98); }
+
+  /* search / text inputs — neon focus ring */
+  .search-input:focus {
+    border-color: rgb(var(--c-blue) / 0.55) !important;
+    box-shadow: 0 0 0 3px rgb(var(--c-blue) / 0.12), 0 0 18px rgb(var(--c-blue) / 0.10);
+  }
+  .search-input::placeholder { color: #4b5563; }
+
+  /* section heading — matches the card typography */
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-3);
+  }
+
+  /* big numbers (stats, scores outside cards) */
+  .stat-display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* accent-tinted CTA button */
+  .btn-accent {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: rgb(var(--accent));
+    box-shadow: 0 4px 20px rgb(var(--accent) / 0.35);
+    transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  }
+  .btn-accent:hover  { opacity: 0.92; box-shadow: 0 6px 26px rgb(var(--accent) / 0.45); }
+  .btn-accent:active { transform: scale(0.97); }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  }
+  .btn-ghost:hover  { background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.16); }
+  .btn-ghost:active { transform: scale(0.97); }
+
+  /* hero glow backdrop for track landings — tinted by the page accent */
+  .hero-glow {
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-glow::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% -10%, rgb(var(--accent) / 0.16), transparent 65%),
+      radial-gradient(ellipse 40% 40% at 85% 110%, rgb(var(--accent) / 0.08), transparent 70%);
+  }
+
+  /* flag layers zoom + brighten when the card is hovered */
+  .poster-flag {
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+  }
+  .group:hover .poster-flag {
+    transform: scale(1.07);
+    opacity: 0.58 !important;
+  }
+
+  /* diagonal light sweep across the card on hover */
+  .card-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    background: linear-gradient(
+      115deg,
+      transparent 32%,
+      rgba(255, 255, 255, 0.05) 44%,
+      rgba(255, 255, 255, 0.12) 50%,
+      rgba(255, 255, 255, 0.05) 56%,
+      transparent 68%
+    );
+    transform: translateX(-130%);
+    pointer-events: none;
+  }
+  .group:hover .card-shine::after {
+    transform: translateX(130%);
+    transition: transform 0.9s ease;
+  }
+
+  /* card border brightens on hover */
+  .card-shine {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease,
+                transform 0.3s ease;
+  }
+  .group:hover .card-shine {
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(59, 130, 246, 0.08);
+  }
+
+  /* metallic light sweep across the live score digits */
+  .score-shimmer {
+    background: linear-gradient(100deg, #ffffff 38%, #7dd3fc 50%, #ffffff 62%);
+    background-size: 250% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: text-shimmer 4s linear infinite;
+  }
+
+  /* cinematic team-name entrance: slide in from own flag edge,
+     letter-spacing settles like a film title */
+  .team-name {
+    letter-spacing: 0.04em;
+    transition: letter-spacing 0.45s ease, text-shadow 0.45s ease;
+  }
+  .team-name-home { animation: name-in-left  0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .team-name-away { animation: name-in-right 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .group:hover .team-name {
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 16px rgba(255, 255, 255, 0.35);
+  }
+
+  /* VS divider chip */
+  .vs-chip {
+    font-size: 9px;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 0.12em;
+    color: #e2e8f0;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* ── Animations ─────────────────────────────────────────────────────── */
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(239,68,68,0.3); }
+  50%       { box-shadow: 0 0 18px rgba(239,68,68,0.6); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-3px); }
+}
+
+.badge-live   { animation: pulse-live 1.5s ease-in-out infinite; }
+.anim-in      { animation: slide-in-up 0.3s ease both; }
+.signal-glow  { animation: glow-pulse 2s ease-in-out infinite; }
+
+@keyframes score-flash {
+  0%   { color: #fff; transform: scale(1); }
+  25%  { color: var(--green); transform: scale(1.18); }
+  100% { color: #fff; transform: scale(1); }
+}
+.score-flash { animation: score-flash 0.7s cubic-bezier(0.34,1.56,0.64,1); }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fade-in { animation: fade-in 0.2s ease; }
+
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-ticker {
+  animation: ticker 25s linear infinite;
+}
+.animate-ticker:hover { animation-play-state: paused; }
+
+/* fade marquee content out at both edges */
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+}
+
+/* slower brand marquee for landing strips */
+.animate-marquee {
+  animation: ticker 40s linear infinite;
+}
+.animate-marquee:hover { animation-play-state: paused; }
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.spin-slow { animation: spin-slow 3s linear infinite; }
+
+@keyframes text-shimmer {
+  0%   { background-position: 125% center; }
+  100% { background-position: -125% center; }
+}
+
+@keyframes odds-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes name-in-left {
+  from { opacity: 0; transform: translateX(-16px); letter-spacing: 0.35em; }
+  to   { opacity: 1; transform: translateX(0);     letter-spacing: 0.04em; }
+}
+@keyframes name-in-right {
+  from { opacity: 0; transform: translateX(16px);  letter-spacing: 0.35em; }
+  to   { opacity: 1; transform: translateX(0);     letter-spacing: 0.04em; }
+}
+
+/* TX success: sheen sweep + check pop */
+@keyframes tx-sheen {
+  0%   { transform: translateX(-120%); }
+  60%  { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+@keyframes tx-check-pop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  55%  { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.tx-success { animation: fade-in 0.25s ease; }
+.tx-success::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.14) 50%, transparent 60%);
+  animation: tx-sheen 1.6s ease-out 0.15s;
+  pointer-events: none;
+}
+.tx-check { animation: tx-check-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+/* toast auto-dismiss progress bar */
+@keyframes toast-progress {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+.toast-progress { animation: toast-progress linear both; }
+
+/* ── Wallet-adapter modal — reskinned to match the bozPicks theme ──────
+   The default modal ships light/purple and clashes with our neon-glass
+   look at the exact moment a judge connects a wallet. Override it. */
+.wallet-adapter-modal-overlay {
+  background: rgba(3, 6, 15, 0.72) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.wallet-adapter-modal-wrapper {
+  background: linear-gradient(180deg, #101a31, #0c1426) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 40px rgba(59, 130, 246, 0.08) !important;
+  font-family: var(--font-inter) !important;
+}
+.wallet-adapter-modal-title {
+  font-family: var(--font-display) !important;
+  color: var(--text-1) !important;
+  font-size: 1.05rem !important;
+}
+.wallet-adapter-modal-button-close {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 999px !important;
+}
+.wallet-adapter-modal-button-close svg { fill: #94a3b8 !important; }
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 14px !important;
+  font-family: var(--font-inter) !important;
+  font-weight: 600 !important;
+  color: var(--text-1) !important;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+  background: rgb(var(--c-blue) / 0.12) !important;
+  border-color: rgb(var(--c-blue) / 0.4) !important;
+  transform: translateY(-1px);
+}
+.wallet-adapter-button-trigger {
+  background: rgb(var(--c-blue)) !important;
+  border-radius: 14px !important;
+  font-family: var(--font-inter) !important;
+}
+.wallet-adapter-modal-list-more { color: var(--blue) !important; }
+
+/* respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker,
+  .animate-marquee,
+  .badge-live,
+  .signal-glow,
+  .spin-slow,
+  .score-flash,
+  .score-shimmer,
+  .team-name-home,
+  .team-name-away,
+  .anim-in,
+  .odds-pill-flash,
+  .tx-check,
+  .tx-success::after { animation: none !important; }
+  .card-shine::after { display: none; }
+  .group:hover .poster-flag { transform: none; }
+  .glass-hover { transition: none; }
+}

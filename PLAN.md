@@ -150,8 +150,8 @@ schedule / predictions / replay / stats / insights / leaderboard — آیکن ف
 |---|-----|--------|--------|
 | ✅ | UI/UX کامل production-grade | همه | انجام شد |
 | ✅ | production build تأیید شد (`next build` بدون خطا) | web | انجام شد — deploy de-risk شد |
-| 🔴 1 | پاکسازی keypair از git history + gitignore | همه | بلاکر public repo |
-| 🔴 2 | Deploy Vercel + Railway | همه | بعدی |
+| ✅ | پاکسازی secrets + push به github.com/elaris-xyz/bozPicks | همه | history تمیز، صفر secret |
+| 🔴 1 | Deploy Vercel + Railway | همه | بعدی |
 | 🟢 3 | Demo video × 3 | همه | هفته ۳ |
 | 🟢 4 | Submit × 3 | همه | آخر |
 

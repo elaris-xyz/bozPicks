@@ -30,15 +30,20 @@ UI/UX کامل + صفر emoji + **My Predictions واقعی** (تاریخچه‌
 
 ---
 
+## ✅ روی GitHub رفت (July 4)
+
+مخزن: **github.com/elaris-xyz/bozPicks** · branch `main` · commit `4ac80fd`
+- history با orphan branch تازه‌سازی شد → **صفر secret** در history/remote (verified)
+- keypair + پسورد Neon **قبل از push پاک شدن، هیچ‌وقت لو نرفتن → rotate لازم نیست**
+- `check-db.js` حالا `DATABASE_URL` رو از env می‌خونه (پسورد hardcode حذف شد)
+- `.gitignore` کامل شد؛ `.txline-keypair.json` هنوز local روی دیسک هست (gitignore) برای dev
+
 ## 🔴 کار بعدی (به ترتیب اولویت)
 
-1. **پاکسازی `.txline-keypair.json` از git history** — بلاکرِ public repo. commit `8ac1ef5` این فایل رو داره. باید حذف بشه + به `.gitignore` اضافه بشه. **قبل از هر push عمومی.**
-2. **Deploy** — Vercel (web) + Railway (ingest/agent/keeper). سه subdomain.
-3. **Smoke test روی prod** — health، SSE، wallet connect، demo.
-4. **Demo video × 3** (≤5 دقیقه هرکدوم) — بدون این disqualify.
-5. **Submit × 3** — سه لینک جدا.
-
-> نکته: کاربر گفته فعلاً local می‌مونیم و git/deploy نمی‌ریم تا وقتی بگه. تا اون موقع، کار روی کیفیت/فیچر ادامه داره.
+1. **Deploy** — Vercel (web) + Railway (ingest/agent/keeper). سه subdomain. env vars روی prod ست بشه (DATABASE_URL، REDIS_URL، TXLINE_API_KEY، ANTHROPIC_API_KEY، SETTLEMENT_KEEPER_KEYPAIR، BOZPICKS_PROGRAM_ID).
+2. **Smoke test روی prod** — health، SSE، wallet connect، demo.
+3. **Demo video × 3** (≤5 دقیقه هرکدوم) — بدون این disqualify.
+4. **Submit × 3** — سه لینک جدا.
 
 ---
 

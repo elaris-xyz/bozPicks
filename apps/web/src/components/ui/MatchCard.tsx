@@ -20,7 +20,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 export type OddsTrend = { home?: 'up' | 'down'; draw?: 'up' | 'down'; away?: 'up' | 'down' };
 
 export function MatchCard({
-  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend,
+  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false,
 }: {
   match: MatchState; activeSignals?: number;
   isFav?: boolean; onToggleFav?: (id: string) => void;
@@ -29,6 +29,8 @@ export function MatchCard({
   index?: number;
   /** transient odds-movement direction per outcome (flashes then clears) */
   trend?: OddsTrend;
+  /** dense variant for horizontal rails — smaller type, shorter card */
+  compact?: boolean;
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const cfg = STATUS_CONFIG[match.status] ?? STATUS_CONFIG.SCHEDULED;
@@ -37,7 +39,7 @@ export function MatchCard({
     <Link href={`/match/${match.id}`} className="block group">
       <div
         className={`poster-card card-shine relative overflow-hidden cursor-pointer anim-in
-                    aspect-[16/9] sm:aspect-[4/3]
+                    ${compact ? 'aspect-[16/10]' : 'aspect-[16/9] sm:aspect-[4/3]'}
                     group-hover:-translate-y-1`}
         style={{
           boxShadow: isLive ? '0 0 24px rgba(16,185,129,0.10)' : undefined,
@@ -117,7 +119,8 @@ export function MatchCard({
         {/* ── Center: score / kickoff ── */}
         <div className="absolute inset-0 flex flex-col items-center justify-center z-[5] pointer-events-none">
           {isLive || match.status === 'FINISHED' ? (
-            <div className="font-display flex items-baseline gap-2.5 text-4xl sm:text-5xl font-bold tabular-nums tracking-tight"
+            <div className={`font-display flex items-baseline gap-2.5 font-bold tabular-nums tracking-tight
+                            ${compact ? 'text-3xl' : 'text-4xl sm:text-5xl'}`}
                  style={{ filter: 'drop-shadow(0 2px 14px rgba(0,0,0,0.85))' }}>
               {isLive ? (
                 <>
@@ -135,15 +138,17 @@ export function MatchCard({
             </div>
           ) : match.kickoffTime ? (
             <>
-              <p className="font-display text-2xl sm:text-3xl font-bold tabular-nums"
+              <p className={`font-display font-bold tabular-nums ${compact ? 'text-xl' : 'text-2xl sm:text-3xl'}`}
                  style={{ color: 'var(--blue)', textShadow: '0 2px 14px rgba(0,0,0,0.8)' }}>
                 {new Date(match.kickoffTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </p>
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 mt-0.5"
-                 style={{ textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
-                {new Date(match.kickoffTime).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-              </p>
-              <div className="mt-1.5">
+              {!compact && (
+                <p className="text-[10px] uppercase tracking-widest text-gray-500 mt-0.5"
+                   style={{ textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
+                  {new Date(match.kickoffTime).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </p>
+              )}
+              <div className={compact ? 'mt-1' : 'mt-1.5'}>
                 <Countdown kickoffTime={match.kickoffTime} />
               </div>
             </>
@@ -151,8 +156,9 @@ export function MatchCard({
             <span className="font-display text-2xl text-gray-600 font-light">vs</span>
           )}
 
-          {/* odds pills under the score/time — flash ▲▼ on a live odds move */}
-          {match.currentOdds && (
+          {/* odds pills under the score/time — flash ▲▼ on a live odds move
+              (hidden on compact rail cards to keep them clean) */}
+          {match.currentOdds && !compact && (
             <div className="flex items-center gap-1.5 mt-3">
               {[
                 { label: '1', val: match.currentOdds.homeWin, color: 'var(--green)', dir: trend?.home },
@@ -178,13 +184,16 @@ export function MatchCard({
         </div>
 
         {/* ── Bottom: team names slide in from their own flag edge ── */}
-        <div className="absolute bottom-0 inset-x-0 z-[5] flex items-center justify-between px-3.5 pb-3 gap-2">
-          <p className="team-name team-name-home font-display flex-1 text-left text-sm sm:text-base font-bold uppercase leading-tight truncate"
+        <div className={`absolute bottom-0 inset-x-0 z-[5] flex items-center justify-between gap-2
+                        ${compact ? 'px-2.5 pb-2.5' : 'px-3.5 pb-3'}`}>
+          <p className={`team-name team-name-home font-display flex-1 text-left font-bold uppercase leading-tight truncate
+                        ${compact ? 'text-xs' : 'text-sm sm:text-base'}`}
              style={{ textShadow: '0 1px 10px rgba(0,0,0,0.9)' }}>
             {match.homeTeam}
           </p>
-          <span className="vs-chip flex-shrink-0">VS</span>
-          <p className="team-name team-name-away font-display flex-1 text-right text-sm sm:text-base font-bold uppercase leading-tight truncate"
+          {!compact && <span className="vs-chip flex-shrink-0">VS</span>}
+          <p className={`team-name team-name-away font-display flex-1 text-right font-bold uppercase leading-tight truncate
+                        ${compact ? 'text-xs' : 'text-sm sm:text-base'}`}
              style={{ textShadow: '0 1px 10px rgba(0,0,0,0.9)' }}>
             {match.awayTeam}
           </p>

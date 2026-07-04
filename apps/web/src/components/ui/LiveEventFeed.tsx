@@ -74,41 +74,53 @@ export function LiveEventFeed() {
         </div>
       )}
 
-      {/* Events */}
-      <div className="space-y-1.5 max-h-72 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-        {events.map(e => {
-          const cfg = EVENT_CFG[e.type] ?? DEFAULT_CFG;
-          return (
-            <div key={e.id} className="flex items-center gap-3 p-2.5 rounded-xl anim-in border"
-                 style={{ background: cfg.bg, borderColor: cfg.border }}>
-              <span className="flex-shrink-0 w-6 flex justify-center" style={{ color: cfg.color }}>{cfg.icon}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xs font-bold" style={{ color: cfg.color }}>
-                    {e.type.replace(/_/g, ' ')}
-                  </span>
-                  {e.matchMinute > 0 && (
-                    <span className="text-[10px] text-gray-600 font-mono">{e.matchMinute}'</span>
-                  )}
+      {/* Events — horizontal timeline: newest on the left, dots strung along
+          a single axis, each with a card hanging beneath it */}
+      {events.length > 0 && (
+        <div className="relative overflow-x-auto rail-scroll pb-1">
+          <div className="flex gap-3 min-w-max pt-0.5">
+            {events.map(e => {
+              const cfg = EVENT_CFG[e.type] ?? DEFAULT_CFG;
+              return (
+                <div key={e.id} className="w-[132px] shrink-0 flex flex-col items-center anim-in">
+                  {/* node on the axis — connector bridges the gap to neighbours */}
+                  <div className="relative w-full flex justify-center">
+                    <div className="absolute top-1/2 -translate-y-1/2 left-[-6px] right-[-6px] h-px"
+                         style={{ background: 'var(--glass-border)' }} />
+                    <div className="relative z-10 w-6 h-6 rounded-full flex items-center justify-center"
+                         style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}>
+                      {cfg.icon}
+                    </div>
+                  </div>
+                  {/* card */}
+                  <div className="mt-2.5 w-full rounded-xl p-2 border text-center"
+                       style={{ background: cfg.bg, borderColor: cfg.border }}>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className="text-[11px] font-bold leading-tight" style={{ color: cfg.color }}>
+                        {e.type.replace(/_/g, ' ')}
+                      </span>
+                      {e.matchMinute > 0 && (
+                        <span className="text-[10px] text-gray-600 font-mono">{e.matchMinute}'</span>
+                      )}
+                    </div>
+                    {(e.team || e.player) && (
+                      <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                        {e.team}{e.player ? ` · ${e.player}` : ''}
+                      </p>
+                    )}
+                    {e.score && (
+                      <p className="text-xs font-bold font-mono mt-0.5" style={{ color: 'var(--green)' }}>
+                        {e.score.home}–{e.score.away}
+                      </p>
+                    )}
+                    <p className="text-[9px] text-gray-700 mt-0.5">{timeAgo(e.timestamp)} ago</p>
+                  </div>
                 </div>
-                {(e.team || e.player) && (
-                  <p className="text-[10px] text-gray-500 truncate">
-                    {e.team}{e.player ? ` · ${e.player}` : ''}
-                  </p>
-                )}
-              </div>
-              <div className="flex-shrink-0 text-right">
-                {e.score && (
-                  <p className="text-xs font-bold font-mono" style={{ color: 'var(--green)' }}>
-                    {e.score.home}–{e.score.away}
-                  </p>
-                )}
-                <p className="text-[10px] text-gray-700">{timeAgo(e.timestamp)}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

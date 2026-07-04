@@ -174,6 +174,33 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
       </div>
     );
 
+  /**
+   * Horizontal rail: one day's fixtures in a single row that scrolls sideways,
+   * with compact cards. Keeps each day to one line instead of a tall grid, so
+   * the whole schedule reads as a timeline of days stacked top-to-bottom.
+   * In list view we fall back to the vertical rows (scanning is better there).
+   */
+  const renderRail = (list: MatchState[]) =>
+    view === 'list' ? (
+      <div className="space-y-2">
+        {list.map(m => (
+          <MatchRow key={m.id} match={m} trend={trends[m.id]}
+            activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
+            onToggleFav={toggleFav} oddsFormat={oddsFormat} />
+        ))}
+      </div>
+    ) : (
+      <div className="flex gap-3 overflow-x-auto pb-2 rail-scroll snap-x">
+        {list.map((m, i) => (
+          <div key={m.id} className="flex-shrink-0 w-[180px] sm:w-[210px] snap-start">
+            <MatchCard index={i} match={m} trend={trends[m.id]}
+              activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
+              onToggleFav={toggleFav} oddsFormat={oddsFormat} compact />
+          </div>
+        ))}
+      </div>
+    );
+
   return (
     <div className="space-y-5">
 
@@ -281,24 +308,41 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
         </section>
       )}
 
-      {/* Upcoming — grouped by kickoff day */}
+      {/* Upcoming — a vertical timeline of days; each day is a horizontal rail */}
       {visUpcoming.length > 0 && (
-        <section className="space-y-4">
+        <section className="space-y-3">
           <h2 className="section-label">Upcoming · {visUpcoming.length}</h2>
-          {groupByDay(visUpcoming).map(g => {
-            const isToday = g.label === 'Today';
-            return (
-              <div key={g.label} className="space-y-2.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[10px] font-bold uppercase tracking-widest"
-                        style={{ color: isToday ? 'var(--blue)' : '#64748b' }}>{g.label}</span>
-                  <div className="flex-1 h-px" style={{ background: 'var(--glass-border)' }} />
-                  <span className="text-[10px] text-gray-700 tabular-nums">{g.count}</span>
-                </div>
-                {renderMatches(g.matches)}
-              </div>
-            );
-          })}
+          <div className={view === 'poster' ? 'relative pl-5' : ''}>
+            {/* the spine connecting the day nodes (poster view only) */}
+            {view === 'poster' && (
+              <div className="absolute left-[3px] top-2 bottom-2 w-px"
+                   style={{ background: 'linear-gradient(to bottom, var(--glass-border), transparent)' }} />
+            )}
+            <div className="space-y-4">
+              {groupByDay(visUpcoming).map(g => {
+                const isToday = g.label === 'Today';
+                return (
+                  <div key={g.label} className="space-y-2 relative">
+                    {/* day node on the spine (poster view) */}
+                    {view === 'poster' && (
+                      <span className="absolute -left-5 top-1.5 w-[7px] h-[7px] rounded-full"
+                            style={{
+                              background: isToday ? 'var(--blue)' : '#475569',
+                              boxShadow: isToday ? '0 0 0 3px var(--bg-deep), 0 0 10px rgba(59,130,246,0.5)' : '0 0 0 3px var(--bg-deep)',
+                            }} />
+                    )}
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-widest"
+                            style={{ color: isToday ? 'var(--blue)' : '#64748b' }}>{g.label}</span>
+                      <div className="flex-1 h-px" style={{ background: 'var(--glass-border)' }} />
+                      <span className="text-[10px] text-gray-700 tabular-nums">{g.count}</span>
+                    </div>
+                    {renderRail(g.matches)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </section>
       )}
 

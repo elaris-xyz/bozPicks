@@ -24,6 +24,12 @@ export function LiveTicker({ matches }: { matches: MatchState[] }) {
   const base = Array.from({ length: reps }, () => matches).flat();
   const items = [...base, ...base]; // duplicate for the seamless −50% loop
 
+  // Scroll speed must stay constant regardless of how many matches there are.
+  // The CSS animation always travels −50% of the (variable) track width, so a
+  // fixed duration would race when there are many matches. Scale the duration
+  // with the segment count to hold a calm, readable pace (~one item / 2.4s).
+  const durationS = Math.max(30, Math.round(base.length * 2.4));
+
   return (
     <div
       className="relative overflow-hidden select-none"
@@ -53,7 +59,7 @@ export function LiveTicker({ matches }: { matches: MatchState[] }) {
            style={{ background: 'linear-gradient(90deg, transparent, var(--bg-deep))' }} />
 
       {/* scrolling track */}
-      <div className="flex items-center animate-ticker py-2.5" style={{ width: 'max-content' }}>
+      <div className="flex items-center animate-ticker py-2.5" style={{ width: 'max-content', animationDuration: `${durationS}s` }}>
         {items.map((m, i) => {
           const live = m.status === 'LIVE' || m.status === 'HALFTIME';
           return (

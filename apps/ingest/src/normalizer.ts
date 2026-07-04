@@ -1,5 +1,6 @@
-import type { TxOddsPayload, TxScores, SoccerGameState } from '@bozpicks/txline-client';
-import type { BozEvent, BozEventType, OddsSnapshot, MatchStatus } from '@bozpicks/shared';
+import type { TxOddsPayload, TxScores, SoccerGameState, SoccerData, SoccerPossessionKind } from '@bozpicks/txline-client';
+import { readSoccerStats } from '@bozpicks/txline-client';
+import type { BozEvent, BozEventType, OddsSnapshot, MatchStatus, MatchStats, DangerLevel, GoalKind } from '@bozpicks/shared';
 import { randomUUID } from 'crypto';
 
 function safeTs(ts: number | undefined): string {
@@ -41,6 +42,8 @@ export function oddsToSnapshot(odds: TxOddsPayload): OddsSnapshot | null {
       draw: invDraw / total,
       away: invAway / total,
     },
+    bookmaker: odds.Bookmaker,
+    inRunning: odds.InRunning,
   };
 }
 
@@ -53,47 +56,114 @@ function gameStateToStatus(gs: SoccerGameState): MatchStatus {
   return 'LIVE';
 }
 
+// ─── Live stats (corners, cards, possession, danger) ─────────────────────────
+
+const POSSESSION_DANGER: Record<SoccerPossessionKind, DangerLevel> = {
+  Safe: 'SAFE', Attack: 'ATTACK', Danger: 'DANGER', HighDanger: 'HIGH_DANGER',
+};
+
+/** Danger for one side from its PossibleEvent flags (goal/penalty > corner). */
+function sideDanger(state: { PossibleEvent?: { Goal?: boolean; Penalty?: boolean; Corner?: boolean } } | undefined): DangerLevel | undefined {
+  const e = state?.PossibleEvent;
+  if (!e) return undefined;
+  if (e.Goal || e.Penalty) return 'HIGH_DANGER';
+  if (e.Corner) return 'DANGER';
+  return undefined;
+}
+
+export function buildStats(s: TxScores): MatchStats {
+  const isHome1 = s.participant1IsHome;
+  const p1 = readSoccerStats(s, 1);
+  const p2 = readSoccerStats(s, 2);
+  const home = isHome1 ? p1 : p2;
+  const away = isHome1 ? p2 : p1;
+
+  // possession share: assume `possession` is participant1's %; map to home
+  let possession: number | undefined;
+  if (typeof s.possession === 'number') {
+    possession = isHome1 ? s.possession : 100 - s.possession;
+  }
+
+  // danger per side: prefer per-participant PossibleEvent, fall back to the
+  // global possessionType applied to whoever currently has the ball
+  let dHome = sideDanger(isHome1 ? s.parti1StateSoccer : s.parti2StateSoccer);
+  let dAway = sideDanger(isHome1 ? s.parti2StateSoccer : s.parti1StateSoccer);
+  if ((!dHome || !dAway) && s.possessionType) {
+    const lvl = POSSESSION_DANGER[s.possessionType];
+    const homeHasBall = possession == null ? true : possession >= 50;
+    if (homeHasBall) dHome = dHome ?? lvl; else dAway = dAway ?? lvl;
+  }
+
+  return {
+    cornersHome: home.corners,
+    cornersAway: away.corners,
+    yellowHome: home.yellow,
+    yellowAway: away.yellow,
+    redHome: home.red,
+    redAway: away.red,
+    possession,
+    danger: { home: dHome ?? 'SAFE', away: dAway ?? 'SAFE' },
+    clockSeconds: s.clock?.seconds,
+  };
+}
+
+// ─── SoccerData event classification ─────────────────────────────────────────
+
+function goalKind(gt: string | undefined): GoalKind | undefined {
+  if (!gt) return undefined;
+  const k = gt.toLowerCase();
+  if (k.includes('head')) return 'HEAD';
+  if (k.includes('own')) return 'OWN_GOAL';
+  if (k.includes('penalty')) return 'PENALTY';
+  if (k.includes('shot')) return 'SHOT';
+  return 'OTHER';
+}
+
+function classify(scores: TxScores, d: SoccerData | undefined): BozEventType | null {
+  if (scores.gameState === 'HT') return 'HALFTIME';
+  if (scores.gameState === 'F' || scores.gameState === 'FET') return 'MATCH_END';
+  if (scores.action === 'MatchStarted') return 'MATCH_START';
+  if (d?.Goal) return 'GOAL';
+  if (d?.RedCard) return 'RED_CARD';
+  if (d?.YellowCard) return 'YELLOW_CARD';
+  if (d?.VAR) return 'VAR';
+  if (d?.Penalty) return 'PENALTY';
+  if (d?.PlayerInId || d?.PlayerOutId) return 'SUBSTITUTION';
+  if (d?.Corner) return 'CORNER';
+  return 'SCORE_UPDATE';
+}
+
 // ─── TxScores → BozEvent ────────────────────────────────────────────────────
 
 export function scoresEventToBozEvent(scores: TxScores): BozEvent | null {
-  const d = scores.data;
-  let type: BozEventType;
-
   if (!scores.fixtureId) return null;          // skip events without match ref
-  if (scores.gameState === 'NS') return null; // skip pre-match updates
+  if (scores.gameState === 'NS') return null;  // skip pre-match updates
 
-  if (scores.gameState === 'HT') {
-    type = 'HALFTIME';
-  } else if (scores.gameState === 'F' || scores.gameState === 'FET') {
-    type = 'MATCH_END';
-  } else if (scores.action === 'MatchStarted') {
-    type = 'MATCH_START';
-  } else if (d?.Goal) {
-    type = 'GOAL';
-  } else if (d?.RedCard) {
-    type = 'RED_CARD';
-  } else if (d?.YellowCard) {
-    type = 'YELLOW_CARD';
-  } else if (d?.PlayerInId || d?.PlayerOutId) {
-    type = 'SUBSTITUTION';
-  } else {
-    type = 'SCORE_UPDATE';
-  }
+  const d = scores.data ?? scores.dataSoccer;
+  const type = classify(scores, d);
+  if (!type) return null;
 
-  const p1Score = scores.score?.participant1?.Total ?? 0;
-  const p2Score = scores.score?.participant2?.Total ?? 0;
+  const stats = buildStats(scores);
+  const s1 = readSoccerStats(scores, 1);
+  const s2 = readSoccerStats(scores, 2);
+  const home = scores.participant1IsHome ? s1.goals : s2.goals;
+  const away = scores.participant1IsHome ? s2.goals : s1.goals;
 
-  // Determine home/away based on Participant1IsHome
-  const homeScore = scores.participant1IsHome ? p1Score : p2Score;
-  const awayScore = scores.participant1IsHome ? p2Score : p1Score;
+  const minute = d?.Minutes ?? (stats.clockSeconds != null ? Math.floor(stats.clockSeconds / 60) : 0);
 
   return {
     id: scores.id ?? randomUUID(),
     matchId: String(scores.fixtureId),
     type,
     timestamp: safeTs(scores.ts),
-    matchMinute: d?.Minutes ?? 0,
-    score: { home: homeScore, away: awayScore },
+    matchMinute: minute,
+    score: { home, away },
+    seq: scores.seq,
+    goalKind: type === 'GOAL' ? goalKind(d?.GoalType) : undefined,
+    isPenalty: d?.Penalty || undefined,
+    isOwnGoal: type === 'GOAL' && goalKind(d?.GoalType) === 'OWN_GOAL' ? true : undefined,
+    isVAR: d?.VAR || undefined,
+    stats,
     rawPayload: scores as unknown as object,
   };
 }

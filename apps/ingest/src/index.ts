@@ -28,10 +28,10 @@ async function start() {
 
     // Postgres boz_matches
     await db.query(
-      `INSERT INTO boz_matches (id, home_team, away_team, home_score, away_score, status, current_minute, kickoff_time)
-       VALUES ($1,$2,$3,0,0,'SCHEDULED',0,$4)
-       ON CONFLICT (id) DO UPDATE SET home_team=$2, away_team=$3, kickoff_time=$4`,
-      [String(f.FixtureId), homeTeam, awayTeam, kickoffTime]
+      `INSERT INTO boz_matches (id, home_team, away_team, home_score, away_score, status, current_minute, kickoff_time, competition, competition_id)
+       VALUES ($1,$2,$3,0,0,'SCHEDULED',0,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET home_team=$2, away_team=$3, kickoff_time=$4, competition=$5, competition_id=$6`,
+      [String(f.FixtureId), homeTeam, awayTeam, kickoffTime, f.Competition ?? null, f.CompetitionId ?? null]
     );
 
     // Auto-create prediction pool

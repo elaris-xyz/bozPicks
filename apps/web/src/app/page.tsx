@@ -12,7 +12,8 @@ async function getMatches(): Promise<MatchState[]> {
   try {
     const { rows } = await db.query(
       `SELECT id, home_team, away_team, home_score, away_score,
-              status, current_minute, kickoff_time, last_updated
+              status, current_minute, kickoff_time, last_updated,
+              competition, competition_id, stats
        FROM boz_matches ORDER BY kickoff_time ASC`
     );
     const oddsRaw = await Promise.all(
@@ -29,6 +30,9 @@ async function getMatches(): Promise<MatchState[]> {
       kickoffTime: r.kickoff_time,
       lastUpdated: r.last_updated ?? new Date().toISOString(),
       currentOdds: oddsRaw[i] ? (JSON.parse(oddsRaw[i]!) as OddsSnapshot) : undefined,
+      competition: r.competition ?? undefined,
+      competitionId: r.competition_id ?? undefined,
+      stats: r.stats ?? undefined,
     }));
   } catch {
     return [];

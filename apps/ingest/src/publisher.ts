@@ -43,14 +43,20 @@ export async function publish(event: BozEvent): Promise<void> {
     await redis.hset(`boz:match:${event.matchId}:state`, fields);
   }
 
+  // ── Redis: live stats snapshot (corners, cards, possession, danger) ─────────
+  if (event.stats) {
+    await redis.set(`boz:match:${event.matchId}:stats`, JSON.stringify(event.stats), 'EX', 7200);
+  }
+
   // ── Postgres: keep boz_matches in sync ─────────────────────────────────────
   if (event.score) {
     const status = resolveStatus(event);
     await db.query(
       `UPDATE boz_matches
-       SET home_score=$1, away_score=$2, current_minute=$3, status=$4, last_updated=NOW()
-       WHERE id=$5`,
-      [event.score.home, event.score.away, event.matchMinute, status, event.matchId]
+       SET home_score=$1, away_score=$2, current_minute=$3, status=$4, stats=COALESCE($5,stats), last_updated=NOW()
+       WHERE id=$6`,
+      [event.score.home, event.score.away, event.matchMinute, status,
+       event.stats ? JSON.stringify(event.stats) : null, event.matchId]
     ).catch(e => console.error('[publisher] DB score update:', e.message));
   } else if (STATUS_EVENTS.has(event.type) && event.type !== 'GOAL' && event.type !== 'SCORE_UPDATE') {
     const status = resolveStatus(event);

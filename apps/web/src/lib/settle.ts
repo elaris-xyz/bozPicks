@@ -1,6 +1,30 @@
+import { createHash } from 'crypto';
 import { db } from '@/lib/db';
-import type { PropMarket } from '@bozpicks/shared';
-import { resolveMarket, payoutFor, buildReceipt, type FinalStats } from '@/lib/markets';
+import type { PropMarket, SettlementReceipt } from '@bozpicks/shared';
+import { resolveMarket, payoutFor, type FinalStats } from '@/lib/markets';
+
+/**
+ * Verifiable-resolution receipt (server-only — uses node crypto). For real
+ * fixtures the keeper fetches the TxLINE Merkle proof and lands an on-chain
+ * validate_stat tx; here we derive an internally-consistent SHA-256 Merkle-
+ * style root/proof over the resolved stat so the mechanism is demonstrable.
+ */
+export function buildReceipt(m: PropMarket, fixtureId: string, statValue: number, recordId: string, validateTx?: string): SettlementReceipt {
+  const h = (s: string) => createHash('sha256').update(s).digest('hex');
+  const leaf = h(`${fixtureId}:${m.statKey}:${statValue}:${recordId}`);
+  const sibling = h(`${fixtureId}:sibling:${m.kind}`);
+  const root = h(leaf < sibling ? leaf + sibling : sibling + leaf);
+  return {
+    statKey: m.statKey,
+    statValue,
+    fixtureId,
+    txlineRecordId: recordId,
+    merkleRoot: root,
+    merkleProof: [sibling],
+    validateTx: validateTx ?? `demo-${h(root).slice(0, 32)}`,
+    verifiedAt: new Date().toISOString(),
+  };
+}
 
 /**
  * Settle one prop market from the match's final TxLINE stats:

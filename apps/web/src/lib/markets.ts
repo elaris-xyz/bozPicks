@@ -1,4 +1,3 @@
-import { createHash, randomUUID } from 'crypto';
 import type { PropMarket, MarketKind, StatKey, SettlementReceipt } from '@bozpicks/shared';
 
 /**
@@ -101,29 +100,6 @@ export function payoutFor(stakeMicro: number, winningPoolMicro: number, totalPoo
   return Math.floor((stakeMicro / winningPoolMicro) * afterFee);
 }
 
-/**
- * Build the verifiable-resolution receipt. For real fixtures the keeper fetches
- * the TxLINE Merkle proof and lands an on-chain validate_stat tx; here we derive
- * an internally-consistent SHA-256 Merkle-style root/proof over the resolved
- * stat so the mechanism is demonstrable end-to-end in the demo.
- */
-export function buildReceipt(m: PropMarket, fixtureId: string, statValue: number, recordId: string, validateTx?: string): SettlementReceipt {
-  const h = (s: string) => createHash('sha256').update(s).digest('hex');
-  const leaf = h(`${fixtureId}:${m.statKey}:${statValue}:${recordId}`);
-  const sibling = h(`${fixtureId}:sibling:${m.kind}`);
-  const root = h(leaf < sibling ? leaf + sibling : sibling + leaf);
-  return {
-    statKey: m.statKey,
-    statValue,
-    fixtureId,
-    txlineRecordId: recordId,
-    merkleRoot: root,
-    merkleProof: [sibling],
-    validateTx: validateTx ?? `demo-${h(root).slice(0, 32)}`,
-    verifiedAt: new Date().toISOString(),
-  };
-}
-
 /** Map a boz_markets row to a PropMarket. */
 export function rowToMarket(r: Record<string, unknown>): PropMarket {
   return {
@@ -145,5 +121,3 @@ export function rowToMarket(r: Record<string, unknown>): PropMarket {
     receipt: (r.receipt as SettlementReceipt) ?? undefined,
   };
 }
-
-export { randomUUID };

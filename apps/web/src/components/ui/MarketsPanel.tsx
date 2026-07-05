@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, BozEvent, PropMarket } from '@bozpicks/shared';
-import { usdcToDisplay } from '@bozpicks/shared';
-import { poolOdds, impliedFromPool } from '@/lib/markets';
+import { usdcToDisplay, displayToUsdc } from '@bozpicks/shared';
+import { poolOdds, impliedFromPool, payoutFor } from '@/lib/markets';
+import { playSfx } from '@/lib/sfx';
 
 /**
  * Live parametric prop markets + trustless settlement. Each market shows its
@@ -46,7 +47,7 @@ function Receipt({ m }: { m: PropMarket }) {
   );
 }
 
-function MarketCard({ m, onBet, betting }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null }) {
+function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; mine?: string }) {
   const settled = m.status === 'SETTLED';
   return (
     <div className="glass sheen p-4">
@@ -64,17 +65,22 @@ function MarketCard({ m, onBet, betting }: { m: PropMarket; onBet: (id: string, 
         {m.outcomes.map(o => {
           const win = settled && m.winningOutcome === o;
           const lose = settled && m.winningOutcome !== o;
+          const picked = mine === o;
           const odds = poolOdds(m, o);
           const pct = Math.round(impliedFromPool(m, o) * 100);
           return (
             <button key={o} disabled={settled || betting === m.id}
               onClick={() => onBet(m.id, o)}
-              className={`rounded-xl px-2 py-2 text-center transition-all disabled:cursor-default ${win ? 'fx-win-glow' : ''}`}
+              className={`relative rounded-xl px-2 py-2 text-center transition-all disabled:cursor-default ${win ? 'fx-win-glow' : ''}`}
               style={win
                 ? { background: 'var(--green-dim)', border: '1px solid var(--green)', boxShadow: '0 0 14px rgba(16,185,129,0.3)' }
                 : lose
                 ? { background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', opacity: 0.5 }
                 : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+              {picked && (
+                <span className="absolute -top-1.5 -right-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full z-10"
+                      style={{ background: 'var(--blue)', color: '#fff', boxShadow: '0 0 8px rgba(59,130,246,0.6)' }}>YOU</span>
+              )}
               <p className="text-xs font-bold" style={{ color: win ? 'var(--green)' : '#e2e8f0' }}>{o}</p>
               <p className="text-[15px] font-black tabular-nums" style={{ color: win ? 'var(--green)' : 'var(--blue)' }}>{odds.toFixed(2)}</p>
               <p className="text-[9px] text-gray-600">{pct}%</p>
@@ -95,7 +101,9 @@ export function MarketsPanel() {
   const [markets, setMarkets] = useState<PropMarket[]>([]);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [betting, setBetting] = useState<string | null>(null);
+  const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
   const lastFetch = useRef(0);
+  const prevSettled = useRef(0);
 
   const fetchMarkets = useCallback(async (mid?: string | null) => {
     const url = mid ? `/api/markets?matchId=${mid}` : '/api/markets';
@@ -130,8 +138,29 @@ export function MarketsPanel() {
         body: JSON.stringify({ outcome, amountUsdc: 5, wallet: publicKey?.toBase58() ?? 'demo-wallet' }),
       }).then(r => r.json());
       if (res.market) setMarkets(ms => ms.map(m => m.id === id ? res.market : m));
+      setUserBets(b => ({ ...b, [id]: { outcome, stake: displayToUsdc(5) } }));
+      playSfx('tick');
     } finally { setBetting(null); }
   };
+
+  // detect settlement transition → sound
+  const settledCount = markets.filter(m => m.status === 'SETTLED').length;
+  useEffect(() => {
+    if (settledCount > prevSettled.current && prevSettled.current === 0 && settledCount > 0) {
+      playSfx('settle');
+    }
+    prevSettled.current = settledCount;
+  }, [settledCount]);
+
+  // personal result across the user's bets, once resolved
+  const myResolved = markets.filter(m => userBets[m.id] && m.status === 'SETTLED');
+  const staked = myResolved.reduce((s, m) => s + userBets[m.id].stake, 0);
+  const returned = myResolved.reduce((s, m) => {
+    const b = userBets[m.id];
+    return s + (m.winningOutcome === b.outcome ? payoutFor(b.stake, m.pools[b.outcome] ?? 0, m.totalPool, m.feeBps) : 0);
+  }, 0);
+  const wonCount = myResolved.filter(m => m.winningOutcome === userBets[m.id].outcome).length;
+  const net = returned - staked;
 
   if (markets.length === 0) {
     return (
@@ -142,8 +171,35 @@ export function MarketsPanel() {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting} />)}
+    <div className="space-y-4">
+      {settledCount > 0 && (
+        <div className="fx-rise glass p-4 flex flex-wrap items-center justify-between gap-3"
+             style={{ borderColor: 'rgba(16,185,129,0.35)', boxShadow: '0 0 30px rgba(16,185,129,0.12)' }}>
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.4)' }}>
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <div>
+              <p className="text-sm font-bold text-gray-100">Full time — {settledCount}/{markets.length} markets settled</p>
+              <p className="text-[11px] text-gray-500">Resolved trustlessly from TxLINE Merkle proofs · payouts in USDC</p>
+            </div>
+          </div>
+          {myResolved.length > 0 && (
+            <div className="text-right">
+              <p className="text-lg font-black tabular-nums" style={{ color: net >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                {net >= 0 ? '+' : ''}{usdcToDisplay(Math.abs(net) === 0 ? 0 : net)} USDC
+              </p>
+              <p className="text-[10px] text-gray-500">you won {wonCount}/{myResolved.length} of your picks</p>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting} mine={userBets[m.id]?.outcome} />)}
+      </div>
     </div>
   );
 }

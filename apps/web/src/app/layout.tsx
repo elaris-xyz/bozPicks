@@ -9,6 +9,7 @@ import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { ServiceWorkerRegistrar } from '@/components/ui/ServiceWorkerRegistrar';
 import { SSEProvider } from '@/contexts/SSEContext';
 import { SolanaWalletProvider } from '@/components/providers/WalletProvider';
+import { CinematicFX } from '@/components/ui/CinematicFX';
 
 // Fonts load via <link> in <head> rather than next/font: build-time fetch
 // to Google Fonts fails on this network and stalls every dev compile.
@@ -43,6 +44,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             style={{ background: 'var(--bg-deep)', color: '#e2e8f0' }}>
         <SolanaWalletProvider>
         <SSEProvider>
+          {/* Cinematic background + live event VFX */}
+          <CinematicFX />
+
           {/* Desktop nav */}
           <div className="hidden md:block">
             <Nav variant="desktop" />

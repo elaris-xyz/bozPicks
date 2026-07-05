@@ -11,6 +11,7 @@ import { SSEProvider } from '@/contexts/SSEContext';
 import { SolanaWalletProvider } from '@/components/providers/WalletProvider';
 import { CinematicFX } from '@/components/ui/CinematicFX';
 import { SfxToggle } from '@/components/ui/SfxToggle';
+import { FirstVisitHint } from '@/components/ui/FirstVisitHint';
 
 // Fonts load via <link> in <head> rather than next/font: build-time fetch
 // to Google Fonts fails on this network and stalls every dev compile.
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Cinematic background + live event VFX */}
           <CinematicFX />
           <SfxToggle />
+          <FirstVisitHint />
 
           {/* Desktop nav */}
           <div className="hidden md:block">

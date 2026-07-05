@@ -25,10 +25,17 @@ const tabs = [
   { href: '/agent',    label: 'Agent',    icon: <IconRadar size={18} /> },
 ];
 
+const InfoIcon = ({ size = 18 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8}
+       strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
+  </svg>
+);
+
 const desktopExtra = [
   { href: '/stats',       label: 'Stats',       icon: <IconTrendUp size={18} /> },
-  { href: '/insights',    label: 'Insights',    icon: <IconChart size={18} /> },
   { href: '/leaderboard', label: 'Leaderboard', icon: <IconTrophy size={18} /> },
+  { href: '/about',       label: 'About',       icon: <InfoIcon size={18} /> },
 ];
 
 /** Neon logo mark — bolt inside a gradient rounded square */

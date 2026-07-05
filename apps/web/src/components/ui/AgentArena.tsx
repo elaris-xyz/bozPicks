@@ -63,7 +63,7 @@ function AgentColumn({ agent, career }: { agent: AgentState; career: { pnl: numb
       {agent.open.length > 0 && (
         <div className="mt-3 space-y-1">
           {agent.open.slice(-3).map((p, i) => (
-            <div key={i} className="flex justify-between text-[10px] px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+            <div key={`${p.minute}-${i}`} className="fx-open-pulse anim-in flex justify-between text-[10px] px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
               <span className="text-gray-400">{p.minute}&rsquo; · {p.outcome}</span>
               <span className="tabular-nums text-gray-300">@ {p.oddsTaken.toFixed(2)}</span>
             </div>
@@ -152,6 +152,18 @@ export function AgentArena() {
         </p>
         <p className="text-[11px] text-gray-500">Tournament leader: <span className="font-bold" style={{ color: META[leader].color }}>{META[leader].name}</span></p>
       </div>
+
+      {/* career P&L tug-of-war */}
+      {(() => {
+        const m = career.MOMENTUM.pnl, c = career.CONTRARIAN.pnl;
+        const share = 50 + Math.max(-45, Math.min(45, (m - c) * 1.5));
+        return (
+          <div className="h-2.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <div style={{ width: `${share}%`, background: 'linear-gradient(90deg,var(--green),rgba(16,185,129,0.45))', transition: 'width .6s cubic-bezier(.16,1,.3,1)' }} />
+            <div style={{ width: `${100 - share}%`, background: 'linear-gradient(90deg,rgba(167,139,250,0.45),var(--purple))', transition: 'width .6s cubic-bezier(.16,1,.3,1)' }} />
+          </div>
+        );
+      })()}
       <div className="flex flex-col sm:flex-row gap-3">
         <AgentColumn agent={agents.MOMENTUM} career={career.MOMENTUM} />
         <AgentColumn agent={agents.CONTRARIAN} career={career.CONTRARIAN} />

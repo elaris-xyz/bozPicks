@@ -32,7 +32,7 @@ export function LiveTicker({ matches }: { matches: MatchState[] }) {
 
   return (
     <div
-      className="relative overflow-hidden select-none"
+      className="relative overflow-hidden select-none fx-scan"
       style={{
         width: '100vw',
         marginLeft: 'calc(50% - 50vw)',

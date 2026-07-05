@@ -91,8 +91,15 @@ export function HiLoGame() {
   const awayPoss = 100 - homePoss;
 
   return (
-    <div className="glass p-5 relative overflow-hidden"
+    <div className={`glass sheen p-5 relative overflow-hidden ${flash === 'lose' ? 'fx-shake' : ''}`}
          style={{ boxShadow: flash === 'win' ? '0 0 40px rgba(16,185,129,0.35)' : flash === 'lose' ? '0 0 40px rgba(239,68,68,0.3)' : undefined, transition: 'box-shadow .3s' }}>
+      {/* +1 pop on a correct read */}
+      {flash === 'win' && (
+        <span className="fx-pop absolute left-1/2 top-1/2 -translate-x-1/2 z-20 font-display font-black pointer-events-none"
+              style={{ fontSize: '2.6rem', color: 'var(--green)', textShadow: '0 0 24px rgba(16,185,129,0.7)' }}>
+          +1{streak >= 3 ? ' 🔥' : ''}
+        </span>
+      )}
       {/* header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -105,7 +112,8 @@ export function HiLoGame() {
         </div>
         <div className="flex items-center gap-3 text-right">
           <div>
-            <p className="text-2xl font-black tabular-nums" style={{ color: streak > 0 ? 'var(--green)' : '#94a3b8' }}>
+            <p className={`text-2xl font-black tabular-nums ${streak >= 3 ? 'fx-flame' : ''}`}
+               style={{ color: streak > 0 ? (streak >= 3 ? '#fbbf24' : 'var(--green)') : '#94a3b8' }}>
               {streak}{streak > 2 ? ' 🔥' : ''}
             </p>
             <p className="text-[9px] uppercase tracking-widest text-gray-600">streak</p>

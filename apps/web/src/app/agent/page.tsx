@@ -8,6 +8,7 @@ import { IconRadar, IconTarget, IconPulse, IconBolt } from '@/components/ui/Icon
 import { CountUp } from '@/components/ui/CountUp';
 import { AgentArena } from '@/components/ui/AgentArena';
 import { DemoButton } from '@/components/ui/DemoButton';
+import { HeroAura } from '@/components/ui/HeroAura';
 
 interface AgentStats {
   totalSignals: number;
@@ -84,7 +85,8 @@ export default function AgentPage() {
     <div className="theme-agent space-y-5">
 
       {/* ── Hero ── */}
-      <div className="glass hero-glow relative overflow-hidden p-6 md:p-8">
+      <div className="glass hero-glow fx-rise relative overflow-hidden p-6 md:p-8">
+        <HeroAura color="var(--purple)" />
         <div className="absolute top-0 left-0 right-0 h-px"
              style={{ background: 'linear-gradient(90deg,transparent,rgb(var(--accent)),transparent)' }} />
 

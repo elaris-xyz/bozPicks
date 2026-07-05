@@ -198,6 +198,14 @@ export function MatchCard({
             {match.awayTeam}
           </p>
         </div>
+
+        {/* live possession strip along the bottom edge — shows the rich feed */}
+        {isLive && match.stats && typeof match.stats.possession === 'number' && (
+          <div className="absolute bottom-0 inset-x-0 h-[3px] flex z-[6]" title={`Possession ${match.stats.possession}%`}>
+            <div style={{ width: `${match.stats.possession}%`, background: 'var(--green)', transition: 'width .6s' }} />
+            <div style={{ width: `${100 - match.stats.possession}%`, background: 'var(--blue)', transition: 'width .6s' }} />
+          </div>
+        )}
       </div>
     </Link>
   );

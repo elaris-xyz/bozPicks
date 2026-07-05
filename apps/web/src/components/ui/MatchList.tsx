@@ -118,6 +118,7 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
             else if (e.type === 'MATCH_START') u.status = 'LIVE';
           }
           if (e.type === 'ODDS_UPDATE' && e.odds) u.currentOdds = e.odds;
+          if (e.stats) u.stats = e.stats;
           return u;
         }));
       }

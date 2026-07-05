@@ -12,6 +12,7 @@ import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { Countdown } from '@/components/ui/Countdown';
 import { MatchStats } from '@/components/ui/MatchStats';
+import { CountUp } from '@/components/ui/CountUp';
 import { Flag, FlagBleed } from '@/components/ui/Flag';
 import { TwoSidedTimeline } from '@/components/ui/TwoSidedTimeline';
 import { IconClock, IconChart, IconTrophy, IconSparkles, IconBolt } from '@/components/ui/Icons';
@@ -243,9 +244,9 @@ export default function MatchDetailPage() {
           <div className="text-center flex-shrink-0">
             {isLive || match.status === 'FINISHED' ? (
               <div className={`font-display text-4xl md:text-6xl font-black tabular-nums tracking-tight ${scoreFlash ? 'score-flash' : ''}`}>
-                {match.homeScore}
+                <CountUp value={match.homeScore} duration={600} />
                 <span className="text-gray-600 mx-2">–</span>
-                {match.awayScore}
+                <CountUp value={match.awayScore} duration={600} />
               </div>
             ) : (
               <div className="text-2xl text-gray-600 font-light px-4">vs</div>

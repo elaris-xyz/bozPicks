@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, BozEvent } from '@bozpicks/shared';
+import { playSfx } from '@/lib/sfx';
 
 /**
  * Cinematic layer. Always-on drifting aurora + film grain + vignette, plus
@@ -111,9 +112,9 @@ export function CinematicFX() {
       const e = msg.data as BozEvent;
       // only react to fresh events, not the connect catch-up burst
       if (Date.now() - new Date(e.timestamp).getTime() > 8000) return;
-      if (e.type === 'GOAL') fire({ kind: 'GOAL', team: e.team, score: e.score });
-      else if (e.type === 'RED_CARD') fire({ kind: 'RED', team: e.team });
-      else if (e.type === 'MATCH_END') fire({ kind: 'END' });
+      if (e.type === 'GOAL') { fire({ kind: 'GOAL', team: e.team, score: e.score }); playSfx('goal'); }
+      else if (e.type === 'RED_CARD') { fire({ kind: 'RED', team: e.team }); playSfx('red'); }
+      else if (e.type === 'MATCH_END') { fire({ kind: 'END' }); playSfx('end'); }
     },
   });
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
 import { DemoButton } from './DemoButton';
+import { playSfx } from '@/lib/sfx';
 
 /**
  * Hi-Lo: guess whether the next TxLINE stat reading will be higher or lower.
@@ -60,6 +61,7 @@ export function HiLoGame() {
         setLast({ value: next, guess: p.guess, result: win ? 'WIN' : 'LOSE' });
         setRounds(r => r + 1);
         setFlash(win ? 'win' : 'lose');
+        playSfx(win ? 'win' : 'lose');
         setTimeout(() => setFlash(null), 700);
         if (win) {
           setStreak(s => {

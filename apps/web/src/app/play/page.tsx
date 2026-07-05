@@ -3,6 +3,7 @@ import { LiveStatsPanel } from '@/components/ui/LiveStatsPanel';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
 import { DemoButton } from '@/components/ui/DemoButton';
 import { HeroAura } from '@/components/ui/HeroAura';
+import { PunditRail } from '@/components/ui/PunditRail';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,8 @@ export default function PlayPage() {
         <HiLoGame />
         <LiveStatsPanel />
       </div>
+
+      <PunditRail home="Brazil" away="Argentina" />
 
       <section className="space-y-3">
         <p className="section-label">Live Feed</p>

@@ -226,6 +226,13 @@
     .fx-flame, .fx-pop, .fx-shake, .fx-open-pulse, .fx-scan::after { animation: none; }
   }
 
+  /* lighten the cinematic layer on phones (grain + blur are the costly bits) */
+  @media (max-width: 640px) {
+    .fx-grain { display: none; }
+    .fx-aurora { filter: blur(22px); opacity: 0.9; }
+    .fx-scan::after { display: none; }
+  }
+
   /* text selection matches brand */
   ::selection { background: rgba(59,130,246,0.35); color: #fff; }
 

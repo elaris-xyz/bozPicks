@@ -7,6 +7,7 @@ import {
   initAgent, evaluate, settleAgent, resultFrom, avgClv, winRate,
   type AgentState, type AgentId,
 } from '@/lib/arena';
+import { CountUp } from './CountUp';
 
 /**
  * Live Agent-vs-Agent Arena. Both agents run fully autonomously off the same
@@ -42,13 +43,13 @@ function AgentColumn({ agent, career }: { agent: AgentState; career: { pnl: numb
       <div className="grid grid-cols-2 gap-2 text-center">
         <div>
           <p className="text-2xl font-black tabular-nums" style={{ color: live >= 0 ? 'var(--green)' : 'var(--red)' }}>
-            {live >= 0 ? '+' : ''}{live.toFixed(1)}
+            {live >= 0 ? '+' : ''}<CountUp value={Number(live.toFixed(1))} duration={700} />
           </p>
           <p className="text-[9px] uppercase tracking-widest text-gray-600">this match (u)</p>
         </div>
         <div>
           <p className="text-2xl font-black tabular-nums" style={{ color: career.pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
-            {career.pnl >= 0 ? '+' : ''}{career.pnl.toFixed(1)}
+            {career.pnl >= 0 ? '+' : ''}<CountUp value={Number(career.pnl.toFixed(1))} duration={700} />
           </p>
           <p className="text-[9px] uppercase tracking-widest text-gray-600">career (u)</p>
         </div>

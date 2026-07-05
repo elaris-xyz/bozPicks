@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, BozEvent, MatchStats, OddsSnapshot, DangerLevel } from '@bozpicks/shared';
+import { CountUp } from './CountUp';
 
 /**
  * Live win-probability gauge + match-stats readout, driven off the same TxLINE
@@ -62,9 +63,9 @@ export function LiveStatsPanel() {
       {/* win-prob tri-bar */}
       <div>
         <div className="h-6 rounded-lg overflow-hidden flex text-[10px] font-black">
-          <div className="flex items-center justify-center" style={{ width: `${pHome}%`, background: 'var(--green)', color: '#04120b', transition: 'width .6s' }}>{pHome}%</div>
-          <div className="flex items-center justify-center" style={{ width: `${pDraw}%`, background: '#64748b', color: '#0b1020', transition: 'width .6s' }}>{pDraw}%</div>
-          <div className="flex items-center justify-center" style={{ width: `${pAway}%`, background: 'var(--blue)', color: '#020814', transition: 'width .6s' }}>{pAway}%</div>
+          <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pHome}%`, background: 'var(--green)', color: '#04120b', transition: 'width .6s' }}><CountUp value={pHome} duration={600} suffix="%" /></div>
+          <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pDraw}%`, background: '#64748b', color: '#0b1020', transition: 'width .6s' }}><CountUp value={pDraw} duration={600} suffix="%" /></div>
+          <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pAway}%`, background: 'var(--blue)', color: '#020814', transition: 'width .6s' }}><CountUp value={pAway} duration={600} suffix="%" /></div>
         </div>
         <div className="flex justify-between text-[10px] uppercase tracking-widest text-gray-500 mt-1.5">
           <span>{ctx.home ?? 'Home'}</span><span>Draw</span><span>{ctx.away ?? 'Away'}</span>

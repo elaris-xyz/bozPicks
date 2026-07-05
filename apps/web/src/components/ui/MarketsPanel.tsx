@@ -22,8 +22,12 @@ function Receipt({ m }: { m: PropMarket }) {
   const r = m.receipt;
   if (!r) return null;
   return (
-    <div className="mt-3 rounded-xl p-3 text-[11px]"
+    <div className="mt-3 rounded-xl p-3 text-[11px] relative"
          style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.3)' }}>
+      <span className="fx-stamp absolute -top-2.5 right-2 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
+            style={{ color: 'var(--green)', border: '2px solid var(--green)', background: 'rgba(6,20,14,0.9)' }}>
+        Verified ✓
+      </span>
       <div className="flex items-center gap-1.5 mb-2 font-bold uppercase tracking-widest text-[10px]" style={{ color: 'var(--green)' }}>
         <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
           <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
@@ -45,7 +49,7 @@ function Receipt({ m }: { m: PropMarket }) {
 function MarketCard({ m, onBet, betting }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null }) {
   const settled = m.status === 'SETTLED';
   return (
-    <div className="glass p-4">
+    <div className="glass sheen p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm font-bold text-gray-100">{m.label}</p>
         <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
@@ -65,7 +69,7 @@ function MarketCard({ m, onBet, betting }: { m: PropMarket; onBet: (id: string, 
           return (
             <button key={o} disabled={settled || betting === m.id}
               onClick={() => onBet(m.id, o)}
-              className="rounded-xl px-2 py-2 text-center transition-all disabled:cursor-default"
+              className={`rounded-xl px-2 py-2 text-center transition-all disabled:cursor-default ${win ? 'fx-win-glow' : ''}`}
               style={win
                 ? { background: 'var(--green-dim)', border: '1px solid var(--green)', boxShadow: '0 0 14px rgba(16,185,129,0.3)' }
                 : lose

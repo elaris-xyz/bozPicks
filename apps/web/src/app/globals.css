@@ -150,9 +150,36 @@
     100% { transform: translateY(112vh) rotateZ(720deg); opacity: 0; }
   }
 
+  /* settled-market "verified" stamp */
+  .fx-stamp { animation: fx-stamp 0.55s cubic-bezier(0.16,1,0.3,1) both; }
+  @keyframes fx-stamp {
+    0%   { transform: scale(1.8) rotate(-14deg); opacity: 0; }
+    60%  { transform: scale(0.92) rotate(-6deg); opacity: 1; }
+    100% { transform: scale(1) rotate(-6deg); opacity: 1; }
+  }
+  /* winning outcome glow pulse */
+  .fx-win-glow { animation: fx-winglow 1.6s ease-in-out 2; }
+  @keyframes fx-winglow {
+    0%, 100% { box-shadow: 0 0 14px rgba(16,185,129,0.3); }
+    50%      { box-shadow: 0 0 26px rgba(16,185,129,0.7); }
+  }
+  /* diagonal light sheen that sweeps a card on hover */
+  .sheen { position: relative; overflow: hidden; }
+  .sheen::after {
+    content: ''; position: absolute; top: 0; left: -60%; width: 45%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.10), transparent);
+    transform: skewX(-18deg); transition: none; opacity: 0; pointer-events: none;
+  }
+  .sheen:hover::after { animation: fx-sheen 0.85s ease-out; }
+  @keyframes fx-sheen {
+    0%   { left: -60%; opacity: 0; }
+    30%  { opacity: 1; }
+    100% { left: 130%; opacity: 0; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .fx-aurora, .fx-grain { animation: none; }
-    .fx-overlay { display: none; }
+    .fx-overlay, .fx-stamp, .fx-win-glow, .sheen::after { animation: none; }
   }
 
   /* text selection matches brand */

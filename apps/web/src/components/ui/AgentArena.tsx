@@ -30,7 +30,7 @@ function AgentColumn({ agent, career }: { agent: AgentState; career: { pnl: numb
   const clv = avgClv(agent);
   const wr = winRate(agent);
   return (
-    <div className="glass p-4 flex-1" style={{ borderColor: `${m.color}44` }}>
+    <div className="glass sheen p-4 flex-1" style={{ borderColor: `${m.color}44` }}>
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="font-display font-black text-base" style={{ color: m.color }}>{m.name}</p>

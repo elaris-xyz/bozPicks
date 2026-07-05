@@ -46,6 +46,38 @@ export function MatchListSkeleton() {
   );
 }
 
+export function HeroSkeleton() {
+  return (
+    <div className="glass p-6 md:p-8 space-y-3">
+      <Skeleton className="h-5 w-40" />
+      <Skeleton className="h-9 w-2/3" />
+      <Skeleton className="h-4 w-1/2" />
+    </div>
+  );
+}
+
+export function PanelSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="glass p-5 space-y-3">
+      <Skeleton className="h-4 w-32" />
+      {Array.from({ length: rows }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+    </div>
+  );
+}
+
+export function MarketGridSkeleton() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="glass p-4 space-y-3">
+          <div className="flex justify-between"><Skeleton className="h-4 w-40" /><Skeleton className="h-4 w-16" /></div>
+          <div className="grid grid-cols-2 gap-2"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function StatsSkeleton() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

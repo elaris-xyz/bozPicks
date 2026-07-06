@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
-import { DemoButton } from './DemoButton';
 import { playSfx } from '@/lib/sfx';
 
 /**
@@ -141,8 +140,8 @@ export function HiLoGame() {
 
       {!ctx.live ? (
         <div className="text-center py-4">
-          <p className="text-sm text-gray-400 mb-3">No live match right now — start one to play.</p>
-          <DemoButton />
+          <p className="text-sm text-gray-400">No live match right now.</p>
+          <p className="text-[11px] text-gray-600 mt-1">Hit <span className="font-bold text-[var(--blue)]">Run Demo</span> at the bottom to start one.</p>
         </div>
       ) : pending ? (
         <div className="text-center py-3">

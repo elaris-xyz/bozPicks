@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { HeroAura } from './HeroAura';
-import { DemoButton } from './DemoButton';
 
 /**
  * Compact homepage hero — frames the product and its three tracks without
@@ -39,7 +38,6 @@ export function HomeHero() {
           Live scores, odds and events for all 104 matches — powered by TxLINE, settled on Solana.
         </p>
         <div className="flex flex-wrap items-center gap-2.5 mt-4">
-          <DemoButton />
           {LINKS.map(l => (
             <Link key={l.href} href={l.href}
               className="text-xs font-bold px-3 h-8 inline-flex items-center rounded-full transition-all hover:brightness-125"

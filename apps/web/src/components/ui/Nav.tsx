@@ -32,10 +32,21 @@ const InfoIcon = ({ size = 18 }: { size?: number }) => (
   </svg>
 );
 
-const desktopExtra = [
-  { href: '/stats',       label: 'Stats',       icon: <IconTrendUp size={18} /> },
-  { href: '/leaderboard', label: 'Leaderboard', icon: <IconTrophy size={18} /> },
-  { href: '/about',       label: 'About',       icon: <InfoIcon size={18} /> },
+const MoreIcon = ({ size = 18 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
+    <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+  </svg>
+);
+
+// Everything beyond the three products lives under "More" — identical on
+// desktop and mobile so nothing appears in one place but not the other.
+const moreLinks = [
+  { href: '/stats',       label: 'Stats',          icon: <IconTrendUp size={18} /> },
+  { href: '/leaderboard', label: 'Leaderboard',    icon: <IconTrophy size={18} /> },
+  { href: '/insights',    label: 'Insights',       icon: <IconChart size={18} /> },
+  { href: '/schedule',    label: 'Schedule',       icon: <IconClock size={18} /> },
+  { href: '/predictions', label: 'My Predictions', icon: <IconWallet size={18} /> },
+  { href: '/about',       label: 'About',          icon: <InfoIcon size={18} /> },
 ];
 
 /** Neon logo mark — bolt inside a gradient rounded square */
@@ -107,6 +118,8 @@ export function Nav({ variant }: { variant: NavVariant }) {
   const pathname = usePathname();
   const { connected } = useSSEContext();
   const [walletOpen, setWalletOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreActive = moreLinks.some(l => l.href === pathname);
 
   /* ── Desktop top bar ─────────────────────────────────────────────── */
   if (variant === 'desktop') {
@@ -121,7 +134,7 @@ export function Nav({ variant }: { variant: NavVariant }) {
           <Logo connected={connected} />
 
           <nav className="flex items-center gap-1">
-            {[...tabs, ...desktopExtra].map(({ href, label, icon }) => {
+            {tabs.map(({ href, label, icon }) => {
               const active = pathname === href;
               return (
                 <Link key={href} href={href}
@@ -139,11 +152,44 @@ export function Nav({ variant }: { variant: NavVariant }) {
                   onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#8b98ad'; }}
                 >
                   <span className={active ? '' : 'opacity-70'}>{icon}</span>
-                  {/* icon-only between md and lg so the wallet button always fits */}
                   <span className="hidden lg:inline">{label}</span>
                 </Link>
               );
             })}
+
+            {/* More dropdown */}
+            <div className="relative">
+              <button onClick={() => setMoreOpen(o => !o)}
+                className="relative flex items-center gap-2 px-3.5 h-9 rounded-full text-[13px] font-semibold transition-all duration-200"
+                style={moreActive || moreOpen
+                  ? { color: 'rgb(var(--accent))', background: 'rgb(var(--accent) / 0.12)', border: '1px solid rgb(var(--accent) / 0.45)' }
+                  : { color: '#8b98ad', border: '1px solid transparent' }}>
+                <MoreIcon size={18} />
+                <span className="hidden lg:inline">More</span>
+              </button>
+              {moreOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                  <div className="absolute right-0 mt-2 z-50 w-48 rounded-2xl p-1.5 glass anim-in"
+                       style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+                    {moreLinks.map(({ href, label, icon }) => {
+                      const active = pathname === href;
+                      return (
+                        <Link key={href} href={href} onClick={() => setMoreOpen(false)}
+                          className="flex items-center gap-2.5 px-3 h-9 rounded-xl text-[13px] font-semibold transition-colors"
+                          style={active
+                            ? { color: 'rgb(var(--accent))', background: 'rgb(var(--accent) / 0.1)' }
+                            : { color: '#94a3b8' }}
+                          onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                          onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
+                          <span className="opacity-70">{icon}</span>{label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </nav>
 
           <WalletButton onClick={() => setWalletOpen(true)} />
@@ -177,37 +223,69 @@ export function Nav({ variant }: { variant: NavVariant }) {
 
   /* ── Mobile bottom tabs ──────────────────────────────────────────── */
   return (
-    <nav className="pb-safe"
-         style={{
-           background: 'rgba(9,13,26,0.92)',
-           backdropFilter: 'blur(20px)',
-           WebkitBackdropFilter: 'blur(20px)',
-           borderTop: '1px solid var(--glass-border)',
-         }}>
-      <div className="flex px-2">
-        {tabs.map(({ href, label, icon }) => {
-          const active = pathname === href;
-          return (
-            <Link key={href} href={href}
-              className="relative flex-1 flex flex-col items-center gap-1 py-2.5 transition-colors duration-200"
-              style={{ color: active ? 'rgb(var(--accent))' : '#64748b' }}>
-              {/* neon indicator above the active tab */}
-              {active && (
-                <span className="absolute top-0 w-10 h-0.5 rounded-full"
-                      style={{
-                        background: 'rgb(var(--accent))',
-                        boxShadow: '0 0 8px rgb(var(--accent) / 0.8)',
-                      }} />
-              )}
-              <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}
-                    style={active ? { filter: 'drop-shadow(0 0 6px rgb(var(--accent) / 0.6))' } : {}}>
-                {icon}
-              </span>
-              <span className="text-[10px] font-semibold tracking-wide">{label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      {/* More sheet */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setMoreOpen(false)}>
+          <div className="absolute inset-0" style={{ background: 'rgba(3,6,16,0.6)' }} />
+          <div className="relative glass rounded-t-3xl p-3 pb-6 anim-in" onClick={e => e.stopPropagation()}
+               style={{ boxShadow: '0 -12px 40px rgba(0,0,0,0.5)' }}>
+            <div className="w-10 h-1 rounded-full mx-auto mb-3" style={{ background: 'var(--glass-border)' }} />
+            <div className="grid grid-cols-3 gap-2">
+              {moreLinks.map(({ href, label, icon }) => {
+                const active = pathname === href;
+                return (
+                  <Link key={href} href={href} onClick={() => setMoreOpen(false)}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-colors"
+                    style={active
+                      ? { color: 'rgb(var(--accent))', background: 'rgb(var(--accent) / 0.1)', border: '1px solid rgb(var(--accent) / 0.3)' }
+                      : { color: '#94a3b8', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+                    {icon}
+                    <span className="text-[11px] font-semibold">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <nav className="pb-safe"
+           style={{
+             background: 'rgba(9,13,26,0.92)',
+             backdropFilter: 'blur(20px)',
+             WebkitBackdropFilter: 'blur(20px)',
+             borderTop: '1px solid var(--glass-border)',
+           }}>
+        <div className="flex px-2">
+          {tabs.map(({ href, label, icon }) => {
+            const active = pathname === href;
+            return (
+              <Link key={href} href={href}
+                className="relative flex-1 flex flex-col items-center gap-1 py-2.5 transition-colors duration-200"
+                style={{ color: active ? 'rgb(var(--accent))' : '#64748b' }}>
+                {active && (
+                  <span className="absolute top-0 w-10 h-0.5 rounded-full"
+                        style={{ background: 'rgb(var(--accent))', boxShadow: '0 0 8px rgb(var(--accent) / 0.8)' }} />
+                )}
+                <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}
+                      style={active ? { filter: 'drop-shadow(0 0 6px rgb(var(--accent) / 0.6))' } : {}}>
+                  {icon}
+                </span>
+                <span className="text-[10px] font-semibold tracking-wide">{label}</span>
+              </Link>
+            );
+          })}
+
+          {/* More tab */}
+          <button onClick={() => setMoreOpen(true)}
+            className="relative flex-1 flex flex-col items-center gap-1 py-2.5 transition-colors duration-200"
+            style={{ color: moreActive || moreOpen ? 'rgb(var(--accent))' : '#64748b' }}>
+            <MoreIcon size={18} />
+            <span className="text-[10px] font-semibold tracking-wide">More</span>
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }

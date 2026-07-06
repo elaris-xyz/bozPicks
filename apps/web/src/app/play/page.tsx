@@ -1,7 +1,6 @@
 import { HiLoGame } from '@/components/ui/HiLoGame';
 import { LiveStatsPanel } from '@/components/ui/LiveStatsPanel';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
-import { DemoButton } from '@/components/ui/DemoButton';
 import { HeroAura } from '@/components/ui/HeroAura';
 import { PunditRail } from '@/components/ui/PunditRail';
 
@@ -15,7 +14,7 @@ export const metadata = {
 export default function PlayPage() {
   return (
     <div className="space-y-6">
-      <header className="glass fx-rise relative overflow-hidden p-6 flex items-end justify-between flex-wrap gap-3">
+      <header className="glass fx-rise relative overflow-hidden p-6">
         <HeroAura color="var(--blue)" />
         <div className="relative">
           <span className="chip-glass chip-blue uppercase mb-2">Track 2 — Fan Experience</span>
@@ -24,7 +23,6 @@ export default function PlayPage() {
             Read the game as it happens — every number is live TxLINE data.
           </p>
         </div>
-        <div className="relative"><DemoButton /></div>
       </header>
 
       <div className="grid gap-5 lg:grid-cols-2">

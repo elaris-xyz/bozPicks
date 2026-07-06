@@ -7,7 +7,6 @@ import { useSSEContext } from '@/contexts/SSEContext';
 import { IconRadar, IconTarget, IconPulse, IconBolt } from '@/components/ui/Icons';
 import { CountUp } from '@/components/ui/CountUp';
 import { AgentArena } from '@/components/ui/AgentArena';
-import { DemoButton } from '@/components/ui/DemoButton';
 import { HeroAura } from '@/components/ui/HeroAura';
 
 interface AgentStats {
@@ -180,12 +179,9 @@ export default function AgentPage() {
 
       {/* ── Agent-vs-Agent Arena ── */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="section-label" style={{ color: 'var(--purple)' }}>Agent-vs-Agent Arena</p>
-            <p className="text-[11px] text-gray-600 mt-0.5">Two autonomous strategies, one live feed, opposite theses — best P&amp;L wins the tournament.</p>
-          </div>
-          <DemoButton />
+        <div>
+          <p className="section-label" style={{ color: 'var(--purple)' }}>Agent-vs-Agent Arena</p>
+          <p className="text-[11px] text-gray-600 mt-0.5">Two autonomous strategies, one live feed, opposite theses — best P&amp;L wins the tournament.</p>
         </div>
         <AgentArena />
       </div>

@@ -1,5 +1,4 @@
 import { MarketsPanel } from '@/components/ui/MarketsPanel';
-import { DemoButton } from '@/components/ui/DemoButton';
 import { HeroAura } from '@/components/ui/HeroAura';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +11,7 @@ export const metadata = {
 export default function MarketsPage() {
   return (
     <div className="space-y-6">
-      <header className="glass fx-rise relative overflow-hidden p-6 flex items-end justify-between flex-wrap gap-3">
+      <header className="glass fx-rise relative overflow-hidden p-6">
         <HeroAura color="var(--green)" />
         <div className="relative">
           <span className="chip-glass chip-green uppercase mb-2">Track 1 — Prediction & Settlement</span>
@@ -22,7 +21,6 @@ export default function MarketsPage() {
             pools, settled trustlessly the moment TxLINE confirms the result on-chain.
           </p>
         </div>
-        <div className="relative"><DemoButton /></div>
       </header>
       <MarketsPanel />
     </div>

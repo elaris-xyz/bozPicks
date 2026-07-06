@@ -3,7 +3,6 @@ import { redis } from '@/lib/redis';
 import { MatchList } from '@/components/ui/MatchList';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
 import { LiveTicker } from '@/components/ui/LiveTicker';
-import { DemoButton } from '@/components/ui/DemoButton';
 import { HomeHero } from '@/components/ui/HomeHero';
 import type { MatchState, OddsSnapshot } from '@bozpicks/shared';
 
@@ -55,10 +54,7 @@ export default async function HomePage() {
       <HomeHero />
       <MatchList initialMatches={matches} />
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="section-label">Recent Events</p>
-          <DemoButton />
-        </div>
+        <p className="section-label">Recent Events</p>
         <LiveEventFeed />
       </section>
     </div>

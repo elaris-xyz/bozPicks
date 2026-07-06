@@ -82,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Nav variant="mobile-header" />
           </div>
 
-          <main id="main" className="max-w-6xl mx-auto px-3 md:px-6 pt-4 md:pt-8 pb-24 md:pb-12">
+          <main id="main" className="max-w-7xl mx-auto px-3 md:px-6 pt-4 md:pt-8 pb-24 md:pb-12">
             {children}
           </main>
 

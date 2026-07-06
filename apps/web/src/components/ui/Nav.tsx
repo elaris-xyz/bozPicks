@@ -130,7 +130,7 @@ export function Nav({ variant }: { variant: NavVariant }) {
                 backdropFilter: 'blur(18px)',
                 WebkitBackdropFilter: 'blur(18px)',
               }}>
-        <div className="max-w-6xl mx-auto px-6 h-15 flex items-center justify-between gap-6" style={{ height: 60 }}>
+        <div className="max-w-7xl mx-auto px-6 h-15 flex items-center justify-between gap-6" style={{ height: 60 }}>
           <Logo connected={connected} />
 
           <nav className="flex items-center gap-1">

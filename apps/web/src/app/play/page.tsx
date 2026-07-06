@@ -28,12 +28,11 @@ export default function PlayPage() {
         <div className="relative"><HeroLiveScore /></div>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3 items-start">
         <HiLoGame />
         <LiveStatsPanel />
+        <PunditRail home="Brazil" away="Argentina" />
       </div>
-
-      <PunditRail home="Brazil" away="Argentina" />
 
       <section className="space-y-3">
         <p className="section-label">Live Feed</p>

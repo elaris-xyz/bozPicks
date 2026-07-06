@@ -199,7 +199,7 @@ export function MarketsPanel() {
           )}
         </div>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting} mine={userBets[m.id]?.outcome} />)}
       </div>
     </div>

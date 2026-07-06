@@ -95,10 +95,17 @@ export async function POST(req: NextRequest) {
   // ── Generate + play the replay ──────────────────────────────────────────────
   const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: 42_000 / speed });
 
+  // Time budget: keep the whole request comfortably under the serverless limit.
+  // If we run long (slow env), stop waiting and fast-forward the remaining
+  // events so the match still reaches full-time and settles cleanly.
+  const startWall = Date.now();
+  const BUDGET_MS = 50_000;
+
   let prev = 0;
   let redCardSeen = false;
   for (const step of steps) {
-    await sleep(Math.max(0, step.delayMs - prev));
+    const overBudget = Date.now() - startWall > BUDGET_MS;
+    await sleep(overBudget ? 0 : Math.max(0, step.delayMs - prev));
     prev = step.delayMs;
 
     const event = { ...step.event, timestamp: new Date().toISOString() };

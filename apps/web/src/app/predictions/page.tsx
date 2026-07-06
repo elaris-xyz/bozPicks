@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletModal } from '@/components/ui/WalletModal';
 import { Flag } from '@/components/ui/Flag';
@@ -59,10 +60,7 @@ export default function PredictionsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-lg font-bold tracking-tight">My Predictions</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Your prediction history and P&amp;L</p>
-      </div>
+      <PageHeader title="My Predictions" subtitle="Your prediction history and P&L" />
 
       {/* ── Not connected ── */}
       {!connected ? (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { CountUp } from '@/components/ui/CountUp';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { IconChart, IconTrophy, IconTarget } from '@/components/ui/Icons';
 
 type Stats = {
@@ -79,10 +80,7 @@ export default function StatsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-lg font-bold tracking-tight">Stats</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Platform-wide analytics</p>
-      </div>
+      <PageHeader title="Stats" subtitle="Platform-wide analytics" />
 
       {/* Match metrics */}
       <div>

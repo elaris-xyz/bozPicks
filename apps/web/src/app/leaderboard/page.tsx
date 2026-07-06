@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { IconTrophy } from '@/components/ui/Icons';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 type Entry = {
   rank: number; wallet: string; total: number; wins: number;
@@ -38,17 +39,14 @@ export default function LeaderboardPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-lg font-bold tracking-tight">Leaderboard</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Top predictors by performance</p>
-        </div>
-        <Link href="/stats"
-          className="text-xs font-semibold px-3 py-1.5 rounded-xl"
-          style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: '#6b7280' }}>
-          ← Stats
-        </Link>
-      </div>
+      <PageHeader title="Leaderboard" subtitle="Top predictors by performance"
+        action={
+          <Link href="/stats"
+            className="text-xs font-semibold px-3 py-1.5 rounded-xl"
+            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: '#6b7280' }}>
+            ← Stats
+          </Link>
+        } />
 
       {/* Sort tabs */}
       <div className="flex gap-1.5">

@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import Link from 'next/link';
 import { Countdown } from '@/components/ui/Countdown';
 import { Flag } from '@/components/ui/Flag';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { IconClock } from '@/components/ui/Icons';
 import type { MatchState } from '@bozpicks/shared';
 
@@ -54,10 +55,7 @@ export default async function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-lg font-bold tracking-tight">Schedule</h1>
-        <p className="text-xs text-gray-500 mt-0.5">{matches.length} matches · All times local</p>
-      </div>
+      <PageHeader title="Schedule" subtitle={`${matches.length} matches · All times local`} />
 
       {matches.length === 0 && (
         <div className="glass text-center py-20">

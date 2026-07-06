@@ -58,6 +58,8 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
   const [trends, setTrends] = useState<Record<string, OddsTrend>>({});
   const prevOdds = useRef<Record<string, OddsSnapshot>>({});
   const trendTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const seenIds = useRef<Set<string>>(new Set(initialMatches.map(m => m.id)));
+  const newMatchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     const init: Record<string, OddsSnapshot> = {};
@@ -84,6 +86,23 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     onMessage: (msg: SSEMessage) => {
       if (msg.type === 'event' && msg.data) {
         const e = msg.data as BozEvent;
+
+        // A brand-new match appeared on the stream (e.g. a demo kickoff) that
+        // wasn't in the initial server render — pull it into the grid.
+        if (e.matchId && !seenIds.current.has(e.matchId)) {
+          seenIds.current.add(e.matchId);
+          clearTimeout(newMatchTimer.current);
+          newMatchTimer.current = setTimeout(async () => {
+            const fresh = await fetch('/api/matches').then(r => r.json()).catch(() => []);
+            if (Array.isArray(fresh)) {
+              setMatches(prev => {
+                const ids = new Set(prev.map(m => m.id));
+                const added = (fresh as MatchState[]).filter(m => !ids.has(m.id));
+                return added.length ? [...added, ...prev] : prev;
+              });
+            }
+          }, 500);
+        }
 
         // Odds movement → compute ▲▼ direction vs the last known odds
         if (e.type === 'ODDS_UPDATE' && e.odds) {

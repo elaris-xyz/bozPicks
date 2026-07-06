@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
 import { playSfx } from '@/lib/sfx';
 
@@ -24,8 +25,9 @@ export function HiLoGame() {
   const [best, setBest] = useState(0);
   const [rounds, setRounds] = useState(0);
   const [last, setLast] = useState<Round>(null);
-  const [ctx, setCtx] = useState<{ home?: string; away?: string; hs: number; as: number; min: number; live: boolean }>({ hs: 0, as: 0, min: 0, live: false });
   const [flash, setFlash] = useState<'win' | 'lose' | null>(null);
+  const live = useLiveMatch();
+  const isLive = !!live?.live;
 
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
@@ -40,15 +42,6 @@ export function HiLoGame() {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
       const stats = e.stats as MatchStats | undefined;
-
-      if (e.score) {
-        setCtx(c => ({
-          ...c,
-          hs: e.score!.home, as: e.score!.away, min: e.matchMinute,
-          live: e.type !== 'MATCH_END',
-        }));
-      }
-      if (e.type === 'MATCH_END') { setCtx(c => ({ ...c, live: false })); return; }
       if (!stats || typeof stats.possession !== 'number') return;
 
       const next = stats.possession;
@@ -78,7 +71,7 @@ export function HiLoGame() {
   });
 
   const guess = (g: Guess) => {
-    if (current == null || pending || !ctx.live) return;
+    if (current == null || pending || !isLive) return;
     setPending({ value: current, guess: g });
     playSfx('tick');
   };
@@ -107,8 +100,8 @@ export function HiLoGame() {
         <div>
           <p className="section-label">Hi-Lo · Possession</p>
           <p className="text-[11px] text-gray-500 mt-0.5">
-            {ctx.live && ctx.home
-              ? <>Live: {ctx.home} {ctx.hs}–{ctx.as} {ctx.away} · {ctx.min}&rsquo;</>
+            {isLive && live?.homeTeam
+              ? <>Live: {live.homeTeam} {live.homeScore}–{live.awayScore} {live.awayTeam} · {live.minute}&rsquo;</>
               : 'Guess the next possession swing'}
           </p>
         </div>
@@ -138,7 +131,7 @@ export function HiLoGame() {
         <div style={{ width: `${awayPoss}%`, background: 'linear-gradient(90deg,rgba(59,130,246,0.6),var(--blue))', transition: 'width .5s' }} />
       </div>
 
-      {!ctx.live ? (
+      {!isLive ? (
         <div className="text-center py-4">
           <p className="text-sm text-gray-400">No live match right now.</p>
           <p className="text-[11px] text-gray-600 mt-1">Hit <span className="font-bold text-[var(--blue)]">Run Demo</span> at the bottom to start one.</p>

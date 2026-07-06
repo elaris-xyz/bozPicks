@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, OddsSnapshot } from '@bozpicks/shared';
 import {
   initAgent, evaluate, settleAgent, resultFrom, avgClv, winRate, markToMarket,
@@ -86,7 +87,7 @@ export function AgentArena() {
   const [agents, setAgents] = useState<Record<AgentId, AgentState>>({ MOMENTUM: initAgent('MOMENTUM'), CONTRARIAN: initAgent('CONTRARIAN') });
   const [histories, setHistories] = useState<Record<AgentId, number[]>>({ MOMENTUM: [], CONTRARIAN: [] });
   const [career, setCareer] = useState<Career>({ MOMENTUM: { pnl: 0, bets: 0, wins: 0 }, CONTRARIAN: { pnl: 0, bets: 0, wins: 0 } });
-  const [ctx, setCtx] = useState<{ home?: string; away?: string; hs: number; as: number; min: number; live: boolean }>({ hs: 0, as: 0, min: 0, live: false });
+  const live = useLiveMatch();
 
   const prevOdds = useRef<OddsSnapshot | null>(null);
   const lastOdds = useRef<OddsSnapshot | null>(null);
@@ -109,7 +110,7 @@ export function AgentArena() {
         prevOdds.current = null;
       }
 
-      if (e.score) { score.current = e.score; setCtx(c => ({ ...c, hs: e.score!.home, as: e.score!.away, min: e.matchMinute, live: e.type !== 'MATCH_END' })); }
+      if (e.score) { score.current = e.score; }
 
       if (e.odds) {
         const next = e.odds;
@@ -156,7 +157,6 @@ export function AgentArena() {
           });
           return settled;
         });
-        setCtx(c => ({ ...c, live: false }));
       }
     },
   });
@@ -167,7 +167,7 @@ export function AgentArena() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-[11px] text-gray-500">
-          {ctx.live && ctx.home ? <>Live: {ctx.home} {ctx.hs}–{ctx.as} {ctx.away} · {ctx.min}&rsquo;</> : 'Both agents idle — start a live match'}
+          {live?.live && live.homeTeam ? <>Live: {live.homeTeam} {live.homeScore}–{live.awayScore} {live.awayTeam} · {live.minute}&rsquo;</> : 'Both agents idle — start a live match'}
         </p>
         <p className="text-[11px] text-gray-500">Tournament leader: <span className="font-bold" style={{ color: META[leader].color }}>{META[leader].name}</span></p>
       </div>

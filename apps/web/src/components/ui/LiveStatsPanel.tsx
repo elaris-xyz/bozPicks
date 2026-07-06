@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, MatchStats, OddsSnapshot, DangerLevel } from '@bozpicks/shared';
 import { CountUp } from './CountUp';
 
@@ -35,7 +36,7 @@ function StatRow({ label, home, away }: { label: string; home: number; away: num
 export function LiveStatsPanel() {
   const [stats, setStats] = useState<MatchStats | null>(null);
   const [odds, setOdds] = useState<OddsSnapshot | null>(null);
-  const [ctx, setCtx] = useState<{ home?: string; away?: string; hs: number; as: number; min: number; live: boolean }>({ hs: 0, as: 0, min: 0, live: false });
+  const live = useLiveMatch();
 
   useSSE({
     onMessage: (msg: SSEMessage) => {
@@ -43,8 +44,6 @@ export function LiveStatsPanel() {
       const e = msg.data as BozEvent;
       if (e.stats) setStats(e.stats);
       if (e.odds) setOdds(e.odds);
-      if (e.score) setCtx(c => ({ ...c, hs: e.score!.home, as: e.score!.away, min: e.matchMinute, live: e.type !== 'MATCH_END' }));
-      if (e.type === 'MATCH_END') setCtx(c => ({ ...c, live: false }));
     },
   });
 
@@ -57,7 +56,7 @@ export function LiveStatsPanel() {
     <div className="glass p-5 space-y-4">
       <div className="flex items-center justify-between">
         <p className="section-label">Win Probability</p>
-        {ctx.live && <span className="chip-glass chip-green"><span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'currentColor' }} />LIVE {ctx.min}&rsquo;</span>}
+        {live?.live && <span className="chip-glass chip-green"><span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'currentColor' }} />LIVE {live.minute}&rsquo;</span>}
       </div>
 
       {/* win-prob tri-bar */}
@@ -68,7 +67,7 @@ export function LiveStatsPanel() {
           <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pAway}%`, background: 'var(--blue)', color: '#020814', transition: 'width .6s' }}><CountUp value={pAway} duration={600} suffix="%" /></div>
         </div>
         <div className="flex justify-between text-[10px] uppercase tracking-widest text-gray-500 mt-1.5">
-          <span>{ctx.home ?? 'Home'}</span><span>Draw</span><span>{ctx.away ?? 'Away'}</span>
+          <span>{live?.homeTeam ?? 'Home'}</span><span>Draw</span><span>{live?.awayTeam ?? 'Away'}</span>
         </div>
       </div>
 

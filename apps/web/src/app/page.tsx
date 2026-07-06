@@ -4,6 +4,7 @@ import { MatchList } from '@/components/ui/MatchList';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
 import { LiveTicker } from '@/components/ui/LiveTicker';
 import { DemoButton } from '@/components/ui/DemoButton';
+import { HomeHero } from '@/components/ui/HomeHero';
 import type { MatchState, OddsSnapshot } from '@bozpicks/shared';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +52,7 @@ export default async function HomePage() {
       <div className="-mt-4 md:-mt-8">
         <LiveTicker matches={tickerMatches} />
       </div>
+      <HomeHero />
       <MatchList initialMatches={matches} />
       <section className="space-y-3">
         <div className="flex items-center justify-between">

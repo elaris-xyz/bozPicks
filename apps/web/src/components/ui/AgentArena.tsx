@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, BozEvent, OddsSnapshot } from '@bozpicks/shared';
 import {
-  initAgent, evaluate, settleAgent, resultFrom, avgClv, winRate,
+  initAgent, evaluate, settleAgent, resultFrom, avgClv, winRate, markToMarket,
   type AgentState, type AgentId,
 } from '@/lib/arena';
 import { CountUp } from './CountUp';
+import { Sparkline } from './Sparkline';
 
 /**
  * Live Agent-vs-Agent Arena. Both agents run fully autonomously off the same
@@ -25,9 +26,8 @@ const META: Record<AgentId, { name: string; tag: string; color: string }> = {
   CONTRARIAN: { name: 'Contrarian', tag: 'fades the overshoot', color: 'var(--purple)' },
 };
 
-function AgentColumn({ agent, career }: { agent: AgentState; career: { pnl: number; bets: number; wins: number } }) {
+function AgentColumn({ agent, career, live, history }: { agent: AgentState; career: { pnl: number; bets: number; wins: number }; live: number; history: number[] }) {
   const m = META[agent.id];
-  const live = agent.realizedPnl;
   const clv = avgClv(agent);
   const wr = winRate(agent);
   return (
@@ -55,6 +55,13 @@ function AgentColumn({ agent, career }: { agent: AgentState; career: { pnl: numb
         </div>
       </div>
 
+      {/* live equity curve */}
+      {history.length > 1 && (
+        <div className="mt-3">
+          <Sparkline data={history} color={live >= 0 ? 'var(--green)' : 'var(--red)'} width={220} height={34} />
+        </div>
+      )}
+
       <div className="flex justify-between mt-3 text-[11px] text-gray-500">
         <span>open <span className="text-gray-300 font-bold">{agent.open.length}</span></span>
         <span>win% <span className="text-gray-300 font-bold">{wr.toFixed(0)}</span></span>
@@ -77,6 +84,7 @@ function AgentColumn({ agent, career }: { agent: AgentState; career: { pnl: numb
 
 export function AgentArena() {
   const [agents, setAgents] = useState<Record<AgentId, AgentState>>({ MOMENTUM: initAgent('MOMENTUM'), CONTRARIAN: initAgent('CONTRARIAN') });
+  const [histories, setHistories] = useState<Record<AgentId, number[]>>({ MOMENTUM: [], CONTRARIAN: [] });
   const [career, setCareer] = useState<Career>({ MOMENTUM: { pnl: 0, bets: 0, wins: 0 }, CONTRARIAN: { pnl: 0, bets: 0, wins: 0 } });
   const [ctx, setCtx] = useState<{ home?: string; away?: string; hs: number; as: number; min: number; live: boolean }>({ hs: 0, as: 0, min: 0, live: false });
 
@@ -94,19 +102,29 @@ export function AgentArena() {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
 
+      // fresh match → reset the per-match agents + equity curves (career persists)
+      if (e.type === 'MATCH_START' && settledFor.current !== e.matchId) {
+        setAgents({ MOMENTUM: initAgent('MOMENTUM'), CONTRARIAN: initAgent('CONTRARIAN') });
+        setHistories({ MOMENTUM: [], CONTRARIAN: [] });
+        prevOdds.current = null;
+      }
+
       if (e.score) { score.current = e.score; setCtx(c => ({ ...c, hs: e.score!.home, as: e.score!.away, min: e.matchMinute, live: e.type !== 'MATCH_END' })); }
 
       if (e.odds) {
         const next = e.odds;
-        if (prevOdds.current) {
-          const decisions = evaluate(prevOdds.current, next, e.matchMinute);
-          if (decisions.MOMENTUM || decisions.CONTRARIAN) {
-            setAgents(prev => ({
-              MOMENTUM:   decisions.MOMENTUM   ? { ...prev.MOMENTUM,   open: [...prev.MOMENTUM.open,   decisions.MOMENTUM!] }   : prev.MOMENTUM,
-              CONTRARIAN: decisions.CONTRARIAN ? { ...prev.CONTRARIAN, open: [...prev.CONTRARIAN.open, decisions.CONTRARIAN!] } : prev.CONTRARIAN,
-            }));
-          }
-        }
+        const decisions = prevOdds.current ? evaluate(prevOdds.current, next, e.matchMinute) : {};
+        setAgents(prev => {
+          const na = {
+            MOMENTUM:   decisions.MOMENTUM   ? { ...prev.MOMENTUM,   open: [...prev.MOMENTUM.open,   decisions.MOMENTUM] }   : prev.MOMENTUM,
+            CONTRARIAN: decisions.CONTRARIAN ? { ...prev.CONTRARIAN, open: [...prev.CONTRARIAN.open, decisions.CONTRARIAN] } : prev.CONTRARIAN,
+          };
+          setHistories(h => ({
+            MOMENTUM:   [...h.MOMENTUM,   markToMarket(na.MOMENTUM, next)].slice(-48),
+            CONTRARIAN: [...h.CONTRARIAN, markToMarket(na.CONTRARIAN, next)].slice(-48),
+          }));
+          return na;
+        });
         prevOdds.current = next;
         lastOdds.current = next;
       }
@@ -166,8 +184,10 @@ export function AgentArena() {
         );
       })()}
       <div className="flex flex-col sm:flex-row gap-3">
-        <AgentColumn agent={agents.MOMENTUM} career={career.MOMENTUM} />
-        <AgentColumn agent={agents.CONTRARIAN} career={career.CONTRARIAN} />
+        <AgentColumn agent={agents.MOMENTUM} career={career.MOMENTUM}
+          live={histories.MOMENTUM.at(-1) ?? agents.MOMENTUM.realizedPnl} history={histories.MOMENTUM} />
+        <AgentColumn agent={agents.CONTRARIAN} career={career.CONTRARIAN}
+          live={histories.CONTRARIAN.at(-1) ?? agents.CONTRARIAN.realizedPnl} history={histories.CONTRARIAN} />
       </div>
       <p className="text-[10px] text-gray-600 text-center">
         Autonomous · deterministic · settles on-chain at full-time. Career P&amp;L compounds across matches.

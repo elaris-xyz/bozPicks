@@ -100,6 +100,21 @@ export function settleAgent(agent: AgentState, result: Outcome, closing: OddsSna
   return { ...agent, open: [], settled, realizedPnl: realized };
 }
 
+/**
+ * Mark-to-market P&L: realized plus the current cash-out value of open
+ * positions. A back at oddsTaken is worth stake·(oddsTaken/oddsNow − 1) if you
+ * could lay it off at the current price — so the number moves live as the
+ * market does, giving each agent a running equity curve.
+ */
+export function markToMarket(agent: AgentState, odds: OddsSnapshot): number {
+  let unrealized = 0;
+  for (const p of agent.open) {
+    const now = oddsOf(odds, p.outcome);
+    if (now > 0) unrealized += p.stake * (p.oddsTaken / now - 1);
+  }
+  return agent.realizedPnl + unrealized;
+}
+
 export function avgClv(agent: AgentState): number {
   if (agent.settled.length === 0) return 0;
   return agent.settled.reduce((s, b) => s + b.clvPct, 0) / agent.settled.length;

@@ -39,6 +39,8 @@ export function CountUp({
 
   if (!isNumeric) return <span className={className} style={style}>{value}</span>;
 
-  const rounded = Number.isInteger(target) ? Math.round(display) : display.toFixed(1);
+  const rounded = Number.isInteger(target)
+    ? Math.round(display).toLocaleString('en-US')
+    : display.toFixed(1);
   return <span className={className} style={style}>{rounded}{suffix}</span>;
 }

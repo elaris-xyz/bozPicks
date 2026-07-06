@@ -17,11 +17,25 @@ import { FirstVisitHint } from '@/components/ui/FirstVisitHint';
 // to Google Fonts fails on this network and stalls every dev compile.
 // The CSS variables --font-inter / --font-display are set in globals.css.
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
 export const metadata: Metadata = {
-  title: 'bozPicks — Pick smart. Watch live. Get paid on-chain.',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'bozPicks — Pick smart. Watch live. Get paid on-chain.',
+    template: '%s · bozPicks',
+  },
   description: 'Live World Cup intelligence · Autonomous agent · On-chain settlement',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'bozPicks', statusBarStyle: 'black-translucent' },
+  openGraph: {
+    type: 'website',
+    siteName: 'bozPicks',
+    title: 'bozPicks — Pick smart. Watch live. Get paid on-chain.',
+    description: 'Live World Cup intelligence powered by TxLINE, settled on Solana.',
+  },
+  twitter: { card: 'summary_large_image', title: 'bozPicks', description: 'Live World Cup intelligence · TxLINE · Solana' },
 };
 
 export const viewport = {

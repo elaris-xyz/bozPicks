@@ -81,6 +81,7 @@ export function HiLoGame() {
   const guess = (g: Guess) => {
     if (current == null || pending || !ctx.live) return;
     setPending({ value: current, guess: g });
+    playSfx('tick');
   };
 
   const share = () => {

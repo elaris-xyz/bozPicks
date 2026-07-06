@@ -58,6 +58,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans min-h-screen"
             style={{ background: 'var(--bg-deep)', color: '#e2e8f0' }}>
+        <a href="#main"
+           className="sr-only focus:not-sr-only focus:fixed focus:z-[100] focus:top-3 focus:left-3 focus:px-4 focus:py-2 focus:rounded-lg focus:font-semibold focus:text-white"
+           style={{ background: 'var(--blue)' }}>
+          Skip to content
+        </a>
         <SolanaWalletProvider>
         <SSEProvider>
           {/* Cinematic background + live event VFX */}
@@ -75,7 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Nav variant="mobile-header" />
           </div>
 
-          <main className="max-w-6xl mx-auto px-3 md:px-6 pt-4 md:pt-8 pb-24 md:pb-12">
+          <main id="main" className="max-w-6xl mx-auto px-3 md:px-6 pt-4 md:pt-8 pb-24 md:pb-12">
             {children}
           </main>
 

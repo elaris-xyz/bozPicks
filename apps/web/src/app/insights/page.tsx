@@ -124,7 +124,10 @@ export default function InsightsPage() {
       <div className="space-y-2">
         {filtered.map((item, i) => (
           item.kind === 'signal' ? (
-            <div key={i} onClick={() => setSelectedSignal(item.data as AgentSignal)} className="cursor-pointer">
+            <div key={i} role="button" tabIndex={0}
+              onClick={() => setSelectedSignal(item.data as AgentSignal)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedSignal(item.data as AgentSignal); } }}
+              className="cursor-pointer rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
               <SignalCard signal={item.data} ts={item.ts} />
             </div>
           ) : (

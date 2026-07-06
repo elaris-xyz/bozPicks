@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSSE } from '@/hooks/useSSE';
-import type { SSEMessage, BozEvent, PropMarket } from '@bozpicks/shared';
+import type { SSEMessage, PropMarket } from '@bozpicks/shared';
 import { usdcToDisplay, displayToUsdc } from '@bozpicks/shared';
 import { poolOdds, impliedFromPool, payoutFor } from '@/lib/markets';
 import { playSfx } from '@/lib/sfx';
@@ -102,7 +102,6 @@ export function MarketsPanel() {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [betting, setBetting] = useState<string | null>(null);
   const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
-  const lastFetch = useRef(0);
   const prevSettled = useRef(0);
 
   const fetchMarkets = useCallback(async (mid?: string | null) => {
@@ -116,17 +115,20 @@ export function MarketsPanel() {
 
   useEffect(() => { fetchMarkets(); }, [fetchMarkets]);
 
+  // Live market updates arrive over SSE (created / pool change / settled) — no
+  // polling. Upsert by id, and switch context to the newest market's match.
   useSSE({
     onMessage: (msg: SSEMessage) => {
-      if (msg.type !== 'event' || !msg.data) return;
-      const e = msg.data as BozEvent;
-      if (e.matchId && e.matchId !== matchId) setMatchId(e.matchId);
-      const now = Date.now();
-      // refetch on end (to catch settlement) or throttled during play
-      if (e.type === 'MATCH_END' || now - lastFetch.current > 4000) {
-        lastFetch.current = now;
-        setTimeout(() => fetchMarkets(e.matchId ?? matchId), e.type === 'MATCH_END' ? 800 : 0);
-      }
+      if (msg.type !== 'market_update' || !msg.data) return;
+      const m = msg.data as PropMarket;
+      setMatchId(m.matchId);
+      setMarkets(prev => {
+        // a market from a newer match replaces the whole set
+        if (prev.length && prev[0].matchId !== m.matchId) return [m];
+        const i = prev.findIndex(x => x.id === m.id);
+        if (i === -1) return [...prev, m];
+        const next = [...prev]; next[i] = m; return next;
+      });
     },
   });
 

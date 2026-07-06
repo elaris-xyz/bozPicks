@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { redis } from '@/lib/redis';
 import { randomUUID } from 'crypto';
 import { rowToMarket } from '@/lib/markets';
 import { displayToUsdc } from '@bozpicks/shared';
@@ -42,7 +43,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       [randomUUID(), m.matchId, id, wallet, outcome, micro, body.escrowTx ?? 'devnet-escrow']
     );
 
-    return NextResponse.json({ ok: true, market: { ...m, pools, totalPool: total } });
+    const updated = { ...m, pools, totalPool: total };
+    await redis.publish('boz:markets', JSON.stringify(updated)).catch(() => {});
+    return NextResponse.json({ ok: true, market: updated });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

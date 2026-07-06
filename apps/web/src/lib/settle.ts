@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { db } from '@/lib/db';
+import { redis } from '@/lib/redis';
 import type { PropMarket, SettlementReceipt } from '@bozpicks/shared';
 import { resolveMarket, payoutFor, type FinalStats } from '@/lib/markets';
 
@@ -73,5 +74,7 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
     [winningOutcome, settlementTx, JSON.stringify(receipt), m.id]
   );
 
-  return { ...m, status: 'SETTLED', winningOutcome, settlementTx, receipt, settledAt: receipt.verifiedAt };
+  const settled: PropMarket = { ...m, status: 'SETTLED', winningOutcome, settlementTx, receipt, settledAt: receipt.verifiedAt };
+  await redis.publish('boz:markets', JSON.stringify(settled)).catch(() => {});
+  return settled;
 }

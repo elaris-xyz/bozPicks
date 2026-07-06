@@ -80,12 +80,16 @@ export async function POST(req: NextRequest) {
        JSON.stringify(mk.outcomes), JSON.stringify(mk.pools), mk.feeBps, mk.escrowPda]
     ).catch(() => {});
   }
-  // seed a little liquidity so the demo shows live odds
+  // seed a little liquidity so the demo shows live odds, and announce each
+  // market so the panel can render them live (no polling needed)
   for (const mk of markets) {
     const seeded = Object.fromEntries(mk.outcomes.map((o, i) => [o, (i === 0 ? 8 : 5) * 1_000_000]));
     const total = Object.values(seeded).reduce((a, b) => a + b, 0);
+    mk.pools = seeded as Record<string, number>;
+    mk.totalPool = total;
     await db.query(`UPDATE boz_markets SET pools=$1, total_pool=$2 WHERE id=$3`,
       [JSON.stringify(seeded), total, mk.id]).catch(() => {});
+    await redis.publish('boz:markets', JSON.stringify(mk)).catch(() => {});
   }
 
   // ── Generate + play the replay ──────────────────────────────────────────────

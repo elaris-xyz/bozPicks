@@ -65,12 +65,14 @@ export async function GET(req: NextRequest) {
       sub.on('message', (ch, message) => {
         try {
           const data = JSON.parse(message);
-          send(JSON.stringify({ type: ch === 'boz:signals' ? 'signal' : 'event', data, ts: new Date().toISOString() }));
+          const type = ch === 'boz:signals' ? 'signal' : ch === 'boz:markets' ? 'market_update' : 'event';
+          send(JSON.stringify({ type, data, ts: new Date().toISOString() }));
         } catch { /* malformed payload — skip */ }
       });
 
       sub.subscribe(channel).catch(teardown);
       sub.subscribe('boz:signals').catch(teardown);
+      sub.subscribe('boz:markets').catch(teardown);
 
       // heartbeat keeps proxies from dropping an idle connection
       heartbeat = setInterval(() => send(JSON.stringify({ type: 'ping', ts: new Date().toISOString() })), 25_000);

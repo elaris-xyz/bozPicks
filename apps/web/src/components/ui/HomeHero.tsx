@@ -24,7 +24,7 @@ export function HomeHero() {
            className="hidden lg:block absolute right-0 bottom-0 h-[135%] w-auto max-w-none object-contain object-right-bottom pointer-events-none select-none"
            style={{ filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5))', maskImage: 'linear-gradient(90deg, transparent, #000 40%)', WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 40%)' }} />
 
-      <div className="relative p-5 md:p-7 max-w-[62%] lg:max-w-[58%]">
+      <div className="relative p-5 md:p-7 lg:max-w-[58%]">
         <span className="chip-glass chip-green uppercase">
           <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'currentColor' }} />
           Live · World Cup 2026

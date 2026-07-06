@@ -352,6 +352,9 @@ export default function MatchDetailPage() {
           onClear={() => setPrediction(null)} />
       )}
 
+      {/* ── Match centre: timeline (main) + markets/analysis (side) ── */}
+      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] items-start">
+      <div className="space-y-4">
       {/* Timeline */}
       <div className="glass p-5">
         <div className="flex items-center justify-between mb-5">
@@ -373,7 +376,10 @@ export default function MatchDetailPage() {
           <TwoSidedTimeline events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
         )}
       </div>
+      </div>
 
+      {/* ── Side column: markets + analysis ── */}
+      <div className="space-y-4">
       {/* Odds Movement Chart */}
       {oddsHistory.length >= 3 && (
         <div className="glass p-5">
@@ -548,6 +554,8 @@ export default function MatchDetailPage() {
           </div>
         </div>
       )}
+      </div>
+      </div>
 
     </div>
   );

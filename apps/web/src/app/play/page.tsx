@@ -2,6 +2,7 @@ import { HiLoGame } from '@/components/ui/HiLoGame';
 import { LiveStatsPanel } from '@/components/ui/LiveStatsPanel';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
 import { HeroAura } from '@/components/ui/HeroAura';
+import { HeroLiveScore } from '@/components/ui/HeroLiveScore';
 import { PunditRail } from '@/components/ui/PunditRail';
 
 export const dynamic = 'force-dynamic';
@@ -14,15 +15,17 @@ export const metadata = {
 export default function PlayPage() {
   return (
     <div className="space-y-6">
-      <header className="glass fx-rise relative overflow-hidden p-6">
+      <header className="glass fx-rise relative overflow-hidden p-6 grid gap-4 lg:grid-cols-[1fr_340px] lg:items-center">
         <HeroAura color="var(--blue)" />
         <div className="relative">
           <span className="chip-glass chip-blue uppercase mb-2">Track 2 — Fan Experience</span>
-          <h1 className="font-display text-2xl font-black mt-2">Play Live</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Read the game as it happens — every number is live TxLINE data.
+          <h1 className="font-display text-2xl md:text-3xl font-black mt-2">Play Live</h1>
+          <p className="text-sm text-gray-500 mt-1 max-w-md">
+            Read the game as it happens — Hi-Lo, win-probability and an AI pundit,
+            every number live from TxLINE.
           </p>
         </div>
+        <div className="relative"><HeroLiveScore /></div>
       </header>
 
       <div className="grid gap-5 lg:grid-cols-2">

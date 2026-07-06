@@ -29,7 +29,7 @@ export function useLiveMatch(): LiveMatch | null {
     if (loading.current) return;
     loading.current = true;
     try {
-      const list = await fetch('/api/matches').then(r => r.json());
+      const list = await fetch('/api/matches', { cache: 'no-store' }).then(r => r.json());
       const m: MatchState | undefined = Array.isArray(list)
         ? list.find((x: MatchState) => x.status === 'LIVE' || x.status === 'HALFTIME')
         : undefined;

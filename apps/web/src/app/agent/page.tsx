@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { AgentSignal, SSEMessage } from '@bozpicks/shared';
 import { useSSE } from '@/hooks/useSSE';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
 import { useSSEContext } from '@/contexts/SSEContext';
 import { IconRadar, IconTarget, IconPulse, IconBolt } from '@/components/ui/Icons';
 import { CountUp } from '@/components/ui/CountUp';
@@ -29,6 +30,7 @@ export default function AgentPage() {
   const [signals, setSignals] = useState<AgentSignal[]>([]);
   const [stats, setStats] = useState<AgentStats | null>(null);
   const { connected } = useSSEContext();
+  const live = useLiveMatch();
   const [threshold, setThreshold] = useState(10);
   const [windowMin, setWindowMin] = useState(2);
   const [configOpen, setConfigOpen] = useState(false);
@@ -105,10 +107,10 @@ export default function AgentPage() {
               Autonomous sharp-move detector · Powered by TxLINE live odds
             </p>
           </div>
-          <div className={`chip-glass ${connected ? 'chip-green' : 'chip-slate'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'badge-live' : ''}`}
+          <div className={`chip-glass ${live?.live ? 'chip-green' : connected ? 'chip-blue' : 'chip-slate'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${live?.live ? 'badge-live' : ''}`}
                   style={{ background: 'currentColor' }} />
-            {connected ? 'LIVE' : 'OFFLINE'}
+            {live?.live ? `LIVE ${live.minute}'` : connected ? 'ONLINE' : 'OFFLINE'}
           </div>
         </div>
 
@@ -128,7 +130,7 @@ export default function AgentPage() {
               icon: <IconTarget size={20} />,
             },
             {
-              value: stats?.liveMatches ?? 0,
+              value: live?.live ? Math.max(1, stats?.liveMatches ?? 0) : (stats?.liveMatches ?? 0),
               label: 'Live Matches',
               color: 'var(--green)',
               icon: <IconPulse size={20} />,

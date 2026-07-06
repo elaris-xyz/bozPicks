@@ -10,7 +10,7 @@ export function HeroMarketSummary() {
   const [markets, setMarkets] = useState<PropMarket[]>([]);
 
   useEffect(() => {
-    fetch('/api/markets').then(r => r.json()).then(m => { if (Array.isArray(m)) setMarkets(m); }).catch(() => {});
+    fetch('/api/markets', { cache: 'no-store' }).then(r => r.json()).then(m => { if (Array.isArray(m)) setMarkets(m); }).catch(() => {});
   }, []);
 
   useSSE({

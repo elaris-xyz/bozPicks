@@ -106,7 +106,7 @@ export function MarketsPanel() {
 
   const fetchMarkets = useCallback(async (mid?: string | null) => {
     const url = mid ? `/api/markets?matchId=${mid}` : '/api/markets';
-    const r = await fetch(url).then(res => res.json()).catch(() => []);
+    const r = await fetch(url, { cache: 'no-store' }).then(res => res.json()).catch(() => []);
     if (Array.isArray(r) && r.length) {
       setMarkets(r);
       if (!mid && r[0]?.matchId) setMatchId(r[0].matchId);

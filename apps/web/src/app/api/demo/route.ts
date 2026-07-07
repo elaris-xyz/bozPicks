@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import { randomUUID } from 'crypto';
-import { generateMatchReplay } from '@/lib/replay';
+import { generateMatchReplay, SCENARIOS } from '@/lib/replay';
 import { buildMarketsForMatch, rowToMarket } from '@/lib/markets';
 import { settleMarketRow } from '@/lib/settle';
 
@@ -42,18 +42,23 @@ export async function POST(req: NextRequest) {
 
   await purgeDemoMatches();
 
-  const speed = Math.max(1, Math.min(90, Number(req.nextUrl.searchParams.get('speed')) || 4));
+  const p = req.nextUrl.searchParams;
+  const speed = Math.max(1, Math.min(90, Number(p.get('speed')) || 4));
+  const scenarioKey = p.get('scenario') ?? 'home-win';
+  const scenario = SCENARIOS[scenarioKey] ?? SCENARIOS['home-win'];
+  const homeTeam = (p.get('home') || 'Brazil').slice(0, 40);
+  const awayTeam = (p.get('away') || 'Argentina').slice(0, 40);
+  const competition = (p.get('competition') || 'FIFA World Cup').slice(0, 60);
+  const fixtureId = (p.get('fixtureId') || '').slice(0, 40); // real TxLINE fixture provenance
   const id = `demo-${Date.now()}`;
-  const homeTeam = 'Brazil';
-  const awayTeam = 'Argentina';
   const now = new Date();
 
   await db.query(
     `INSERT INTO boz_matches
        (id, home_team, away_team, home_score, away_score, status, current_minute, kickoff_time, competition, last_updated)
-     VALUES ($1,$2,$3,0,0,'LIVE',0,NOW(),'FIFA World Cup',NOW())
+     VALUES ($1,$2,$3,0,0,'LIVE',0,NOW(),$4,NOW())
      ON CONFLICT (id) DO NOTHING`,
-    [id, homeTeam, awayTeam]
+    [id, homeTeam, awayTeam, competition]
   ).catch(() => {});
 
   await db.query(
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Generate + play the replay ──────────────────────────────────────────────
-  const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: 42_000 / speed });
+  const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: 42_000 / speed, scenario });
 
   // Time budget: keep the whole request comfortably under the serverless limit.
   // If we run long (slow env), stop waiting and fast-forward the remaining

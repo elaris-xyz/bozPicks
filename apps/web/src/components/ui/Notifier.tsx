@@ -8,6 +8,10 @@ export function Notifier() {
   useSSESubscription((msg: SSEMessage) => {
     if (msg.type === 'event' && msg.data) {
       const ev = msg.data as BozEvent;
+      // Ignore SSE catch-up: on first load the stream replays recent events from
+      // an already-finished demo match. Firing "Goal!"/"Red Card" toasts for a
+      // match that's over is confusing — only notify on genuinely live events.
+      if (Date.now() - new Date(ev.timestamp).getTime() > 8000) return;
       if (ev.type === 'GOAL') {
         fireToast({
           kind: 'goal',

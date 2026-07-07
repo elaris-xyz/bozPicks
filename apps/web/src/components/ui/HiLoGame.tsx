@@ -5,12 +5,15 @@ import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
 import { playSfx } from '@/lib/sfx';
+import { hiloReading, isPossession } from '@/lib/hilo';
 
 /**
- * Hi-Lo: guess whether the next TxLINE stat reading will be higher or lower.
- * Live, replayable across matches, streak-based, shareable. Uses possession —
- * the one soccer stat that genuinely swings both ways minute to minute — so a
- * guess is a real read of the game, not a coin flip on a monotonic counter.
+ * Hi-Lo: guess whether the next TxLINE reading will be higher or lower. Live,
+ * replayable across matches, streak-based, shareable. The reading is home's
+ * possession share — the one soccer stat that genuinely swings both ways — and
+ * falls back to a TxLINE danger/corner attacking-pressure index when a feed
+ * omits possession, so it is always a real read of the game, never a coin flip
+ * on a monotonic counter. (see lib/hilo.ts)
  */
 
 type Guess = 'HIGHER' | 'LOWER';
@@ -26,6 +29,7 @@ export function HiLoGame() {
   const [rounds, setRounds] = useState(0);
   const [last, setLast] = useState<Round>(null);
   const [flash, setFlash] = useState<'win' | 'lose' | null>(null);
+  const [readingLabel, setReadingLabel] = useState('Possession');
   const live = useLiveMatch();
   const isLive = !!live?.live;
 
@@ -42,9 +46,10 @@ export function HiLoGame() {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
       const stats = e.stats as MatchStats | undefined;
-      if (!stats || typeof stats.possession !== 'number') return;
+      const next = hiloReading(stats);
+      if (next == null) return;
+      setReadingLabel(isPossession(stats) ? 'Possession' : 'Pressure');
 
-      const next = stats.possession;
       const p = pendingRef.current;
       if (p) {
         const win = p.guess === 'HIGHER' ? next > p.value : next < p.value;
@@ -98,11 +103,11 @@ export function HiLoGame() {
       {/* header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="section-label">Hi-Lo · Possession</p>
+          <p className="section-label">Hi-Lo · {readingLabel}</p>
           <p className="text-[11px] text-gray-500 mt-0.5">
             {isLive && live?.homeTeam
               ? <>Live: {live.homeTeam} {live.homeScore}–{live.awayScore} {live.awayTeam} · {live.minute}&rsquo;</>
-              : 'Guess the next possession swing'}
+              : `Guess the next ${readingLabel.toLowerCase()} swing`}
           </p>
         </div>
         <div className="flex items-center gap-3 text-right">
@@ -123,7 +128,7 @@ export function HiLoGame() {
       {/* possession bar */}
       <div className="mb-2 flex items-center justify-between text-xs font-bold">
         <span className="text-[var(--green)]">{homePoss}%</span>
-        <span className="text-gray-500 text-[10px] uppercase tracking-widest">possession</span>
+        <span className="text-gray-500 text-[10px] uppercase tracking-widest">{readingLabel}</span>
         <span className="text-[var(--blue)]">{awayPoss}%</span>
       </div>
       <div className="h-3 rounded-full overflow-hidden flex mb-5" style={{ background: 'rgba(255,255,255,0.05)' }}>

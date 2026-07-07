@@ -20,7 +20,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 export type OddsTrend = { home?: 'up' | 'down'; draw?: 'up' | 'down'; away?: 'up' | 'down' };
 
 export function MatchCard({
-  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false,
+  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false, dateBadge,
 }: {
   match: MatchState; activeSignals?: number;
   isFav?: boolean; onToggleFav?: (id: string) => void;
@@ -31,6 +31,8 @@ export function MatchCard({
   trend?: OddsTrend;
   /** dense variant for horizontal rails — smaller type, shorter card */
   compact?: boolean;
+  /** small date chip shown top-center (grid view — cards aren't grouped by day) */
+  dateBadge?: string;
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const cfg = STATUS_CONFIG[match.status] ?? STATUS_CONFIG.SCHEDULED;
@@ -68,6 +70,14 @@ export function MatchCard({
             <div className="absolute inset-0 pointer-events-none"
                  style={{ background: 'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(16,185,129,0.12), transparent 70%)' }} />
           </>
+        )}
+
+        {/* date chip — top-center (grid view only) */}
+        {dateBadge && (
+          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{ background: 'rgba(11,16,32,0.72)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)' }}>
+            {dateBadge}
+          </span>
         )}
 
         {/* ── Corner labels ── */}

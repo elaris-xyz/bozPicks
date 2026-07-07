@@ -62,6 +62,8 @@ export function CommandBridge() {
   const run = useCallback(async () => {
     if (running) return;
     setRunning(true);
+    setPickerOpen(false);
+    setOpen(false); // auto-close the panel so the match is visible immediately
     try {
       const params = new URLSearchParams({ speed: String(speed), scenario: scenarioKey });
       const f = fixtures[fixtureIdx];

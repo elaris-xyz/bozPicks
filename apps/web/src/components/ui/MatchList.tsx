@@ -223,20 +223,9 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     </div>
   );
 
-  // List view, one day: dense grid of up to 5 compact cards per row.
-  const renderGrid5 = (list: MatchState[]) => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-      {list.map((m, i) => (
-        <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]} compact
-          activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
-          onToggleFav={toggleFav} oddsFormat={oddsFormat} />
-      ))}
-    </div>
-  );
-
-  // A day's fixtures — rail (poster) or dense grid (list).
+  // A day's fixtures — horizontal rail (poster) or full-width scan rows (list).
   const renderDay = (list: MatchState[]) =>
-    view === 'poster' ? renderRail(list) : renderGrid5(list);
+    view === 'poster' ? renderRail(list) : renderRows(list);
 
   // A day group with its timeline-style header (dot + label + rule + count).
   const dayNode = (g: { label: string; count: number; matches: MatchState[] }, idx: number) => {
@@ -403,12 +392,12 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
         );
       })()}
 
-      {/* Finished — dense grid in list view, poster grid otherwise */}
+      {/* Finished — scan rows in list view, poster grid otherwise */}
       {visFinished.length > 0 && (
         <Reveal as="section" className="space-y-3">
           <h2 className="section-label">Finished</h2>
           {view === 'list'
-            ? renderGrid5(visFinished)
+            ? renderRows(visFinished)
             : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{visFinished.map(renderCard)}</div>}
         </Reveal>
       )}

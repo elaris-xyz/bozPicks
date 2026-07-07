@@ -52,11 +52,11 @@ export default async function HomePage() {
         <LiveTicker matches={tickerMatches} />
       </div>
       <HomeHero />
-      <MatchList initialMatches={matches} />
       <section className="space-y-3">
         <p className="section-label">Recent Events</p>
         <LiveEventFeed />
       </section>
+      <MatchList initialMatches={matches} />
     </div>
   );
 }

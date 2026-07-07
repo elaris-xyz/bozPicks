@@ -11,7 +11,7 @@ import { punditLine, PUNDIT_ALWAYS } from '@/lib/pundit';
  * on-page.
  */
 
-interface Line { id: string; text: string }
+interface Line { id: string; text: string; ai?: boolean }
 
 export function PunditRail({ home, away }: { home?: string; away?: string }) {
   const [lines, setLines] = useState<Line[]>([]);
@@ -33,21 +33,36 @@ export function PunditRail({ home, away }: { home?: string; away?: string }) {
         return; // sprinkle in some corners/yellows, not all
       }
 
-      const text = punditLine(e, home, away);
-      if (!text) return;
-      const line = { id: `${e.id}-${Date.now()}`, text };
-      setLines(prev => [...prev.slice(-14), line]);
-      if (tts && typeof window !== 'undefined' && window.speechSynthesis) {
-        const u = new SpeechSynthesisUtterance(text.replace(/[^\p{L}\p{N} .,'!–-]/gu, ''));
-        u.rate = 1.08; u.pitch = 1.0;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
+      const emit = (text: string, ai = false) => {
+        if (!text) return;
+        setLines(prev => [...prev.slice(-14), { id: `${e.id}-${Date.now()}`, text, ai }]);
+        if (tts && typeof window !== 'undefined' && window.speechSynthesis) {
+          const u = new SpeechSynthesisUtterance(text.replace(/[^\p{L}\p{N} .,'!–-]/gu, ''));
+          u.rate = 1.08; u.pitch = 1.0;
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(u);
+        }
+      };
+
+      // Big moments get a real LLM line (Claude Haiku server-side, with a
+      // template fallback); minor events use the instant local template.
+      if (e.type === 'GOAL' || e.type === 'RED_CARD') {
+        fetch('/api/pundit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: e, home, away }),
+        })
+          .then(r => r.json())
+          .then((d: { line?: string; ai?: boolean }) => emit(d.line ?? punditLine(e, home, away) ?? '', !!d.ai))
+          .catch(() => emit(punditLine(e, home, away) ?? ''));
+      } else {
+        emit(punditLine(e, home, away) ?? '');
       }
     },
   });
 
   // typing effect for the newest line
-  const latest = lines[lines.length - 1]?.text ?? '';
+  const latestLine = lines[lines.length - 1];
+  const latest = latestLine?.text ?? '';
   useEffect(() => {
     if (!latest) return;
     setTyped('');
@@ -70,7 +85,7 @@ export function PunditRail({ home, away }: { home?: string; away?: string }) {
                 style={{ background: 'linear-gradient(135deg,var(--blue),var(--purple))', color: '#fff' }}>AI</span>
           <div>
             <p className="text-sm font-bold text-gray-100 leading-none">AI Pundit</p>
-            <p className="text-[10px] text-gray-600 mt-0.5">reading the market live</p>
+            <p className="text-[10px] text-gray-600 mt-0.5">Claude Haiku on goals &amp; reds · reading the market</p>
           </div>
         </div>
         <button onClick={() => setTts(t => !t)} title="Text to speech"
@@ -90,12 +105,14 @@ export function PunditRail({ home, away }: { home?: string; away?: string }) {
         {lines.slice(0, -1).map(l => (
           <div key={l.id} className="text-[13px] text-gray-300 leading-snug rounded-xl px-3 py-2 anim-in"
                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+            {l.ai && <span className="text-[8px] font-black mr-1.5 px-1 py-0.5 rounded align-middle" style={{ background: 'var(--purple-dim)', color: 'var(--purple)' }}>HAIKU</span>}
             {l.text}
           </div>
         ))}
         {latest && (
           <div className="text-[13px] text-gray-100 leading-snug rounded-xl px-3 py-2"
                style={{ background: 'var(--blue-dim)', border: '1px solid rgba(59,130,246,0.3)' }}>
+            {latestLine?.ai && <span className="text-[8px] font-black mr-1.5 px-1 py-0.5 rounded align-middle" style={{ background: 'var(--purple-dim)', color: 'var(--purple)' }}>HAIKU</span>}
             {typed}<span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle animate-pulse" style={{ background: 'var(--blue)' }} />
           </div>
         )}

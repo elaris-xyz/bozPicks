@@ -190,7 +190,7 @@ export function AgentArena() {
           live={histories.CONTRARIAN.at(-1) ?? agents.CONTRARIAN.realizedPnl} history={histories.CONTRARIAN} />
       </div>
       <p className="text-[10px] text-gray-600 text-center">
-        Autonomous · deterministic · settles on-chain at full-time. Career P&amp;L compounds across matches.
+        Deterministic strategies · paper-traded live on the TxLINE feed · career P&amp;L compounds across matches.
       </p>
     </div>
   );

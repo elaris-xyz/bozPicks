@@ -22,8 +22,9 @@ export function buildReceipt(m: PropMarket, fixtureId: string, statValue: number
     txlineRecordId: recordId,
     merkleRoot: root,
     merkleProof: [sibling],
-    validateTx: validateTx ?? `demo-${h(root).slice(0, 32)}`,
+    validateTx: validateTx ?? `sim-${h(root).slice(0, 32)}`,
     verifiedAt: new Date().toISOString(),
+    source: validateTx ? 'TXLINE_ONCHAIN' : 'SIMULATED',
   };
 }
 

@@ -229,6 +229,13 @@ export interface SettlementReceipt {
   merkleProof: string[];       // sibling hashes
   validateTx: string;          // Solana tx that CPI'd validate_stat
   verifiedAt: string;
+  /**
+   * TXLINE_ONCHAIN = real TxLINE Merkle proof + validate_stat tx (played match).
+   * SIMULATED = the fixture is upcoming so no real proof exists yet; the keeper
+   * runs the real path the moment TxLINE publishes the final stat. Being honest
+   * about which one it is matters more than pretending.
+   */
+  source: 'TXLINE_ONCHAIN' | 'SIMULATED';
 }
 
 // ─── Replay ──────────────────────────────────────────────────────────────────

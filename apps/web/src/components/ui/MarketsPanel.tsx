@@ -22,14 +22,18 @@ function short(s: string, n = 6) {
 function Receipt({ m }: { m: PropMarket }) {
   const r = m.receipt;
   if (!r) return null;
+  const onchain = r.source === 'TXLINE_ONCHAIN';
+  const c = onchain ? 'var(--green)' : 'var(--amber)';
+  const tint = onchain ? 'rgba(16,185,129,0.06)' : 'rgba(245,158,11,0.06)';
+  const border = onchain ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)';
   return (
     <div className="mt-3 rounded-xl p-3 text-[11px] relative"
-         style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.3)' }}>
+         style={{ background: tint, border: `1px solid ${border}` }}>
       <span className="fx-stamp absolute -top-2.5 right-2 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
-            style={{ color: 'var(--green)', border: '2px solid var(--green)', background: 'rgba(6,20,14,0.9)' }}>
-        Verified ✓
+            style={{ color: c, border: `2px solid ${c}`, background: 'rgba(6,12,20,0.9)' }}>
+        {onchain ? 'Verified ✓' : 'Simulated'}
       </span>
-      <div className="flex items-center gap-1.5 mb-2 font-bold uppercase tracking-widest text-[10px]" style={{ color: 'var(--green)' }}>
+      <div className="flex items-center gap-1.5 mb-2 font-bold uppercase tracking-widest text-[10px]" style={{ color: c }}>
         <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
           <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -41,8 +45,13 @@ function Receipt({ m }: { m: PropMarket }) {
         <dt className="text-gray-600">record</dt><dd>{short(r.txlineRecordId, 8)}</dd>
         <dt className="text-gray-600">root</dt><dd className="truncate" title={r.merkleRoot}>{short(r.merkleRoot, 8)}</dd>
         <dt className="text-gray-600">proof</dt><dd>{r.merkleProof.length} node(s)</dd>
-        <dt className="text-gray-600">validate_stat</dt><dd className="truncate" title={r.validateTx} style={{ color: 'var(--blue)' }}>{short(r.validateTx, 8)}</dd>
+        <dt className="text-gray-600">validate_stat</dt><dd className="truncate" title={r.validateTx} style={{ color: onchain ? 'var(--blue)' : '#94a3b8' }}>{short(r.validateTx, 8)}</dd>
       </dl>
+      {!onchain && (
+        <p className="text-[9px] text-gray-600 mt-2 leading-snug">
+          Fixture is upcoming — proof simulated. The keeper runs the real TxLINE Merkle proof + <span className="font-mono">validate_stat</span> CPI the moment TxLINE publishes the final stat.
+        </p>
+      )}
     </div>
   );
 }

@@ -35,6 +35,19 @@ export function punditLine(e: BozEvent, home?: string, away?: string): string | 
       ]);
     case 'SUBSTITUTION':
       return `${team} make a change at ${min}' — watch if it's a shore-up or a push for more.`;
+    case 'SHOT': {
+      const o = e.shotOutcome;
+      if (o === 'OnTarget') return `${team} force a save at ${min}' — that's a real chance, danger's rising.`;
+      if (o === 'Woodwork') return `Off the woodwork, ${team}! (${min}') Inches from a swing in the market.`;
+      if (o === 'Blocked') return `${team} get a shot away at ${min}' but it's blocked — pressure without payoff.`;
+      return `${team} fire it wide at ${min}'. Half-chance; the price barely flickers.`;
+    }
+    case 'VAR':
+      return e.varOutcome === 'Overturned'
+        ? `🟥 VAR overturns it (${min}')! ${e.varType ?? 'Decision'} reversed — expect a sharp repricing.`
+        : `VAR checking ${e.varType ?? 'the play'} at ${min}'… ${e.varOutcome === 'Stands' ? 'decision stands — markets exhale.' : 'markets hold their breath.'}`;
+    case 'OFFSIDE':
+      return `Flag's up — ${team} caught offside at ${min}'. Chance gone; momentum resets.`;
     case 'HALFTIME':
       return `Half-time. Books reopen with fresh lines — a good moment to reassess ${sc}.`;
     case 'MATCH_START':
@@ -53,4 +66,4 @@ export function punditLine(e: BozEvent, home?: string, away?: string): string | 
 }
 
 /** Which events are worth a line, and how often odds ticks may speak (ms). */
-export const PUNDIT_ALWAYS = new Set(['GOAL', 'RED_CARD', 'HALFTIME', 'MATCH_START', 'MATCH_END', 'SUBSTITUTION']);
+export const PUNDIT_ALWAYS = new Set(['GOAL', 'RED_CARD', 'VAR', 'HALFTIME', 'MATCH_START', 'MATCH_END', 'SUBSTITUTION']);

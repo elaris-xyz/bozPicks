@@ -129,12 +129,19 @@ function classify(scores: TxScores, d: SoccerData | undefined): BozEventType | n
   if (d?.Goal) return 'GOAL';
   if (d?.RedCard) return 'RED_CARD';
   if (d?.YellowCard) return 'YELLOW_CARD';
-  if (d?.VAR) return 'VAR';
+  if (scores.action === 'var' || scores.action === 'var_end' || d?.VAR) return 'VAR';
   if (d?.Penalty) return 'PENALTY';
   if (d?.PlayerInId || d?.PlayerOutId) return 'SUBSTITUTION';
   if (d?.Corner) return 'CORNER';
+  // `shot` / `free_kick` actions carry Data.Outcome / FreeKickType. A free_kick
+  // is an OFFSIDE when FreeKickType is Offside, otherwise a FOUL (TxLINE has no
+  // separate foul signal).
+  if (scores.action === 'shot') return 'SHOT';
+  if (scores.action === 'free_kick') return d?.FreeKickType === 'Offside' ? 'OFFSIDE' : 'FOUL';
   return 'SCORE_UPDATE';
 }
+
+const SHOT_OUTCOMES = new Set(['OnTarget', 'OffTarget', 'Woodwork', 'Blocked']);
 
 // ─── TxScores → BozEvent ────────────────────────────────────────────────────
 
@@ -165,7 +172,11 @@ export function scoresEventToBozEvent(scores: TxScores): BozEvent | null {
     goalKind: type === 'GOAL' ? goalKind(d?.GoalType) : undefined,
     isPenalty: d?.Penalty || undefined,
     isOwnGoal: type === 'GOAL' && goalKind(d?.GoalType) === 'OWN_GOAL' ? true : undefined,
-    isVAR: d?.VAR || undefined,
+    isVAR: type === 'VAR' || d?.VAR || undefined,
+    shotOutcome: type === 'SHOT' && d?.Outcome && SHOT_OUTCOMES.has(d.Outcome) ? (d.Outcome as BozEvent['shotOutcome']) : undefined,
+    varType: type === 'VAR' ? (d?.Type as BozEvent['varType']) : undefined,
+    varOutcome: type === 'VAR' && (d?.Outcome === 'Stands' || d?.Outcome === 'Overturned') ? (d.Outcome as BozEvent['varOutcome']) : undefined,
+    freeKickType: (type === 'FOUL' || type === 'OFFSIDE') ? d?.FreeKickType : undefined,
     stats,
     rawPayload: scores as unknown as object,
   };

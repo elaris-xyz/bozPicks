@@ -55,6 +55,22 @@ test('replay is deterministic — identical input yields identical final stats',
   assert.deepEqual(a, b);
 });
 
+test('replay emits broadcast events (shots/VAR/offside) without changing settlement', () => {
+  const { steps, final } = generateMatchReplay('m1', HOME, AWAY, { scenario: SCENARIOS['home-win'] });
+  const types = new Set(steps.map(s => s.event.type));
+  assert.ok(types.has('SHOT'), 'has shots');
+  assert.ok(types.has('OFFSIDE'), 'has offside');
+  assert.ok(types.has('VAR'), 'has a VAR review');
+  const shot = steps.find(s => s.event.type === 'SHOT')!.event;
+  assert.ok(shot.shotOutcome, 'shot carries an outcome');
+  const varEv = steps.find(s => s.event.type === 'VAR')!.event;
+  assert.equal(varEv.varOutcome, 'Stands'); // must not change the score
+  // final stats identical to the pure scenario — broadcast events are cosmetic
+  assert.equal(final.homeScore, 2);
+  assert.equal(final.awayScore, 1);
+  assert.equal(final.totalGoals, 3);
+});
+
 test('replay events are chronologically ordered and bracketed by START/END', () => {
   const { steps } = generateMatchReplay('m1', HOME, AWAY, { scenario: SCENARIOS['home-win'] });
   assert.equal(steps[0].event.type, 'MATCH_START');

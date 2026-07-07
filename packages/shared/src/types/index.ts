@@ -69,6 +69,9 @@ export type BozEventType =
   | 'CORNER'
   | 'PENALTY'
   | 'VAR'
+  | 'SHOT'
+  | 'OFFSIDE'
+  | 'FOUL'
   | 'ODDS_UPDATE'
   | 'SCORE_UPDATE'
   | 'MATCH_START'
@@ -76,6 +79,13 @@ export type BozEventType =
   | 'HALFTIME';
 
 export type GoalKind = 'SHOT' | 'HEAD' | 'PENALTY' | 'OWN_GOAL' | 'OTHER';
+
+/** TxLINE `shot` outcomes (Data.Outcome). */
+export type ShotOutcome = 'OnTarget' | 'OffTarget' | 'Woodwork' | 'Blocked';
+/** TxLINE `var` review type (Data.Type). */
+export type VarType = 'Goal' | 'Penalty' | 'RedCard' | 'SecondYellowCard' | 'CornerKick' | 'MistakenIdentity' | 'Other';
+/** TxLINE `var_end` outcome (Data.Outcome). */
+export type VarOutcome = 'Stands' | 'Overturned';
 
 export interface BozEvent {
   id: string;
@@ -96,6 +106,13 @@ export interface BozEvent {
   isPenalty?: boolean;
   isOwnGoal?: boolean;
   isVAR?: boolean;
+  /** SHOT: on/off target, woodwork, blocked (TxLINE shot Data.Outcome) */
+  shotOutcome?: ShotOutcome;
+  /** VAR: what's under review + how it resolved (TxLINE var / var_end) */
+  varType?: VarType;
+  varOutcome?: VarOutcome;
+  /** FOUL/OFFSIDE: the TxLINE free_kick FreeKickType that produced it */
+  freeKickType?: string;
   playerIn?: string;       // substitution in
   playerOut?: string;      // substitution out
   /** stats snapshot at the moment of this event — for the Hi-Lo game */

@@ -60,13 +60,17 @@ export interface SoccerData {
   Penalty?: boolean;
   Corner?: boolean;
   VAR?: boolean;
-  FreeKickType?: string;
+  FreeKickType?: string;      // Safe | Attack | Danger | HighDanger | Offside
   ThrowInType?: string;
   VenueType?: string;         // Home | Away | Neutral
   PlayerId?: number;
   PlayerInId?: number;
   PlayerOutId?: number;
   Minutes?: number;
+  // ── rich event Data (present on `shot` / `var` / `var_end` / `comment`) ──
+  Outcome?: string;           // shot: OnTarget|OffTarget|Woodwork|Blocked · var_end: Stands|Overturned
+  Type?: string;              // var: Goal|Penalty|RedCard|SecondYellowCard|CornerKick|MistakenIdentity|Other
+  Text?: string;              // comment: e.g. "Water-drinking break"
 }
 
 /**

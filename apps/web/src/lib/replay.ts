@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { BozEvent, BozEventType, OddsSnapshot, MatchStats, DangerLevel, GoalKind } from '@bozpicks/shared';
+import type { BozEvent, BozEventType, OddsSnapshot, MatchStats, DangerLevel, GoalKind, ShotOutcome, VarType, VarOutcome } from '@bozpicks/shared';
 import { SCENARIOS, type ReplayScenario } from './scenarios';
 
 export { SCENARIOS, type ReplayScenario };
@@ -48,6 +48,10 @@ type Act =
   | { minute: number; kind: 'YELLOW_CARD' | 'RED_CARD'; side: 'home' | 'away'; player: string }
   | { minute: number; kind: 'CORNER'; side: 'home' | 'away' }
   | { minute: number; kind: 'SUBSTITUTION'; side: 'home' | 'away'; playerIn: string; playerOut: string }
+  | { minute: number; kind: 'SHOT'; side: 'home' | 'away'; player: string; shotOutcome: ShotOutcome }
+  | { minute: number; kind: 'OFFSIDE'; side: 'home' | 'away' }
+  | { minute: number; kind: 'FOUL'; side: 'home' | 'away' }
+  | { minute: number; kind: 'VAR'; side: 'home' | 'away'; varType: VarType; varOutcome: VarOutcome }
   | { minute: number; kind: 'ODDS'; odds: OddsSnapshot };
 
 /** Consensus 1X2 odds implied by the current goal difference. */
@@ -99,6 +103,21 @@ function buildScript(s: ReplayScenario, home: string, away: string): Act[] {
     acts.push({ minute: 67, kind: 'RED_CARD', side: 'away', player: `${away} · #11` });
     acts.push({ minute: 67.5, kind: 'ODDS', odds: oddsForDiff((s.homeGoals - s.awayGoals) + 1) });
   }
+
+  // broadcast texture: shots (on/off target), an offside, a foul, and a VAR
+  // review — real TxLINE event types (shot / free_kick / var) that don't change
+  // the score but make the feed + pundit feel like a live broadcast.
+  const leader: 'home' | 'away' = s.homeGoals >= s.awayGoals ? 'home' : 'away';
+  const trailer: 'home' | 'away' = leader === 'home' ? 'away' : 'home';
+  acts.push({ minute: 12, kind: 'SHOT', side: leader,  player: `${leader === 'home' ? home : away} · #10`, shotOutcome: 'OnTarget' });
+  acts.push({ minute: 28, kind: 'FOUL', side: trailer });
+  acts.push({ minute: 33, kind: 'OFFSIDE', side: leader });
+  acts.push({ minute: 52, kind: 'SHOT', side: trailer, player: `${trailer === 'home' ? home : away} · #7`, shotOutcome: 'OffTarget' });
+  // a VAR check on the first goal — stands, so the score is unaffected
+  if (s.homeGoals + s.awayGoals > 0) {
+    acts.push({ minute: 63, kind: 'VAR', side: leader, varType: 'Goal', varOutcome: 'Stands' });
+  }
+  acts.push({ minute: 74, kind: 'SHOT', side: leader,  player: `${leader === 'home' ? home : away} · #11`, shotOutcome: 'Blocked' });
 
   // a substitution + kickoff odds
   acts.push({ minute: 2, kind: 'ODDS', odds: oddsForDiff(0) });
@@ -156,6 +175,26 @@ export function generateMatchReplay(
         ev.team = a.side === 'home' ? homeTeam : awayTeam;
         ev.playerIn = a.playerIn; ev.playerOut = a.playerOut;
         ev.player = `${a.playerIn} ← ${a.playerOut}`;
+        break;
+      case 'SHOT':
+        type = 'SHOT';
+        ev.team = a.side === 'home' ? homeTeam : awayTeam;
+        ev.player = a.player; ev.shotOutcome = a.shotOutcome;
+        break;
+      case 'OFFSIDE':
+        type = 'OFFSIDE';
+        ev.team = a.side === 'home' ? homeTeam : awayTeam;
+        ev.freeKickType = 'Offside';
+        break;
+      case 'FOUL':
+        type = 'FOUL';
+        ev.team = a.side === 'home' ? homeTeam : awayTeam;
+        ev.freeKickType = 'Danger';
+        break;
+      case 'VAR':
+        type = 'VAR';
+        ev.team = a.side === 'home' ? homeTeam : awayTeam;
+        ev.isVAR = true; ev.varType = a.varType; ev.varOutcome = a.varOutcome;
         break;
       case 'GOAL':
         type = 'GOAL';

@@ -23,7 +23,17 @@ const EVENT_CFG: Record<string, EventCfg> = {
   CORNER:      { color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)',         border: 'rgba(245,158,11,0.3)',  icon: <IconFlagEnd size={13} /> },
   PENALTY:     { color: 'var(--green)', bg: 'var(--green-dim)',             border: 'rgba(16,185,129,0.3)',  icon: <IconBall size={14} /> },
   VAR:         { color: 'var(--blue)',  bg: 'var(--blue-dim)',              border: 'rgba(59,130,246,0.3)',  icon: <IconRadar size={13} /> },
+  SHOT:        { color: 'var(--blue)',  bg: 'var(--blue-dim)',              border: 'rgba(59,130,246,0.3)',  icon: <IconBall size={13} /> },
+  OFFSIDE:     { color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)',         border: 'rgba(245,158,11,0.3)',  icon: <IconFlagEnd size={13} /> },
+  FOUL:        { color: '#9ca3af',      bg: 'rgba(156,163,175,0.08)',       border: 'rgba(156,163,175,0.2)', icon: <IconCard size={13} /> },
 };
+
+/** A short outcome tag shown under the event label (shot result, VAR verdict). */
+function detailOf(e: BozEvent): string | null {
+  if (e.type === 'SHOT' && e.shotOutcome) return e.shotOutcome.replace(/([a-z])([A-Z])/g, '$1 $2');
+  if (e.type === 'VAR') return `${e.varType ?? 'Review'} · ${e.varOutcome ?? 'checking'}`;
+  return null;
+}
 const DEFAULT_CFG: EventCfg = { color: '#9ca3af', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)', icon: <span className="text-[10px]">•</span> };
 
 function timeAgo(iso: string) {
@@ -106,6 +116,11 @@ export function LiveEventFeed() {
                         <span className="text-[10px] text-gray-600 font-mono">{e.matchMinute}'</span>
                       )}
                     </div>
+                    {detailOf(e) && (
+                      <p className="text-[9px] font-bold uppercase tracking-wide truncate mt-0.5" style={{ color: cfg.color }}>
+                        {detailOf(e)}
+                      </p>
+                    )}
                     {(e.team || e.player) && (
                       <p className="text-[10px] text-gray-500 truncate mt-0.5">
                         {e.team}{e.player ? ` · ${e.player}` : ''}

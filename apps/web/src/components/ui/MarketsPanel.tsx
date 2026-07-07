@@ -156,6 +156,7 @@ export function MarketsPanel() {
 
   // detect settlement transition → sound
   const settledCount = markets.filter(m => m.status === 'SETTLED').length;
+  const anySimulated = markets.some(m => m.receipt?.source === 'SIMULATED');
   useEffect(() => {
     if (settledCount > prevSettled.current && prevSettled.current === 0 && settledCount > 0) {
       playSfx('settle');
@@ -195,7 +196,9 @@ export function MarketsPanel() {
             </span>
             <div>
               <p className="text-sm font-bold text-gray-100">Full time — {settledCount}/{markets.length} markets settled</p>
-              <p className="text-[11px] text-gray-500">Resolved trustlessly from TxLINE Merkle proofs · payouts in USDC</p>
+              <p className="text-[11px] text-gray-500">{anySimulated
+                ? 'Simulated from the scenario · real TxLINE proof + on-chain payout run at a played fixture’s final whistle'
+                : 'Resolved from TxLINE Merkle proofs · USDC payouts on-chain'}</p>
             </div>
           </div>
           {myResolved.length > 0 && (

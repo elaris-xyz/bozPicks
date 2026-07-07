@@ -1,6 +1,7 @@
 import { MarketsPanel } from '@/components/ui/MarketsPanel';
 import { HeroAura } from '@/components/ui/HeroAura';
 import { HeroMarketSummary } from '@/components/ui/HeroMarketSummary';
+import { OnChainProof } from '@/components/ui/OnChainProof';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +20,13 @@ export default function MarketsPage() {
           <h1 className="font-display text-2xl md:text-3xl font-black mt-2">Prediction Markets</h1>
           <p className="text-sm text-gray-500 mt-1 max-w-xl">
             Parametric prop markets — goals, corners, cards, BTTS — as USDC parimutuel
-            pools, settled trustlessly the moment TxLINE confirms the result on-chain.
+            pools on a live devnet program, settled from a TxLINE stat proof the
+            moment the fixture finishes.
           </p>
         </div>
         <div className="relative"><HeroMarketSummary /></div>
       </header>
+      <OnChainProof />
       <MarketsPanel />
     </div>
   );

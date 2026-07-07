@@ -1,59 +1,122 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
-import type { BozEvent, SSEMessage } from '@bozpicks/shared';
+import type { BozEvent, MatchState, SSEMessage } from '@bozpicks/shared';
+import { Flag } from './Flag';
 import {
   IconBall, IconCard, IconSub, IconTrendUp, IconKickoff,
-  IconFlagEnd, IconPause, IconChart, IconRadar,
+  IconFlagEnd, IconPause, IconChart, IconRadar, IconTarget,
 } from './Icons';
 
-type EventCfg = { color: string; bg: string; border: string; icon: React.ReactNode };
+/**
+ * Broadcast-grade live feed. Every TxLINE event type gets its own colour and
+ * icon; each card carries a match-identity footer (flag · score · VS · score ·
+ * flag) so several concurrent matches stay legible. The newest event glows;
+ * events from a finished match fade to a muted "dead" palette so a freshly
+ * kicked-off match reads as distinctly live.
+ */
 
+const IconOffside = ({ size = 13 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 3v18" /><path d="M5 4h11l-2.5 3.5L16 11H5" />
+  </svg>
+);
+const IconWhistle = ({ size = 13 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="14" r="5" /><path d="M14 12h7M14 12l-1-4h5l-1 4" />
+  </svg>
+);
+const IconVar = ({ size = 13 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="14" rx="2" /><path d="M8 21h8M12 18v3" />
+  </svg>
+);
+
+type EventCfg = { label: string; color: string; icon: React.ReactNode };
+
+// distinct hue per event type — no two categories share a colour
 const EVENT_CFG: Record<string, EventCfg> = {
-  GOAL:        { color: 'var(--green)',  bg: 'var(--green-dim)',             border: 'rgba(16,185,129,0.3)',  icon: <IconBall size={14} /> },
-  RED_CARD:    { color: 'var(--red)',    bg: 'var(--red-dim)',               border: 'rgba(239,68,68,0.3)',   icon: <IconCard size={13} /> },
-  YELLOW_CARD: { color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)',         border: 'rgba(245,158,11,0.3)',  icon: <IconCard size={13} /> },
-  ODDS_UPDATE: { color: 'var(--blue)',  bg: 'var(--blue-dim)',              border: 'rgba(59,130,246,0.3)',  icon: <IconTrendUp size={13} /> },
-  MATCH_START: { color: 'var(--green)', bg: 'var(--green-dim)',             border: 'rgba(16,185,129,0.3)',  icon: <IconKickoff size={14} /> },
-  MATCH_END:   { color: '#6b7280',      bg: 'rgba(107,114,128,0.1)',        border: 'rgba(107,114,128,0.2)', icon: <IconFlagEnd size={13} /> },
-  HALFTIME:    { color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)',         border: 'rgba(245,158,11,0.3)',  icon: <IconPause size={13} /> },
-  SUBSTITUTION:{ color: '#9ca3af',      bg: 'rgba(156,163,175,0.08)',       border: 'rgba(156,163,175,0.2)', icon: <IconSub size={13} /> },
-  SCORE_UPDATE:{ color: 'var(--green)', bg: 'var(--green-dim)',             border: 'rgba(16,185,129,0.3)',  icon: <IconChart size={13} /> },
-  CORNER:      { color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)',         border: 'rgba(245,158,11,0.3)',  icon: <IconFlagEnd size={13} /> },
-  PENALTY:     { color: 'var(--green)', bg: 'var(--green-dim)',             border: 'rgba(16,185,129,0.3)',  icon: <IconBall size={14} /> },
-  VAR:         { color: 'var(--blue)',  bg: 'var(--blue-dim)',              border: 'rgba(59,130,246,0.3)',  icon: <IconRadar size={13} /> },
-  SHOT:        { color: 'var(--blue)',  bg: 'var(--blue-dim)',              border: 'rgba(59,130,246,0.3)',  icon: <IconBall size={13} /> },
-  OFFSIDE:     { color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)',         border: 'rgba(245,158,11,0.3)',  icon: <IconFlagEnd size={13} /> },
-  FOUL:        { color: '#9ca3af',      bg: 'rgba(156,163,175,0.08)',       border: 'rgba(156,163,175,0.2)', icon: <IconCard size={13} /> },
+  GOAL:        { label: 'Goal',        color: '#22c55e', icon: <IconBall size={14} /> },
+  PENALTY:     { label: 'Penalty',     color: '#4ade80', icon: <IconBall size={14} /> },
+  SHOT:        { label: 'Shot',        color: '#06b6d4', icon: <IconTarget size={13} /> },
+  CORNER:      { label: 'Corner',      color: '#f59e0b', icon: <IconFlagEnd size={13} /> },
+  YELLOW_CARD: { label: 'Yellow',      color: '#eab308', icon: <IconCard size={13} /> },
+  RED_CARD:    { label: 'Red Card',    color: '#ef4444', icon: <IconCard size={13} /> },
+  OFFSIDE:     { label: 'Offside',     color: '#fb7185', icon: <IconOffside size={13} /> },
+  FOUL:        { label: 'Foul',        color: '#8b9bb4', icon: <IconWhistle size={13} /> },
+  VAR:         { label: 'VAR Review',  color: '#a855f7', icon: <IconVar size={13} /> },
+  SUBSTITUTION:{ label: 'Sub',         color: '#38bdf8', icon: <IconSub size={13} /> },
+  ODDS_UPDATE: { label: 'Odds',        color: '#3b82f6', icon: <IconTrendUp size={13} /> },
+  SCORE_UPDATE:{ label: 'Score',       color: '#2dd4bf', icon: <IconChart size={13} /> },
+  MATCH_START: { label: 'Kick-off',    color: '#34d399', icon: <IconKickoff size={14} /> },
+  MATCH_END:   { label: 'Full time',   color: '#94a3b8', icon: <IconFlagEnd size={13} /> },
+  HALFTIME:    { label: 'Half time',   color: '#fbbf24', icon: <IconPause size={13} /> },
 };
+const DEFAULT_CFG: EventCfg = { label: 'Event', color: '#9ca3af', icon: <span className="text-[10px]">•</span> };
 
-/** A short outcome tag shown under the event label (shot result, VAR verdict). */
-function detailOf(e: BozEvent): string | null {
+// event-specific detail line (what actually happened)
+function detailOf(e: BozEvent): string {
   if (e.type === 'SHOT' && e.shotOutcome) return e.shotOutcome.replace(/([a-z])([A-Z])/g, '$1 $2');
-  if (e.type === 'VAR') return `${e.varType ?? 'Review'} · ${e.varOutcome ?? 'checking'}`;
-  return null;
+  if (e.type === 'VAR') return `${e.varType ?? 'Review'} — ${e.varOutcome ?? 'checking'}`;
+  if (e.player) return e.player;
+  if (e.team) return e.team;
+  return '';
 }
-const DEFAULT_CFG: EventCfg = { color: '#9ca3af', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)', icon: <span className="text-[10px]">•</span> };
 
 function timeAgo(iso: string) {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s/60)}m`;
-  return `${Math.floor(s/3600)}h`;
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
 }
+
+interface Meta { home: string; away: string }
 
 export function LiveEventFeed() {
   const [events, setEvents] = useState<BozEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [meta, setMeta] = useState<Record<string, Meta>>({});
+  const [finished, setFinished] = useState<Set<string>>(new Set());
+  const activeMatch = useRef<string | null>(null);
+  const [, force] = useState(0);
+
+  // team names for the match-identity footer — (re)loaded on mount and whenever
+  // a new match kicks off (a fresh demo match won't be in the first fetch).
+  const loadMeta = useRef<() => void>(() => {});
+  loadMeta.current = () => {
+    fetch('/api/matches', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((ms: MatchState[]) => {
+        if (!Array.isArray(ms)) return;
+        setMeta(prev => {
+          const next = { ...prev };
+          for (const m of ms) next[m.id] = { home: m.homeTeam, away: m.awayTeam };
+          return next;
+        });
+      })
+      .catch(() => {});
+  };
+  useEffect(() => { loadMeta.current(); }, []);
+
+  // re-tick "x ago" labels every 10s
+  useEffect(() => { const t = setInterval(() => force(n => n + 1), 10_000); return () => clearInterval(t); }, []);
 
   useSSE({
     onMessage: (msg: SSEMessage) => {
       if (msg.type === 'ping') { setConnected(true); return; }
+      if (msg.type === 'match_update' && msg.data) {
+        const m = msg.data as MatchState;
+        setMeta(prev => ({ ...prev, [m.id]: { home: m.homeTeam, away: m.awayTeam } }));
+        return;
+      }
       if (msg.type === 'event' && msg.data) {
         const e = msg.data as BozEvent;
+        if (e.type === 'MATCH_START') { activeMatch.current = e.matchId; loadMeta.current(); }
+        if (e.type === 'MATCH_END') setFinished(f => new Set(f).add(e.matchId));
         setEvents(prev => {
           if (prev.some(x => x.id === e.id)) return prev;
+          if (!activeMatch.current) activeMatch.current = e.matchId;
           return [e, ...prev].slice(0, 30);
         });
       }
@@ -64,74 +127,85 @@ export function LiveEventFeed() {
 
   return (
     <div className="glass p-4">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${connected ? 'badge-live' : ''}`}
                 style={{ background: connected ? 'var(--green)' : '#4b5563' }} />
-          <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Live Feed</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Live Feed</span>
         </div>
-        {events.length > 0 && (
-          <span className="text-[10px] text-gray-600">{events.length} events</span>
-        )}
+        {events.length > 0 && <span className="text-[10px] text-gray-500">{events.length} events</span>}
       </div>
 
-      {/* Empty state */}
       {events.length === 0 && (
         <div className="py-10 text-center">
           <div className="w-10 h-10 mx-auto mb-3 rounded-full flex items-center justify-center text-gray-500"
                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
             <IconRadar size={18} />
           </div>
-          <p className="text-xs text-gray-600">Listening for live events...</p>
+          <p className="text-xs text-gray-500">Listening for live events…</p>
         </div>
       )}
 
-      {/* Events — horizontal timeline: newest on the left, dots strung along
-          a single axis, each with a card hanging beneath it */}
       {events.length > 0 && (
         <div className="relative overflow-x-auto rail-scroll pb-1">
-          <div className="flex gap-3 min-w-max pt-0.5">
-            {events.map(e => {
+          <div className="flex gap-2.5 min-w-max pt-1">
+            {events.map((e, idx) => {
               const cfg = EVENT_CFG[e.type] ?? DEFAULT_CFG;
+              const dead = finished.has(e.matchId) || (activeMatch.current != null && e.matchId !== activeMatch.current);
+              const newest = idx === 0 && !dead;
+              const c = dead ? '#64748b' : cfg.color;
+              const m = meta[e.matchId];
+              const detail = detailOf(e);
+
               return (
-                <div key={e.id} className="w-[132px] shrink-0 flex flex-col items-center anim-in">
-                  {/* node on the axis — connector bridges the gap to neighbours */}
-                  <div className="relative w-full flex justify-center">
-                    <div className="absolute top-1/2 -translate-y-1/2 left-[-6px] right-[-6px] h-px"
-                         style={{ background: 'var(--glass-border)' }} />
-                    <div className="relative z-10 w-6 h-6 rounded-full flex items-center justify-center"
-                         style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}>
-                      {cfg.icon}
-                    </div>
-                  </div>
-                  {/* card */}
-                  <div className="mt-2.5 w-full rounded-xl p-2 border text-center"
-                       style={{ background: cfg.bg, borderColor: cfg.border }}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span className="text-[11px] font-bold leading-tight" style={{ color: cfg.color }}>
-                        {e.type.replace(/_/g, ' ')}
-                      </span>
+                <div key={e.id}
+                     className={`relative w-[158px] h-[120px] shrink-0 rounded-xl flex flex-col overflow-hidden anim-in ${newest ? 'fx-rise' : ''}`}
+                     style={{
+                       background: dead ? 'rgba(30,41,59,0.35)' : `linear-gradient(180deg, ${c}14, rgba(12,18,32,0.6))`,
+                       border: `1px solid ${dead ? 'rgba(100,116,139,0.25)' : c + '66'}`,
+                       boxShadow: newest ? `0 0 0 1px ${c}66, 0 6px 22px ${c}44` : undefined,
+                       filter: dead ? 'saturate(0.5)' : undefined,
+                       opacity: dead ? 0.7 : 1,
+                     }}>
+                  {/* colour accent bar */}
+                  <div className="h-[3px] w-full flex-shrink-0" style={{ background: c }} />
+
+                  <div className="flex-1 flex flex-col px-2.5 py-2 min-h-0">
+                    {/* header: icon + label + minute */}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                              style={{ background: `${c}22`, color: c }}>
+                          {cfg.icon}
+                        </span>
+                        <span className="text-[11px] font-bold truncate" style={{ color: c }}>{cfg.label}</span>
+                      </div>
                       {e.matchMinute > 0 && (
-                        <span className="text-[10px] text-gray-600 font-mono">{e.matchMinute}'</span>
+                        <span className="text-[10px] font-mono font-bold tabular-nums flex-shrink-0" style={{ color: dead ? '#94a3b8' : '#e2e8f0' }}>
+                          {e.matchMinute}&rsquo;
+                        </span>
                       )}
                     </div>
-                    {detailOf(e) && (
-                      <p className="text-[9px] font-bold uppercase tracking-wide truncate mt-0.5" style={{ color: cfg.color }}>
-                        {detailOf(e)}
-                      </p>
-                    )}
-                    {(e.team || e.player) && (
-                      <p className="text-[10px] text-gray-500 truncate mt-0.5">
-                        {e.team}{e.player ? ` · ${e.player}` : ''}
-                      </p>
-                    )}
-                    {e.score && (
-                      <p className="text-xs font-bold font-mono mt-0.5" style={{ color: 'var(--green)' }}>
-                        {e.score.home}–{e.score.away}
-                      </p>
-                    )}
-                    <p className="text-[9px] text-gray-700 mt-0.5">{timeAgo(e.timestamp)} ago</p>
+
+                    {/* detail: player / outcome */}
+                    <p className="text-[11px] text-gray-300 leading-tight mt-1 line-clamp-2 flex-1">{detail}</p>
+
+                    {/* newest badge / time */}
+                    <div className="flex items-center justify-between">
+                      {newest
+                        ? <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full" style={{ background: `${c}22`, color: c }}>Latest</span>
+                        : <span className="text-[9px] text-gray-500">{timeAgo(e.timestamp)}</span>}
+                    </div>
+                  </div>
+
+                  {/* match-identity footer: flag · score · VS · score · flag */}
+                  <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 flex-shrink-0"
+                       style={{ background: 'rgba(3,7,18,0.55)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <Flag team={m?.home} size="xs" />
+                    <span className="text-[11px] font-black tabular-nums" style={{ color: dead ? '#94a3b8' : '#f8fafc' }}>{e.score?.home ?? 0}</span>
+                    <span className="text-[8px] text-gray-500 font-bold">VS</span>
+                    <span className="text-[11px] font-black tabular-nums" style={{ color: dead ? '#94a3b8' : '#f8fafc' }}>{e.score?.away ?? 0}</span>
+                    <Flag team={m?.away} size="xs" />
                   </div>
                 </div>
               );

@@ -175,7 +175,17 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
 
   const visLive     = visible.filter(m => m.status === 'LIVE' || m.status === 'HALFTIME');
   const visUpcoming = visible.filter(m => m.status === 'SCHEDULED');
-  const visFinished = visible.filter(m => m.status === 'FINISHED');
+  // Dedupe finished matches by matchup — repeated demo runs of the same fixture
+  // can leave orphan rows (a child-table delete failing blocks the parent purge),
+  // so keep only the most recently updated card per home/away pairing.
+  const visFinished = Object.values(
+    visible.filter(m => m.status === 'FINISHED').reduce((acc, m) => {
+      const key = `${m.homeTeam}|${m.awayTeam}`;
+      const prev = acc[key];
+      if (!prev || new Date(m.lastUpdated).getTime() > new Date(prev.lastUpdated).getTime()) acc[key] = m;
+      return acc;
+    }, {} as Record<string, MatchState>)
+  );
 
   if (!hydrated) return <MatchListSkeleton />;
 

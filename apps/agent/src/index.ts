@@ -2,15 +2,18 @@ import Redis from 'ioredis';
 import type { BozEvent, OddsSnapshot } from '@bozpicks/shared';
 import { detectSharpMove } from './detector';
 import { saveSignal, verifySignals } from './tracker';
+import { Arena } from './arena';
 import { txlineRest } from '@bozpicks/txline-client';
 
 const sub = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
+const arena = new Arena(redis);
 const startTime = Date.now();
 let signalCount = 0;
 
-console.log('[boz-agent] starting event-driven sharp move detector...');
+console.log('[boz-agent] starting event-driven sharp move detector + arena...');
+void arena.init();
 
 sub.psubscribe('boz:events:*', (err) => {
   if (err) { console.error('[boz-agent] subscribe error:', err); process.exit(1); }
@@ -20,6 +23,9 @@ sub.psubscribe('boz:events:*', (err) => {
 sub.on('pmessage', async (_pattern: string, channel: string, message: string) => {
   const event = JSON.parse(message) as BozEvent;
   const matchId = event.matchId;
+
+  // the two arena agents paper-trade every event autonomously
+  await arena.onEvent(event);
 
   if (event.type === 'ODDS_UPDATE' && event.odds) {
     await handleOddsUpdate(matchId, event);

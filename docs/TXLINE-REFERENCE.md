@@ -217,3 +217,75 @@ time-shifted.
 Deadline **2026-07-19 23:59 UTC** · winners **2026-07-29**. Each submission needs:
 demo video ≤5 min (mandatory), public repo, deployed/devnet link, brief tech doc
 listing TxLINE endpoints used, and API feedback. Winner interviews follow.
+
+---
+
+## 10. Team-confirmed intel (hackathon channel, Jul 2026)
+
+Direct answers from the TxLINE team — closes gaps the public docs left open.
+Our code that consumes these lives in `packages/txline-client/src/stat-keys.ts`
+(legend + `FINAL_ACTION`/`FINAL_GOAL_STAT_KEYS`) with tests in
+`apps/web/src/lib/statkeys.test.ts`.
+
+### 10.1 `Stats` map key legend (score/discipline counters, NOT advanced stats)
+A key is `periodPrefix + baseKey`. Base keys (participant 1 / 2):
+
+| base | stat |
+|---|---|
+| 1 / 2 | goals |
+| 3 / 4 | yellow cards |
+| 5 / 6 | red cards |
+| 7 / 8 | corners |
+
+Period prefixes: `0`=Total, `1000`=H1, `2000`=HT, `3000`=H2, `4000`=ET1,
+`5000`=ET2, `6000`=PE (penalties), `7000`=ETTotal. e.g. `7008` = P2 corners in
+ETTotal; `1002` = P2 goals in H1 (**this is why our old `SCORE_STAT_KEY=1002`
+was wrong for final settlement** — it's a first-half stat, not the total).
+
+### 10.2 Final-result settlement (knockouts w/ ET & penalties)
+Do **not** settle off an arbitrary 90-minute / in-play record. Select the score
+record where `Action = "game_finalised"`, then prove **total goals** for both
+sides: `/api/scores/stat-validation?fixtureId=<id>&seq=<Seq>&statKeys=1,2`.
+That finalised record already reflects ET/penalties. Our ingest now maps
+`action === 'game_finalised'` → `MATCH_END`.
+
+### 10.3 On-chain validation path
+Currently-supported instruction is **`validateStatV2`** (not the older
+`validate_stat`). Published devnet IDL + example scripts:
+- IDL: `https://raw.githubusercontent.com/txodds/tx-on-chain/nojira-re-adding-examples/examples/devnet/idl/txoracle.json`
+- scripts: `https://github.com/txodds/tx-on-chain/tree/main/examples/devnet/scripts`
+- Known-good devnet case (reached `finalStatus: VERIFIED`): fixture `17588309`
+  (Egypt v Iran), `seq 1141`. PDA seed uses `epochDay` as **u16 LE**;
+  `epochDay = floor(ts/86_400_000)`, `interval = floor((ts%86_400_000)/300_000)`
+  — the timestamp used for `validateStat`'s first arg and the daily-roots PDA
+  must be the **same** (use `summary.updateStats.minTimestamp`). Proof hashes
+  are exactly 32 bytes, not reversed. Predicate: `{ threshold: value,
+  comparison: { equalTo: {} } }`. The low-level manual Merkle hash spec
+  (sha256/keccak, leaf preimage, `is_right_sibling` order) is **not yet
+  published** — use the payload + `validateStatV2`, don't hand-verify.
+
+### 10.4 Rich event semantics (score events, not `Stats` keys)
+- possession → `Possession` / `PossessionType`
+- shots → `shot` with `Data.Outcome` ∈ {OnTarget, OffTarget, Woodwork, Blocked}
+- free kicks → `free_kick` with `Data.FreeKickType` ∈ {Safe, Attack, Danger,
+  HighDanger, Offside}. A **foul** = any `free_kick` with `FreeKickType != Offside`
+  (no dedicated foul signal). Offside is its own `FreeKickType`.
+- VAR → `var` / `var_end`; `var.Data.Type` ∈ {Goal, Penalty, RedCard,
+  SecondYellowCard, CornerKick, MistakenIdentity, Other}; `var_end.Data.Outcome`
+  ∈ {Stands, Overturned}. No dedicated disallowed-goal reason field yet.
+- penalty outcomes: Scored / Missed / Retake
+- hydration/water break → `Action = "comment"`, `Data.Text = "Water-drinking break"`
+
+### 10.5 Devnet liveness
+Devnet is largely historical/scheduled replay — often **no live fixture in
+progress**. Use the SSE stream during scheduled windows
+(`/documentation/scores/schedule`) or full per-fixture historical replay. This
+is exactly why our demo drives a deterministic **replay engine** (§7) rather
+than depending on a live devnet match at judging time.
+
+### 10.6 Track mapping (overview cards were swapped on the site — detail pages correct)
+- **Trading Tools & Agents** = autonomous agents / odds & scores / signals /
+  strategies / execution → our **Agent Arena** (Track 3).
+- **Consumer & Fan Experiences** = fan-facing apps / games / bots / social →
+  our **Hi-Lo + Pundit** (Track 2).
+- **Prediction Markets & Settlement** → our **prop markets + settlement** (Track 1).

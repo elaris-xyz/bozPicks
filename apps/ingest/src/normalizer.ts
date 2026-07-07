@@ -121,6 +121,9 @@ function goalKind(gt: string | undefined): GoalKind | undefined {
 
 function classify(scores: TxScores, d: SoccerData | undefined): BozEventType | null {
   if (scores.gameState === 'HT') return 'HALFTIME';
+  // `game_finalised` is the authoritative final record (accounts for ET/pens);
+  // TxLINE says settle off it, not an arbitrary 90' / gameState=F record.
+  if (scores.action === 'game_finalised') return 'MATCH_END';
   if (scores.gameState === 'F' || scores.gameState === 'FET') return 'MATCH_END';
   if (scores.action === 'MatchStarted') return 'MATCH_START';
   if (d?.Goal) return 'GOAL';

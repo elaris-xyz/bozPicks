@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "test": "tsx --test src/lib/settlement.test.ts src/lib/hilo.test.ts"
+    "test": "tsx --test src/lib/settlement.test.ts src/lib/hilo.test.ts src/lib/statkeys.test.ts"
   },
   "dependencies": {
     "@bozpicks/shared": "workspace:*",

@@ -12,14 +12,21 @@ import {
   AccountMeta,
 } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
-import { authHeaders } from '@bozpicks/txline-client';
+import { authHeaders, statKey } from '@bozpicks/txline-client';
 
-// TxLINE devnet program
+// TxLINE devnet program + published Anchor IDL (validateStatV2 is the currently
+// supported on-chain path — see the official devnet examples/IDL):
+//   IDL:      https://raw.githubusercontent.com/txodds/tx-on-chain/nojira-re-adding-examples/examples/devnet/idl/txoracle.json
+//   scripts:  https://github.com/txodds/tx-on-chain/tree/main/examples/devnet/scripts
 const TXLINE_PROGRAM_ID = new PublicKey('6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J');
 const TXLINE_BASE       = 'https://txline-dev.txodds.com';
 
-// stat key for match score (home/away goals)
-const SCORE_STAT_KEY = 1002;
+// Stat key to prove for settlement. NOTE: the old value 1002 was WRONG — that
+// decodes to H1 participant-2 goals, not the final result. Per TxLINE guidance,
+// settle the winner off the `game_finalised` record proving total goals
+// (keys 1 & 2, period = Total). We anchor the record on participant-1 total
+// goals here; the full winner proof uses both keys via validateStatV2.
+const SCORE_STAT_KEY = statKey('GOALS', 1); // = 1 (participant-1 total goals)
 
 // ── Types mirrored from TxLINE IDL ──────────────────────────────────────────
 

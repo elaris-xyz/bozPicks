@@ -17,9 +17,11 @@ export interface LiveMatch {
 /**
  * Authoritative "is a match live right now" source. Inferring live/idle purely
  * from the SSE stream is fragile — the connect catch-up replays old events (a
- * stale MATCH_END would wrongly show idle). So we fetch the current LIVE match
- * from /api/matches on mount, ignore catch-up events (>8s old), and only update
- * from fresh events. Returns the live match (with score/minute) or null.
+ * stale MATCH_END would wrongly show idle). So we treat /api/matches as the
+ * source of truth: fetch it on mount, poll it every 10s (so a match that kicks
+ * off AFTER mount is discovered even if the SSE stream hiccups), and use fresh
+ * (<8s-old) SSE events for instant score/minute updates in between. Returns the
+ * live match or null.
  */
 export function useLiveMatch(): LiveMatch | null {
   const [match, setMatch] = useState<LiveMatch | null>(null);
@@ -41,7 +43,11 @@ export function useLiveMatch(): LiveMatch | null {
     } catch { /* keep current */ } finally { loading.current = false; }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 10_000); // poll fallback (SSE may hiccup)
+    return () => clearInterval(t);
+  }, [load]);
 
   useSSE({
     onMessage: (msg: SSEMessage) => {

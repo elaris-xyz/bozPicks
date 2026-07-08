@@ -1,41 +1,38 @@
+import { PlayHero } from '@/components/ui/PlayHero';
+import { LiveScoreboard } from '@/components/ui/LiveScoreboard';
 import { HiLoGame } from '@/components/ui/HiLoGame';
 import { LiveStatsPanel } from '@/components/ui/LiveStatsPanel';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
-import { HeroAura } from '@/components/ui/HeroAura';
-import { HeroLiveScore } from '@/components/ui/HeroLiveScore';
 import { PunditRail } from '@/components/ui/PunditRail';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Play · bozPicks',
-  description: 'Live World Cup fan games powered by TxLINE data.',
+  title: 'Play',
+  description: 'Live World Cup fan games powered by TxLINE data — Hi-Lo, win-probability and an AI pundit.',
 };
 
 export default function PlayPage() {
   return (
     <div className="space-y-6">
-      <header className="glass fx-rise relative overflow-hidden p-6 grid gap-4 lg:grid-cols-[1fr_340px] lg:items-center">
-        <HeroAura color="var(--blue)" />
-        <div className="relative">
-          <span className="chip-glass chip-blue uppercase mb-2">Track 2 — Fan Experience</span>
-          <h1 className="font-display text-2xl md:text-3xl font-black mt-2">Play Live</h1>
-          <p className="text-sm text-gray-500 mt-1 max-w-md">
-            Read the game as it happens — Hi-Lo, win-probability and an AI pundit,
-            every number live from TxLINE.
-          </p>
-        </div>
-        <div className="relative"><HeroLiveScore /></div>
-      </header>
+      <PlayHero />
 
+      {/* live centrepiece — broadcast scorebug (or an invite when idle) */}
+      <LiveScoreboard />
+
+      {/* the three fan games, side by side */}
       <div className="grid gap-4 lg:grid-cols-3 items-start">
         <HiLoGame />
         <LiveStatsPanel />
-        <PunditRail home="Brazil" away="Argentina" />
+        <PunditRail />
       </div>
 
+      {/* full event stream */}
       <section className="space-y-3">
-        <p className="section-label">Live Feed</p>
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--blue)', boxShadow: '0 0 10px rgba(59,130,246,0.5)' }} />
+          <h2 className="text-sm font-bold tracking-tight" style={{ color: 'var(--blue)' }}>Live Feed</h2>
+        </div>
         <LiveEventFeed />
       </section>
     </div>

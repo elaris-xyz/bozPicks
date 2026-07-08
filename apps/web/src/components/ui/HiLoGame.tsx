@@ -139,7 +139,13 @@ export function HiLoGame() {
       {!isLive ? (
         <div className="text-center py-4">
           <p className="text-sm text-gray-400">No live match right now.</p>
-          <p className="text-[11px] text-gray-600 mt-1">Hit <span className="font-bold text-[var(--blue)]">Run Demo</span> at the bottom to start one.</p>
+          <p className="text-[11px] text-gray-600 mt-1">
+            Tap the{' '}
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full align-middle" style={{ background: 'linear-gradient(135deg,#3b82f6,#a78bfa)' }}>
+              <svg viewBox="0 0 24 24" className="w-2 h-2" fill="#fff"><path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" /></svg>
+            </span>{' '}
+            <span className="font-bold text-[var(--blue)]">Command Bridge</span> (bottom-left) to start one.
+          </p>
         </div>
       ) : pending ? (
         <div className="text-center py-3">

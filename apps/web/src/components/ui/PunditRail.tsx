@@ -2,18 +2,22 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent } from '@bozpicks/shared';
 import { punditLine, PUNDIT_ALWAYS } from '@/lib/pundit';
 
 /**
  * Live AI Pundit rail: turns the TxLINE stream into running commentary with a
  * typing effect and optional text-to-speech — the "AI pundit bot" experience,
- * on-page.
+ * on-page. Team names default to whatever match is currently live.
  */
 
 interface Line { id: string; text: string; ai?: boolean }
 
-export function PunditRail({ home, away }: { home?: string; away?: string }) {
+export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; away?: string } = {}) {
+  const live = useLiveMatch();
+  const home = homeProp ?? live?.homeTeam;
+  const away = awayProp ?? live?.awayTeam;
   const [lines, setLines] = useState<Line[]>([]);
   const [typed, setTyped] = useState('');
   const [tts, setTts] = useState(false);

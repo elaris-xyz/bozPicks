@@ -67,3 +67,32 @@ export function punditLine(e: BozEvent, home?: string, away?: string): string | 
 
 /** Which events are worth a line, and how often odds ticks may speak (ms). */
 export const PUNDIT_ALWAYS = new Set(['GOAL', 'RED_CARD', 'VAR', 'HALFTIME', 'MATCH_START', 'MATCH_END', 'SUBSTITUTION']);
+
+/**
+ * A SHORT, punchy line to actually *speak* — deliberately terser than the line
+ * shown on screen so the voice keeps pace and doesn't clip against the next
+ * event. Returns null for routine events that shouldn't be voiced at all (so
+ * the booth only talks over the moments that matter). `high` priority barges in.
+ */
+export function spokenFor(e: BozEvent, _home?: string, _away?: string): { text: string; priority: 'high' | 'low' } | null {
+  const team = e.team ?? 'them';
+  const score = e.score ? `${e.score.home}, ${e.score.away}` : '';
+  switch (e.type) {
+    case 'GOAL':
+      return { text: `Goal! ${team}.${score ? ` It's ${score}.` : ''}`, priority: 'high' };
+    case 'PENALTY':
+      return { text: `Penalty, ${team}!`, priority: 'high' };
+    case 'RED_CARD':
+      return { text: `Red card! ${team} down to ten.`, priority: 'high' };
+    case 'VAR':
+      return { text: `V.A.R. check.`, priority: 'high' };
+    case 'MATCH_START':
+      return { text: `Kick off. We're underway.`, priority: 'low' };
+    case 'HALFTIME':
+      return { text: `Half time.${score ? ` ${score}.` : ''}`, priority: 'low' };
+    case 'MATCH_END':
+      return { text: `Full time.${score ? ` ${score}.` : ''}`, priority: 'high' };
+    default:
+      return null; // corners, cards, subs, odds — shown on screen, not spoken
+  }
+}

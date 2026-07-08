@@ -207,6 +207,9 @@
   @keyframes fx-float-b { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-12px,12px); } }
   @keyframes fx-float-c { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-8px,-10px); } }
 
+  /* pundit voice equaliser bars */
+  @keyframes boz-eq { 0% { transform: scaleY(0.15); } 100% { transform: scaleY(1); } }
+
   /* hero entrance */
   .fx-rise { animation: fx-rise 0.7s cubic-bezier(0.16,1,0.3,1) both; }
   @keyframes fx-rise { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: none; } }

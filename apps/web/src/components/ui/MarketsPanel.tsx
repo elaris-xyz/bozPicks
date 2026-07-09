@@ -176,8 +176,9 @@ export function MarketsPanel() {
 
   if (markets.length === 0) {
     return (
-      <div className="glass p-8 text-center text-gray-600 text-sm">
-        No markets yet — run a live match to open parametric prop markets.
+      <div className="glass rounded-2xl p-6 text-center" style={{ borderStyle: 'dashed' }}>
+        <p className="text-sm text-gray-500">Six prop markets — Match Result, Total Goals/Corners/Cards, BTTS, First Goal —</p>
+        <p className="text-sm text-gray-500">open here the moment a match kicks off.</p>
       </div>
     );
   }

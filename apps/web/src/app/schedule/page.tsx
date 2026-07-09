@@ -55,15 +55,19 @@ export default async function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Schedule" subtitle={`${matches.length} matches · All times local`} />
+      <PageHeader title="Schedule" count={matches.length} subtitle="Every fixture from the TxLINE feed · all times local" />
 
       {matches.length === 0 && (
-        <div className="glass text-center py-20">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl flex items-center justify-center text-gray-500"
-               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+        <div className="glass fx-rise text-center py-16 px-6">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl flex items-center justify-center"
+               style={{ background: 'var(--blue-dim)', color: 'var(--blue)', border: '1px solid rgba(59,130,246,0.3)' }}>
             <IconClock size={26} />
           </div>
-          <p className="text-gray-400">No matches scheduled</p>
+          <p className="font-display text-lg font-bold text-gray-200">No fixtures loaded yet</p>
+          <p className="text-sm text-gray-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+            The schedule fills from the TxLINE fixtures snapshot — run the ingest, or start a
+            match from the <span className="font-bold text-[var(--blue)]">Command Bridge</span> (bottom-left).
+          </p>
         </div>
       )}
 
@@ -71,13 +75,23 @@ export default async function SchedulePage() {
         const isToday = date === new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
         return (
           <section key={date} className="space-y-2">
-            <div className="flex items-center gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest"
-                 style={{ color: isToday ? 'var(--blue)' : '#6b7280' }}>
+            {/* prominent day header — same calendar-chip style as the home list */}
+            <div className="flex items-center gap-2.5">
+              <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: isToday ? 'var(--blue-dim)' : 'rgba(148,163,184,0.1)',
+                             color: isToday ? 'var(--blue)' : '#94a3b8',
+                             border: `1px solid ${isToday ? 'rgba(59,130,246,0.4)' : 'rgba(148,163,184,0.2)'}`,
+                             boxShadow: isToday ? '0 0 12px rgba(59,130,246,0.25)' : 'none' }}>
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                  <rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" />
+                </svg>
+              </span>
+              <span className="text-[13px] font-bold tracking-tight" style={{ color: isToday ? 'var(--blue)' : '#e2e8f0' }}>
                 {isToday ? 'Today' : date}
-              </p>
+              </span>
               <div className="flex-1 h-px" style={{ background: 'var(--glass-border)' }} />
-              <span className="text-[10px] text-gray-700">{dayMatches.length} match{dayMatches.length !== 1 ? 'es' : ''}</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
+                    style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8' }}>{dayMatches.length}</span>
             </div>
 
             <div className="space-y-2">

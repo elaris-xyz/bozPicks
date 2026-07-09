@@ -60,7 +60,9 @@ export default function PredictionsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="My Predictions" subtitle="Your prediction history and P&L" />
+      <PageHeader title="My Predictions" accent="var(--green)"
+        count={preds?.length || undefined}
+        subtitle="Every stake, settled on-chain — your record and P&L" />
 
       {/* ── Not connected ── */}
       {!connected ? (
@@ -162,10 +164,13 @@ export default function PredictionsPage() {
                 <IconTarget size={26} />
               </div>
               <div>
-                <p className="font-bold text-gray-200 mb-1">No predictions yet</p>
-                <p className="text-sm text-gray-500">Pick a match and stake USDC to see it here</p>
+                <p className="font-display text-lg font-bold text-gray-200 mb-1">No predictions yet</p>
+                <p className="text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">
+                  Run a match from the <span className="font-bold text-[var(--blue)]">Command Bridge</span> (bottom-left),
+                  then stake USDC on any prop market — every pick lands here with its settlement.
+                </p>
               </div>
-              <Link href="/" className="btn-accent mx-auto">Browse Live Matches</Link>
+              <Link href="/markets" className="btn-accent mx-auto">Open Prop Markets</Link>
             </div>
           ) : (
             <div className="space-y-2">

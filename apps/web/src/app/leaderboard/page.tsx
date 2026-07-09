@@ -39,12 +39,13 @@ export default function LeaderboardPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Leaderboard" subtitle="Top predictors by performance"
+      <PageHeader title="Leaderboard" accent="var(--amber)" count={data.length}
+        subtitle="Top predictors by wins, hit-rate and net USDC"
         action={
-          <Link href="/stats"
-            className="text-xs font-semibold px-3 py-1.5 rounded-xl"
-            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: '#6b7280' }}>
-            ← Stats
+          <Link href="/markets"
+            className="text-xs font-bold px-3 py-1.5 rounded-xl transition-all hover:brightness-125"
+            style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)', color: 'var(--green)' }}>
+            Open Markets →
           </Link>
         } />
 
@@ -76,8 +77,12 @@ export default function LeaderboardPage() {
                style={{ color: 'var(--amber)', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
             <IconTrophy size={26} />
           </div>
-          <p className="font-semibold text-gray-300 mb-1">No predictors yet</p>
-          <p className="text-xs text-gray-600">Be the first to connect your wallet and make a prediction</p>
+          <p className="font-display text-lg font-bold text-gray-200 mb-1">No predictors yet</p>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">
+            Run a match from the <span className="font-bold text-[var(--blue)]">Command Bridge</span> (bottom-left),
+            stake on the <Link href="/markets" className="font-bold text-[var(--green)] hover:brightness-125">prop markets</Link>,
+            and this board fills with every wallet&rsquo;s record.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">

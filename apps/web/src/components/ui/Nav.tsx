@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { WalletModal } from './WalletModal';
 import { useSSEContext } from '@/contexts/SSEContext';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { IconPulse, IconChart, IconRadar, IconTrendUp, IconTrophy, IconClock, IconWallet } from './Icons';
+import { IconPulse, IconRadar, IconTrendUp, IconTrophy, IconClock, IconWallet } from './Icons';
 
 type NavVariant = 'desktop' | 'mobile-header' | 'mobile-tabs';
 
@@ -40,11 +40,12 @@ const MoreIcon = ({ size = 18 }: { size?: number }) => (
 
 // Everything beyond the three products lives under "More" — identical on
 // desktop and mobile so nothing appears in one place but not the other.
+// Deliberately trimmed: /insights duplicated the Live Feed + agent signals and
+// /stats added little over the per-page banners, so they're out of the menu
+// (routes stay alive) — a tight menu reads as a focused product to a judge.
 const moreLinks = [
-  { href: '/stats',       label: 'Stats',          icon: <IconTrendUp size={18} /> },
-  { href: '/leaderboard', label: 'Leaderboard',    icon: <IconTrophy size={18} /> },
-  { href: '/insights',    label: 'Insights',       icon: <IconChart size={18} /> },
   { href: '/schedule',    label: 'Schedule',       icon: <IconClock size={18} /> },
+  { href: '/leaderboard', label: 'Leaderboard',    icon: <IconTrophy size={18} /> },
   { href: '/predictions', label: 'My Predictions', icon: <IconWallet size={18} /> },
   { href: '/about',       label: 'About',          icon: <InfoIcon size={18} /> },
 ];

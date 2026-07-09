@@ -1,44 +1,104 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { WalletReadyState, type WalletName } from '@solana/wallet-adapter-base';
 import { IconWallet } from './Icons';
 
-export function WalletModal({ onClose }: { onClose: () => void }) {
-  const { publicKey, disconnect, connected, connecting, wallet } = useWallet();
-  const { setVisible } = useWalletModal();
+/**
+ * The ONLY wallet UI in the app — connect, account and disconnect in one
+ * solid, perfectly-centred modal. We deliberately bypass the third-party
+ * wallet-adapter modal (it positioned itself off-screen and fought our theme):
+ * wallets are listed straight from the adapter context and selected inline,
+ * with connect errors surfaced in place.
+ */
 
-  // Close on Escape
+const PANEL_BG = 'linear-gradient(180deg, #101a30, #0a0f1e)';
+
+export function WalletModal({ onClose }: { onClose: () => void }) {
+  const { publicKey, disconnect, connected, connecting, wallet, wallets, select, connect } = useWallet();
+  const [pending, setPending] = useState<WalletName | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  // Portal target — mounting via document.body keeps position:fixed anchored
+  // to the real viewport. Rendered in place (e.g. inside the nav, which has a
+  // backdrop-filter), fixed positioning would anchor to the nav instead and
+  // the modal opened half off-screen at the top.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // If just connected, close this modal
+  // after select(), the adapter context updates async — connect once it lands
   useEffect(() => {
-    if (connected) onClose();
-  }, [connected, onClose]);
+    if (!pending || wallet?.adapter.name !== pending || connected || connecting) return;
+    connect()
+      .then(() => setPending(null))
+      .catch((e: Error) => {
+        setPending(null);
+        setError(e.name === 'WalletNotReadyError'
+          ? 'Wallet not ready — is the extension unlocked?'
+          : e.message || 'Connection failed — try again.');
+      });
+  }, [pending, wallet, connected, connecting, connect]);
 
-  const shortAddress = publicKey
-    ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
-    : null;
+  // close automatically shortly after a successful connect
+  useEffect(() => {
+    if (connected && pending === null && !confirmDisconnect) {
+      const t = setTimeout(onClose, 900);
+      return () => clearTimeout(t);
+    }
+  }, [connected, pending, confirmDisconnect, onClose]);
 
-  return (
-    <div className="fixed inset-0 z-[300] flex items-end md:items-center justify-center fade-in"
-         onClick={onClose}>
-      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} />
+  const addr = publicKey?.toBase58() ?? '';
+  const shortAddr = addr ? `${addr.slice(0, 4)}…${addr.slice(-4)}` : '';
 
-      <div className="relative w-full md:max-w-sm glass anim-in rounded-t-3xl md:rounded-3xl p-6 space-y-4"
+  const pick = (name: WalletName) => {
+    setError(null);
+    setPending(name);
+    select(name);
+  };
+
+  const copy = () => {
+    navigator.clipboard?.writeText(addr).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    }).catch(() => {});
+  };
+
+  const installed = wallets.filter(w => w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable);
+  const notInstalled = wallets.filter(w => w.readyState === WalletReadyState.NotDetected);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[300] flex items-end md:items-center justify-center fade-in" onClick={onClose}>
+      <div className="absolute inset-0" style={{ background: 'rgba(3,6,15,0.75)', backdropFilter: 'blur(6px)' }} />
+
+      <div className="relative w-full md:max-w-sm anim-in rounded-t-3xl md:rounded-3xl p-5 md:p-6 space-y-4 md:mb-0 max-h-[85vh] overflow-y-auto rail-scroll"
+           style={{ background: PANEL_BG, border: '1px solid rgba(99,140,255,0.28)', boxShadow: '0 24px 70px rgba(0,0,0,0.65)' }}
            onClick={e => e.stopPropagation()}>
 
+        {/* header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-display text-base font-bold">
-              {connected ? 'Wallet Connected' : 'Connect Wallet'}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">Solana · Devnet</p>
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, rgb(var(--c-blue)), rgb(var(--c-purple)))', color: '#fff' }}>
+              <IconWallet size={17} />
+            </span>
+            <div>
+              <h2 className="font-display text-base font-bold leading-tight">
+                {connected ? 'Your wallet' : 'Connect a wallet'}
+              </h2>
+              <p className="text-[10px] uppercase tracking-widest text-gray-500">Solana · Devnet</p>
+            </div>
           </div>
           <button onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-white transition-colors"
@@ -50,67 +110,136 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {connected && publicKey ? (
-          /* ── Connected state ── */
+          /* ── Account ─────────────────────────────────────────────────── */
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-4 rounded-2xl"
-                 style={{ background: 'var(--green-dim)', border: '1px solid rgba(16,185,129,0.25)' }}>
-              <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                   style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--green)' }}>
+                 style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.3)' }}>
+              <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(16,185,129,0.14)', color: 'var(--green)' }}>
                 {wallet?.adapter.icon
+                  // eslint-disable-next-line @next/next/no-img-element
                   ? <img src={wallet.adapter.icon} alt="" className="w-6 h-6 rounded-full" />
                   : <IconWallet size={18} />}
-              </div>
+              </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold" style={{ color: 'var(--green)' }}>
-                  {wallet?.adapter.name ?? 'Wallet'}
-                </p>
-                <p className="text-xs font-mono text-gray-400 truncate">{shortAddress}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-bold" style={{ color: 'var(--green)' }}>{wallet?.adapter.name ?? 'Wallet'}</p>
+                  <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'var(--green)' }} />
+                </div>
+                <p className="text-xs font-mono text-gray-400 truncate">{shortAddr}</p>
               </div>
-              <span className="w-2 h-2 rounded-full badge-live" style={{ background: 'var(--green)' }} />
+              <button onClick={copy} title="Copy address"
+                className="flex items-center gap-1 text-[10px] font-bold px-2 h-7 rounded-full transition-all hover:brightness-125 flex-shrink-0"
+                style={copied
+                  ? { background: 'rgba(16,185,129,0.15)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.4)' }
+                  : { background: 'rgba(255,255,255,0.05)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)' }}>
+                {copied ? (
+                  <><svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>Copied</>
+                ) : (
+                  <><svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" strokeLinecap="round" /></svg>Copy</>
+                )}
+              </button>
             </div>
 
-            <a
-              href={`https://explorer.solana.com/address/${publicKey.toBase58()}?cluster=devnet`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors">
-              View on Solana Explorer ↗
+            <a href={`https://explorer.solana.com/address/${addr}?cluster=devnet`}
+               target="_blank" rel="noopener noreferrer"
+               className="flex items-center justify-between rounded-xl px-3.5 py-2.5 transition-all hover:brightness-125"
+               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <span className="text-[13px] text-gray-300 font-semibold">View on Solana Explorer</span>
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M7 17L17 7M17 7H8M17 7v9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </a>
 
-            <button
-              onClick={async () => { await disconnect(); onClose(); }}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
-              style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
-              Disconnect
-            </button>
+            {confirmDisconnect ? (
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => setConfirmDisconnect(false)}
+                  className="py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-125"
+                  style={{ background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  Cancel
+                </button>
+                <button onClick={async () => { await disconnect().catch(() => {}); onClose(); }}
+                  className="py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110"
+                  style={{ background: 'rgba(239,68,68,0.85)', color: '#fff' }}>
+                  Yes, disconnect
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDisconnect(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-125"
+                style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+                </svg>
+                Disconnect
+              </button>
+            )}
           </div>
         ) : (
-          /* ── Connect state ── */
-          <div className="space-y-3">
-            <p className="text-xs text-gray-500">
-              Connect your Solana wallet to place predictions on devnet.
-            </p>
+          /* ── Wallet picker ───────────────────────────────────────────── */
+          <div className="space-y-2.5">
+            {error && (
+              <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12px]"
+                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+                <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0 mt-px" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M12 3 2 20h20L12 3z" strokeLinejoin="round" /><path d="M12 10v4M12 17.5v.01" strokeLinecap="round" />
+                </svg>
+                {error}
+              </div>
+            )}
 
-            <button
-              onClick={() => { setVisible(true); onClose(); }}
-              disabled={connecting}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
-              style={{ background: 'var(--blue)', color: '#fff' }}>
-              {connecting ? (
-                <>
-                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                'Select Wallet'
-              )}
-            </button>
+            {installed.length === 0 && notInstalled.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-6">No Solana wallets found in this browser.</p>
+            )}
 
-            <p className="text-[10px] text-center text-gray-600">
-              Phantom · Solflare · and more · Devnet only
+            {installed.map(w => {
+              const busy = pending === w.adapter.name || (connecting && wallet?.adapter.name === w.adapter.name);
+              return (
+                <button key={w.adapter.name} onClick={() => pick(w.adapter.name)} disabled={!!pending || connecting}
+                  className="w-full flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left transition-all enabled:hover:-translate-y-px enabled:hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
+                  style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(99,140,255,0.22)' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={w.adapter.icon} alt="" className="w-8 h-8 rounded-lg flex-shrink-0" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-bold text-gray-100">{w.adapter.name}</span>
+                    <span className="block text-[10px] text-gray-500">Detected in this browser</span>
+                  </span>
+                  {busy ? (
+                    <span className="w-4 h-4 rounded-full border-2 animate-spin flex-shrink-0"
+                          style={{ borderColor: 'rgba(59,130,246,0.25)', borderTopColor: 'var(--blue)' }} />
+                  ) : (
+                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.35)' }}>
+                      Ready
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            {notInstalled.map(w => (
+              <a key={w.adapter.name} href={w.adapter.url} target="_blank" rel="noopener noreferrer"
+                 className="w-full flex items-center gap-3 rounded-2xl px-3.5 py-3 transition-all hover:brightness-125"
+                 style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', opacity: 0.75 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={w.adapter.icon} alt="" className="w-8 h-8 rounded-lg flex-shrink-0 grayscale" />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-bold text-gray-300">{w.adapter.name}</span>
+                  <span className="block text-[10px] text-gray-600">Not installed — get the extension</span>
+                </span>
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M7 17L17 7M17 7H8M17 7v9" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </a>
+            ))}
+
+            <p className="text-[10px] text-center text-gray-600 pt-1">
+              Devnet only — no real funds. Your keys never leave the wallet.
             </p>
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

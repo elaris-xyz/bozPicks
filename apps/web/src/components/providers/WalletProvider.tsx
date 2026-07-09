@@ -2,7 +2,6 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
 import { clusterApiUrl } from '@solana/web3.js';
@@ -19,10 +18,11 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
 
   return (
     <ConnectionProvider endpoint={ENDPOINT}>
+      {/* No WalletModalProvider — the in-house WalletModal handles select/
+          connect/disconnect itself (the third-party modal positioned itself
+          off-screen and clashed with the theme). */}
       <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          {children}
-        </WalletModalProvider>
+        {children}
       </WalletProvider>
     </ConnectionProvider>
   );

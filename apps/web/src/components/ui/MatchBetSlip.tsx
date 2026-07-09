@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { WalletModal } from './WalletModal';
 import { usePrediction } from '@/hooks/usePrediction';
 import { estimatePayout } from '@bozpicks/shared';
 import type { OddsSnapshot, ParimutuelPool, Outcome } from '@bozpicks/shared';
@@ -24,8 +24,8 @@ export function MatchBetSlip({
   onClear: () => void;
 }) {
   const [betAmount, setBetAmount] = useState('10');
+  const [walletOpen, setWalletOpen] = useState(false);
   const { publicKey, connected: walletConnected } = useWallet();
-  const { setVisible: openWalletModal } = useWalletModal();
   const { placePrediction, status: txStatus, error: txError, result: txResult, reset: resetTx } = usePrediction();
 
   const sel = {
@@ -135,7 +135,7 @@ export function MatchBetSlip({
               {txStatus === 'idle' && (belowMin ? 'Minimum 1 USDC' : `Confirm — ${betAmount || 0} USDC`)}
             </button>
           ) : (
-            <button onClick={() => openWalletModal(true)}
+            <button onClick={() => setWalletOpen(true)}
               className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:opacity-90 active:scale-95"
               style={{ background: 'var(--blue)', color: '#fff' }}>
               Connect Wallet to Predict
@@ -143,6 +143,7 @@ export function MatchBetSlip({
           )}
         </>
       )}
+      {walletOpen && <WalletModal onClose={() => setWalletOpen(false)} />}
     </div>
   );
 }

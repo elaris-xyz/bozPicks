@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import '@solana/wallet-adapter-react-ui/styles.css';
-
 /* ── Design tokens ──────────────────────────────────────────────────── */
 @layer base {
   :root {
@@ -688,52 +686,6 @@
   to   { width: 0%; }
 }
 .toast-progress { animation: toast-progress linear both; }
-
-/* ── Wallet-adapter modal — reskinned to match the bozPicks theme ──────
-   The default modal ships light/purple and clashes with our neon-glass
-   look at the exact moment a judge connects a wallet. Override it. */
-.wallet-adapter-modal-overlay {
-  background: rgba(3, 6, 15, 0.72) !important;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-.wallet-adapter-modal-wrapper {
-  background: linear-gradient(180deg, #101a31, #0c1426) !important;
-  border: 1px solid var(--glass-border) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 40px rgba(59, 130, 246, 0.08) !important;
-  font-family: var(--font-inter) !important;
-}
-.wallet-adapter-modal-title {
-  font-family: var(--font-display) !important;
-  color: var(--text-1) !important;
-  font-size: 1.05rem !important;
-}
-.wallet-adapter-modal-button-close {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-radius: 999px !important;
-}
-.wallet-adapter-modal-button-close svg { fill: #94a3b8 !important; }
-.wallet-adapter-modal-list .wallet-adapter-button {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid var(--glass-border) !important;
-  border-radius: 14px !important;
-  font-family: var(--font-inter) !important;
-  font-weight: 600 !important;
-  color: var(--text-1) !important;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease !important;
-}
-.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
-  background: rgb(var(--c-blue) / 0.12) !important;
-  border-color: rgb(var(--c-blue) / 0.4) !important;
-  transform: translateY(-1px);
-}
-.wallet-adapter-button-trigger {
-  background: rgb(var(--c-blue)) !important;
-  border-radius: 14px !important;
-  font-family: var(--font-inter) !important;
-}
-.wallet-adapter-modal-list-more { color: var(--blue) !important; }
 
 /* respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {

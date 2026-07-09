@@ -33,7 +33,7 @@ const KIND: Record<string, { color: string; icon: ReactNode }> = {
 const outcomeColor = (o: string) =>
   /HOME|OVER|YES/.test(o) ? '#10b981' : /AWAY|UNDER|NO/.test(o) ? '#3b82f6' : '#94a3b8';
 
-function Receipt({ m }: { m: PropMarket }) {
+function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
   const [open, setOpen] = useState(false);
   const r = m.receipt;
   if (!r) return null;
@@ -44,8 +44,8 @@ function Receipt({ m }: { m: PropMarket }) {
   return (
     <div className="mt-3 rounded-xl overflow-hidden" style={{ border: `1px solid rgba(${rgb},0.3)`, background: `rgba(${rgb},0.05)` }}>
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left">
-        {/* seal */}
-        <span className="relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+        {/* seal — stamps in when the market settles */}
+        <span className={`relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${stamp ? 'boz-stampin' : ''}`}
               style={{ background: `rgba(${rgb},0.14)`, border: `1px solid rgba(${rgb},0.5)`, color: c }}>
           <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
@@ -83,9 +83,36 @@ function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: st
   const k = KIND[m.kind] ?? KIND.MATCH_WINNER;
   const busy = betting === m.id;
 
+  // one-shot "proof stamp" the moment this market settles
+  const wasSettled = useRef(settled);
+  const [justSettled, setJustSettled] = useState(false);
+  useEffect(() => {
+    if (settled && !wasSettled.current) {
+      setJustSettled(true);
+      const t = setTimeout(() => setJustSettled(false), 1200);
+      wasSettled.current = settled;
+      return () => clearTimeout(t);
+    }
+    wasSettled.current = settled;
+  }, [settled]);
+
+  // floating "+USDC" chip whenever the pool takes a live stake
+  const prevPools = useRef(m.pools);
+  const prevTotal = useRef(m.totalPool);
+  const [chip, setChip] = useState<{ o: string; amt: number } | null>(null);
+  useEffect(() => {
+    if (!settled && m.totalPool > prevTotal.current) {
+      let o = '', d = 0;
+      for (const x of m.outcomes) { const g = (m.pools[x] ?? 0) - (prevPools.current[x] ?? 0); if (g > d) { d = g; o = x; } }
+      prevPools.current = m.pools; prevTotal.current = m.totalPool;
+      if (o) { setChip({ o, amt: d }); const t = setTimeout(() => setChip(null), 1300); return () => clearTimeout(t); }
+    }
+    prevPools.current = m.pools; prevTotal.current = m.totalPool;
+  }, [m.totalPool, m.pools, m.outcomes, settled]);
+
   return (
-    <div className="glass sheen p-4 relative overflow-hidden transition-transform duration-200 hover:-translate-y-0.5"
-         style={settled ? undefined : { boxShadow: '0 0 0 1px rgba(255,255,255,0.02)' }}>
+    <div className={`glass sheen p-4 relative overflow-hidden transition-transform duration-200 hover:-translate-y-0.5 ${justSettled ? 'boz-settle-ring' : ''}`}
+         style={{ borderColor: justSettled ? 'rgba(16,185,129,0.5)' : undefined, boxShadow: settled ? undefined : '0 0 0 1px rgba(255,255,255,0.02)' }}>
       {/* soft accent glow in the corner */}
       <div className="absolute -top-10 -right-8 w-32 h-32 rounded-full pointer-events-none"
            style={{ background: `radial-gradient(circle, ${k.color}14, transparent 70%)` }} />
@@ -108,13 +135,21 @@ function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: st
         </span>
       </div>
 
-      {/* live pool composition bar */}
-      <div className="relative flex h-1.5 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(255,255,255,0.04)' }}>
-        {m.outcomes.map(o => {
-          const share = m.totalPool ? (m.pools[o] ?? 0) / m.totalPool : 1 / m.outcomes.length;
-          const col = settled ? (m.winningOutcome === o ? outcomeColor(o) : '#334155') : outcomeColor(o);
-          return <div key={o} style={{ width: `${share * 100}%`, background: col, opacity: m.totalPool || settled ? 0.9 : 0.3, transition: 'width .5s ease' }} />;
-        })}
+      {/* live pool composition bar + a floating chip on each incoming stake */}
+      <div className="relative mb-3">
+        {chip && (
+          <span className="boz-stakechip absolute -top-4 left-1/2 -translate-x-1/2 z-10 text-[9px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                style={{ background: `${outcomeColor(chip.o)}22`, color: outcomeColor(chip.o), border: `1px solid ${outcomeColor(chip.o)}66` }}>
+            +{usdcToDisplay(chip.amt)} → {chip.o}
+          </span>
+        )}
+        <div className="relative flex h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+          {m.outcomes.map(o => {
+            const share = m.totalPool ? (m.pools[o] ?? 0) / m.totalPool : 1 / m.outcomes.length;
+            const col = settled ? (m.winningOutcome === o ? outcomeColor(o) : '#334155') : outcomeColor(o);
+            return <div key={o} style={{ width: `${share * 100}%`, background: col, opacity: m.totalPool || settled ? 0.9 : 0.3, transition: 'width .5s ease' }} />;
+          })}
+        </div>
       </div>
 
       {/* outcome buttons */}
@@ -149,10 +184,53 @@ function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: st
         })}
       </div>
 
-      {settled ? <Receipt m={m} /> : (
+      {settled ? <Receipt m={m} stamp={justSettled} /> : (
         <div className="relative flex items-center justify-center gap-1.5 mt-3 text-[10px] text-gray-500">
           <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 8v8M8 12h8" strokeLinecap="round" /></svg>
           Tap an outcome to stake 5 USDC · devnet parimutuel
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number };
+
+/** Live order flow — stakes trickling into pools + settlements as they resolve. */
+function ActivityFeed({ items }: { items: Activity[] }) {
+  return (
+    <div className="glass p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-2 h-2 rounded-full badge-live" style={{ background: 'var(--green)' }} />
+        <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Order flow</p>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-xs text-gray-600 text-center py-8 leading-relaxed">Stakes and settlements<br />stream in here live.</p>
+      ) : (
+        <div className="space-y-1.5 max-h-[560px] overflow-y-auto rail-scroll pr-1">
+          {items.map(a => {
+            const oc = outcomeColor(a.outcome);
+            if (a.kind === 'settle') {
+              const onchain = a.source === 'TXLINE_ONCHAIN';
+              const c = onchain ? 'var(--green)' : 'var(--amber)';
+              return (
+                <div key={a.id} className="anim-in flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+                     style={{ background: onchain ? 'rgba(16,185,129,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${onchain ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}` }}>
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke={c} strokeWidth={2}><path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  <span className="text-[11px] text-gray-300 truncate flex-1 min-w-0">{a.label} → <span className="font-bold" style={{ color: oc }}>{a.outcome}</span></span>
+                  <span className="text-[8px] font-black uppercase px-1 py-0.5 rounded flex-shrink-0" style={{ color: c, border: `1px solid ${c}` }}>{onchain ? '✓' : 'sim'}</span>
+                </div>
+              );
+            }
+            return (
+              <div key={a.id} className="anim-in flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+                   style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: oc }} />
+                <span className="text-[11px] font-bold tabular-nums flex-shrink-0" style={{ color: oc }}>+{usdcToDisplay(a.amt ?? 0)}</span>
+                <span className="text-[11px] text-gray-400 truncate flex-1 min-w-0">→ {a.outcome} · <span className="text-gray-600">{a.label}</span></span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -165,13 +243,16 @@ export function MarketsPanel() {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [betting, setBetting] = useState<string | null>(null);
   const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
+  const [activity, setActivity] = useState<Activity[]>([]);
   const prevSettled = useRef(0);
+  const marketsMap = useRef<Record<string, PropMarket>>({}); // last-seen market per id, for diffing
 
   const fetchMarkets = useCallback(async (mid?: string | null) => {
     const url = mid ? `/api/markets?matchId=${mid}` : '/api/markets';
     const r = await fetch(url, { cache: 'no-store' }).then(res => res.json()).catch(() => []);
     if (Array.isArray(r) && r.length) {
       setMarkets(r);
+      marketsMap.current = Object.fromEntries((r as PropMarket[]).map(m => [m.id, m]));
       if (!mid && r[0]?.matchId) setMatchId(r[0].matchId);
     }
   }, []);
@@ -179,14 +260,36 @@ export function MarketsPanel() {
   useEffect(() => { fetchMarkets(); }, [fetchMarkets]);
 
   // Live market updates arrive over SSE (created / pool change / settled) — no
-  // polling. Upsert by id, and switch context to the newest market's match.
+  // polling. Diff against the last-seen market to build the order-flow feed.
   useSSE({
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'market_update' || !msg.data) return;
       const m = msg.data as PropMarket;
       setMatchId(m.matchId);
+
+      const prevMap = marketsMap.current;
+      const existing = Object.values(prevMap);
+      if (existing.length > 0 && existing[0].matchId !== m.matchId) {
+        // a new match — reset the diff map + activity feed
+        marketsMap.current = { [m.id]: m };
+        setActivity([]);
+      } else {
+        const prevM = prevMap[m.id];
+        if (m.status === 'SETTLED' && prevM && prevM.status !== 'SETTLED' && m.winningOutcome) {
+          const entry: Activity = { id: `${m.id}-settle`, kind: 'settle', label: m.label, outcome: m.winningOutcome, source: m.receipt?.source, ts: Date.now() };
+          setActivity(a => [entry, ...a].slice(0, 24));
+        } else if (prevM && m.totalPool > prevM.totalPool) {
+          let o = '', d = 0;
+          for (const x of m.outcomes) { const g = (m.pools[x] ?? 0) - (prevM.pools[x] ?? 0); if (g > d) { d = g; o = x; } }
+          if (o) {
+            const entry: Activity = { id: `${m.id}-${Date.now()}`, kind: 'stake', label: m.label, outcome: o, amt: d, ts: Date.now() };
+            setActivity(a => [entry, ...a].slice(0, 24));
+          }
+        }
+        marketsMap.current = { ...prevMap, [m.id]: m };
+      }
+
       setMarkets(prev => {
-        // a market from a newer match replaces the whole set
         if (prev.length && prev[0].matchId !== m.matchId) return [m];
         const i = prev.findIndex(x => x.id === m.id);
         if (i === -1) return [...prev, m];
@@ -266,8 +369,13 @@ export function MarketsPanel() {
           )}
         </div>
       )}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting} mine={userBets[m.id]?.outcome} />)}
+      <div className="grid gap-4 lg:grid-cols-[1fr_296px] items-start">
+        <div className="grid gap-3 sm:grid-cols-2 min-w-0">
+          {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting} mine={userBets[m.id]?.outcome} />)}
+        </div>
+        <aside className="lg:sticky lg:top-4">
+          <ActivityFeed items={activity} />
+        </aside>
       </div>
     </div>
   );

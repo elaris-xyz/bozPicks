@@ -134,6 +134,19 @@ export async function POST(req: NextRequest) {
     if (event.stats) redisOps.push(redis.set(`boz:match:${id}:stats`, JSON.stringify(event.stats), 'EX', 7200));
     await Promise.all(redisOps);
 
+    // ── simulated live order flow: stakes trickle into the pools so the market
+    // cards move in real time (clearly demo activity — devnet, not real money).
+    if (status === 'LIVE' && event.type !== 'MATCH_START' && markets.length && Math.random() < 0.6) {
+      const mk = markets[Math.floor(Math.random() * markets.length)];
+      const o = mk.outcomes[Math.floor(Math.random() * mk.outcomes.length)];
+      const stake = (1 + Math.floor(Math.random() * 5)) * 1_000_000; // 1–5 USDC
+      mk.pools[o] = (mk.pools[o] ?? 0) + stake;
+      mk.totalPool += stake;
+      void db.query(`UPDATE boz_markets SET pools=$1, total_pool=$2 WHERE id=$3`,
+        [JSON.stringify(mk.pools), mk.totalPool, mk.id]).catch(() => {});
+      await redis.publish('boz:markets', JSON.stringify(mk)).catch(() => {});
+    }
+
     // fire-and-forget persistence
     void db.query(
       `INSERT INTO boz_events (id, match_id, type, match_minute, timestamp, payload)

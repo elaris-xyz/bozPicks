@@ -5,10 +5,11 @@ import type { AgentSignal, SSEMessage } from '@bozpicks/shared';
 import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import { useSSEContext } from '@/contexts/SSEContext';
-import { IconRadar, IconTarget, IconPulse, IconBolt } from '@/components/ui/Icons';
-import { CountUp } from '@/components/ui/CountUp';
+import { IconRadar, IconBolt } from '@/components/ui/Icons';
 import { AgentArena } from '@/components/ui/AgentArena';
-import { HeroAura } from '@/components/ui/HeroAura';
+import { AgentHero } from '@/components/ui/AgentHero';
+import { AgentBanner } from '@/components/ui/AgentBanner';
+import { AgentPipeline } from '@/components/ui/AgentPipeline';
 
 interface AgentStats {
   totalSignals: number;
@@ -83,107 +84,30 @@ export default function AgentPage() {
   const history = signals.filter(s => s.outcomeVerified);
 
   return (
-    <div className="theme-agent space-y-5">
+    <div className="theme-agent space-y-6">
 
-      {/* ── Hero ── */}
-      <div className="glass hero-glow fx-rise relative overflow-hidden p-6 md:p-8">
-        <HeroAura color="var(--purple)" />
-        <div className="absolute top-0 left-0 right-0 h-px"
-             style={{ background: 'linear-gradient(90deg,transparent,rgb(var(--accent)),transparent)' }} />
+      {/* ── Cinematic hero ── */}
+      <AgentHero />
 
-        <div className="relative flex items-start justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="chip-glass uppercase">Track 3 — Trading Tools</span>
-            </div>
-            <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight">
-              boz<span style={{
-                background: 'linear-gradient(135deg, var(--purple), #c4b5fd)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}>Agent</span>
-            </h1>
-            <p className="text-sm text-gray-400 mt-1">
-              Autonomous sharp-move detector · Powered by TxLINE live odds
-            </p>
-          </div>
-          <div className={`chip-glass ${live?.live ? 'chip-green' : connected ? 'chip-blue' : 'chip-slate'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${live?.live ? 'badge-live' : ''}`}
-                  style={{ background: 'currentColor' }} />
-            {live?.live ? `LIVE ${live.minute}'` : connected ? 'ONLINE' : 'OFFLINE'}
-          </div>
-        </div>
+      {/* ── Live centrepiece — headline numbers (or an invite when idle) ── */}
+      <AgentBanner
+        totalSignals={stats?.totalSignals ?? signals.length}
+        accuracy={accuracy}
+        liveMatches={live?.live ? Math.max(1, stats?.liveMatches ?? 0) : (stats?.liveMatches ?? 0)}
+        highConf={stats?.highConfidence ?? 0}
+        live={live}
+        connected={connected}
+      />
 
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            {
-              value: stats?.totalSignals ?? signals.length,
-              label: 'Total Signals',
-              color: 'var(--purple)',
-              icon: <IconRadar size={20} />,
-            },
-            {
-              value: accuracy !== null ? `${accuracy}%` : '—',
-              label: 'Accuracy',
-              color: accuracy !== null && accuracy >= 60 ? 'var(--green)' : accuracy !== null && accuracy >= 40 ? 'var(--amber)' : '#9ca3af',
-              icon: <IconTarget size={20} />,
-            },
-            {
-              value: live?.live ? Math.max(1, stats?.liveMatches ?? 0) : (stats?.liveMatches ?? 0),
-              label: 'Live Matches',
-              color: 'var(--green)',
-              icon: <IconPulse size={20} />,
-            },
-            {
-              value: stats?.highConfidence ?? 0,
-              label: 'High Conf.',
-              color: 'var(--orange)',
-              icon: <IconBolt size={20} />,
-            },
-          ].map(({ value, label, color, icon }) => (
-            <div key={label} className="poster-card rounded-2xl p-4 text-center">
-              <div className="w-9 h-9 mx-auto mb-2 rounded-xl flex items-center justify-center"
-                   style={{ color, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
-                {icon}
-              </div>
-              <p className="stat-display text-2xl" style={{ color }}>
-                {typeof value === 'number'
-                  ? <CountUp value={value} />
-                  : typeof value === 'string' && value.endsWith('%')
-                    ? <CountUp value={parseFloat(value)} suffix="%" />
-                    : value}
-              </p>
-              <p className="section-label mt-1.5">{label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* How it works — 3 steps */}
-        <div className="mt-6 grid grid-cols-3 gap-2 text-center">
-          {[
-            { step: '1', label: 'Subscribe', desc: 'TxLINE SSE odds stream', color: 'var(--purple)' },
-            { step: '2', label: 'Detect',    desc: `>${stats?.detectionThreshold ?? 10}% shift in ${(stats?.windowMs ?? 120000) / 60000} min window`, color: 'var(--amber)' },
-            { step: '3', label: 'Signal',    desc: 'Publish + verify accuracy', color: 'var(--green)' },
-          ].map(({ step, label, desc, color }) => (
-            <div key={step} className="rounded-xl p-3"
-                 style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mx-auto mb-2"
-                   style={{ background: `${color}22`, color }}>
-                {step}
-              </div>
-              <p className="text-xs font-semibold text-gray-200">{label}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* ── Signature visual — the autonomous detection loop ── */}
+      <AgentPipeline />
 
       {/* ── Agent-vs-Agent Arena ── */}
       <div className="space-y-3">
-        <div>
-          <p className="section-label" style={{ color: 'var(--purple)' }}>Agent-vs-Agent Arena</p>
-          <p className="text-[11px] text-gray-600 mt-0.5">Two autonomous strategies, one live feed, opposite theses — best P&amp;L wins the tournament.</p>
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--purple)', boxShadow: '0 0 10px rgba(167,139,250,0.5)' }} />
+          <h2 className="text-sm font-bold tracking-tight" style={{ color: 'var(--purple)' }}>Agent-vs-Agent Arena</h2>
+          <span className="text-[10px] text-gray-600">two strategies · one feed</span>
         </div>
         <AgentArena />
       </div>
@@ -275,9 +199,12 @@ export default function AgentPage() {
 
       {/* ── Active signals ── */}
       <div>
-        <p className="section-label mb-3">
-          Active — {active.length} pending verification
-        </p>
+        <div className="flex items-center gap-2.5 mb-3">
+          <span className="w-2.5 h-2.5 rounded-full badge-live" style={{ background: 'var(--amber)', boxShadow: '0 0 10px rgba(245,158,11,0.5)' }} />
+          <h2 className="text-sm font-bold tracking-tight text-gray-100">Active signals</h2>
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--amber)' }}>{active.length}</span>
+          <span className="text-[10px] text-gray-600">pending verification</span>
+        </div>
         {active.length === 0 ? (
           <div className="glass p-10 text-center">
             <div className="w-12 h-12 mx-auto mb-3 rounded-2xl flex items-center justify-center"
@@ -299,9 +226,12 @@ export default function AgentPage() {
       {/* ── History + accuracy chart ── */}
       {history.length > 0 && (
         <div className="space-y-3">
-          <p className="section-label">
-            Verified History — {history.length} signals
-          </p>
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--green)', boxShadow: '0 0 10px rgba(16,185,129,0.5)' }} />
+            <h2 className="text-sm font-bold tracking-tight text-gray-100">Verified history</h2>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--green)' }}>{history.length}</span>
+            <span className="text-[10px] text-gray-600">graded vs final</span>
+          </div>
           <div className="glass p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[10px] text-gray-600">Last {Math.min(history.length, 20)} results</p>

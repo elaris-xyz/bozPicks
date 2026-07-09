@@ -210,6 +210,11 @@
   /* pundit voice equaliser bars */
   @keyframes boz-eq { 0% { transform: scaleY(0.15); } 100% { transform: scaleY(1); } }
 
+  /* settlement pipeline — a pulse travelling along the flow track */
+  @keyframes boz-flow { 0% { left: -3%; opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { left: 103%; opacity: 0; } }
+  /* subtle sweep for premium market cards */
+  @keyframes boz-poolshine { 0% { background-position: -140% 0; } 100% { background-position: 240% 0; } }
+
   /* hero entrance */
   .fx-rise { animation: fx-rise 0.7s cubic-bezier(0.16,1,0.3,1) both; }
   @keyframes fx-rise { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: none; } }

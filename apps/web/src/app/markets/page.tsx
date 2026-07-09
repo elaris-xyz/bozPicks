@@ -1,6 +1,7 @@
 import { MarketsPanel } from '@/components/ui/MarketsPanel';
 import { MarketsHero } from '@/components/ui/MarketsHero';
 import { MarketsBanner } from '@/components/ui/MarketsBanner';
+import { SettlementPipeline } from '@/components/ui/SettlementPipeline';
 import { OnChainProof } from '@/components/ui/OnChainProof';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,9 @@ export default function MarketsPage() {
 
       {/* live centrepiece — pool + settlement status (or an invite when idle) */}
       <MarketsBanner />
+
+      {/* signature visual — the trustless settlement flow */}
+      <SettlementPipeline />
 
       {/* one-click on-chain verification of the deployed programs */}
       <OnChainProof />

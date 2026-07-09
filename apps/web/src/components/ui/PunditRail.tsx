@@ -5,7 +5,7 @@ import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, BozEventType } from '@bozpicks/shared';
 import { punditLine, PUNDIT_ALWAYS, spokenFor } from '@/lib/pundit';
-import { initVoice, onSpeaking, say, stopSpeaking, voiceName } from '@/lib/tts';
+import { initVoice, onSpeaking, say, stopSpeaking, voiceName, neuralActive } from '@/lib/tts';
 
 /**
  * Live AI Pundit booth. Turns the TxLINE stream into running commentary with a
@@ -26,6 +26,7 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   const [tts, setTts] = useState(false);
   const [onAir, setOnAir] = useState(false);
   const [vName, setVName] = useState<string | null>(null);
+  const [neural, setNeural] = useState(false);
   const lastOdds = useRef(0);
   const ttsRef = useRef(tts);
   ttsRef.current = tts;
@@ -35,7 +36,7 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   useEffect(() => {
     initVoice();
     const t = setTimeout(() => setVName(voiceName()), 400);
-    const off = onSpeaking(setOnAir);
+    const off = onSpeaking(air => { setOnAir(air); if (!air) setNeural(neuralActive()); });
     return () => { clearTimeout(t); off(); stopSpeaking(); };
   }, []);
 
@@ -130,7 +131,9 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
               )}
             </div>
             <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-              {tts && vName ? `Voice · ${vName.replace(/Microsoft |Google |\(.*\)/g, '').trim() || vName}` : 'Claude Haiku on the big moments'}
+              {tts
+                ? (neural ? 'Neural voice · human read' : vName ? `Voice · ${vName.replace(/Microsoft |Google |\(.*\)/g, '').trim() || vName}` : 'Browser voice')
+                : 'Claude Haiku on the big moments'}
             </p>
           </div>
         </div>

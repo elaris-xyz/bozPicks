@@ -21,7 +21,11 @@ Most fans watch with a phone in hand. bozPicks turns the live feed into things y
   attack/danger state per side.
 - **Cinematic live scoreboard** with a calm, readable ticker and a rich event
   feed (goals with scorer/type, cards, corners, subs, VAR).
-- **Solana wallet sign-in** (Phantom, devnet).
+- **AI Pundit booth**: Claude Haiku writes the big-moment lines and a neural
+  TTS voice (Groq/Deepgram/ElevenLabs, browser fallback) reads them — with an
+  on-air equaliser, priority speech queue (goals barge in, chatter never clips),
+  and honest AI/voice labelling.
+- **Solana wallet sign-in** (in-house modal, any Wallet-Standard wallet, devnet).
 
 ## Business / technical highlights
 - **Original, replayable format** (not a repackaged feed) with a built-in viral
@@ -29,7 +33,10 @@ Most fans watch with a phone in hand. bozPicks turns the live feed into things y
   predictions/pundit).
 - **Real-time**: one shared SSE connection fans out to every widget; the whole UI
   reacts live within the same replay a judge can trigger on demand.
-- **Completeness**: end-to-end product — nav, games, live stats, feed, wallet.
+- **Completeness**: end-to-end product — nav, games, live stats, broadcast-grade
+  feed (per-event colours, match-identity footers), schedule browser, wallet.
+- **Judge control**: the Command Bridge (bottom-left ⚡) runs any real TxLINE
+  fixture with a chosen outcome — every widget reacts live within seconds.
 
 ## TxLINE endpoints used
 - `POST /auth/guest/start`, `POST /api/token/activate` — access (free WC tier).

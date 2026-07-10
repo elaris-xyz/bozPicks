@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletReadyState, type WalletName } from '@solana/wallet-adapter-base';
@@ -49,9 +49,13 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
       });
   }, [pending, wallet, connected, connecting, connect]);
 
-  // close automatically shortly after a successful connect
+  // Auto-close ONLY when the connection happened inside this modal session
+  // (fresh connect → brief success beat → close). Opening the modal while
+  // already connected is the ACCOUNT view — it must stay open so the user can
+  // reach Copy / Explorer / Disconnect.
+  const wasConnectedOnMount = useRef(connected);
   useEffect(() => {
-    if (connected && pending === null && !confirmDisconnect) {
+    if (connected && !wasConnectedOnMount.current && pending === null && !confirmDisconnect) {
       const t = setTimeout(onClose, 900);
       return () => clearTimeout(t);
     }

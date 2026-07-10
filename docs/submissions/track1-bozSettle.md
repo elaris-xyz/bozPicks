@@ -32,13 +32,21 @@ receipt** for every market (stat key/value, Merkle root, proof nodes, and the
 - **USDC/SOL only** for value — TxL is used solely for data authorization.
 - Full-tournament auto-market: markets open from the fixtures feed across all 104
   games.
+- **Honest receipts:** demo fixtures are upcoming, so their receipts are stamped
+  `SIMULATED`; the keeper runs the real Merkle proof + `validateStatV2` CPI the
+  moment TxLINE publishes the final stat — no pretend "verified" badges.
+- **Judge-runnable proof:** `pnpm --filter=web test` — 28 deterministic tests
+  covering every Command-Bridge scenario → market resolution → parimutuel payout
+  (pool conservation, refunds, odds/implied consistency). Zero mocks.
+- **Command Bridge** (bottom-left ⚡ on every page): pick a real TxLINE fixture,
+  choose the exact outcome, run — all six markets settle to it, verifiably.
 
 ## TxLINE endpoints used
 - `POST /auth/guest/start`, `POST /api/token/activate` — access (free WC tier).
 - `GET /api/fixtures/snapshot` — auto-create markets per fixture.
-- `GET /api/scores/stream` — watch for full-time (`gameState=F`).
+- `GET /api/scores/stream` — watch for the authoritative `game_finalised` record.
 - `GET /api/scores/historical/{fixtureId}` — canonical final stats for resolution.
-- `GET /api/scores/stat-validation` — Merkle proof for `validate_stat` (score key 1002).
+- `GET /api/scores/stat-validation` — Merkle proof for `validateStatV2` (total-goals stat keys 1/2, per TxLINE team guidance).
 - `GET /api/odds/snapshot/{fixtureId}` — pre-match implied prob for seeding.
 
 ## API feedback

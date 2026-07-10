@@ -11,7 +11,7 @@ accuracy and closing-line-value tracking.
 - Demo video: `<loom/youtube link>`
 
 ## Core idea
-- **Agent-vs-Agent Arena** (`lib/arena.ts`): on every significant implied-prob
+- **Agent-vs-Agent Arena** (`packages/shared/src/strategy/arena.ts`, run headless in `apps/agent/src/arena.ts`): on every significant implied-prob
   move, **Momentum** rides the move and **Contrarian** fades it. Both open
   notional positions autonomously, settle against the result at full-time, and
   compound P&L across matches — the better strategy pulls ahead over the
@@ -21,8 +21,11 @@ accuracy and closing-line-value tracking.
   whether each signal predicted the outcome (accuracy %). CSV export included.
 
 ## Business / technical highlights
-- **Fully autonomous & deterministic**: strategy logic is pure functions (same
-  code drives the headless agent and the UI), no human input once running.
+- **Fully autonomous & deterministic**: the strategy core lives in the shared
+  package and the SAME pure functions drive the headless process and the UI —
+  the browser is a mirror of the autonomous agent, not a re-implementation.
+- **Readable at scale**: repeated same-direction calls aggregate into one stance
+  with a ×N badge, so a desk reads the market posture at a glance.
 - **Production-ready signals**: SSE reconnect/backoff, live `/api/agents/stats`
   (accuracy, confidence mix), deterministic thresholds a desk could tune.
 - **Novel**: the opposed-strategy Arena with CLV is a genuinely new way to

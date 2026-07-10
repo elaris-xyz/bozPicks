@@ -149,22 +149,24 @@ async function runReplay(
     const payload = JSON.stringify(event);
     const status = event.type === 'MATCH_END' ? 'FINISHED' : event.type === 'HALFTIME' ? 'HALFTIME' : 'LIVE';
 
-    // Broadcast is what drives the live UI — await only these (parallel).
-    // DB persistence is best-effort and must never stall the replay clock.
-    const redisOps: Promise<unknown>[] = [
-      redis.publish(`boz:events:${id}`, payload),
-      redis.publish('boz:global', payload),
-      redis.lpush('boz:global:history', payload),
-      redis.hset(`boz:match:${id}:state`, {
-        homeScore: String(event.score?.home ?? 0),
-        awayScore: String(event.score?.away ?? 0),
-        currentMinute: String(event.matchMinute),
-        status, lastUpdated: event.timestamp,
-      }),
-    ];
-    if (event.odds) redisOps.push(redis.lpush(`boz:match:${id}:odds`, JSON.stringify(event.odds)));
-    if (event.stats) redisOps.push(redis.set(`boz:match:${id}:stats`, JSON.stringify(event.stats), 'EX', 7200));
-    await Promise.all(redisOps);
+    // Broadcast is what drives the live UI — one pipelined round-trip per step
+    // (Upstash bills per command; the old 5-7 parallel calls per step burned
+    // through the free-tier request quota). History is trimmed so the catch-up
+    // list can't grow unbounded.
+    const pipe = redis.pipeline();
+    pipe.publish(`boz:events:${id}`, payload);
+    pipe.publish('boz:global', payload);
+    pipe.lpush('boz:global:history', payload);
+    pipe.ltrim('boz:global:history', 0, 99);
+    pipe.hset(`boz:match:${id}:state`, {
+      homeScore: String(event.score?.home ?? 0),
+      awayScore: String(event.score?.away ?? 0),
+      currentMinute: String(event.matchMinute),
+      status, lastUpdated: event.timestamp,
+    });
+    if (event.odds) pipe.lpush(`boz:match:${id}:odds`, JSON.stringify(event.odds));
+    if (event.stats) pipe.set(`boz:match:${id}:stats`, JSON.stringify(event.stats), 'EX', 7200);
+    await pipe.exec().catch(() => {});
 
     // ── simulated live order flow: named demo bots stake into the pools so the
     // market cards move AND the leaderboard fills — each stake is a real

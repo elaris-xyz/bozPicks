@@ -4,7 +4,7 @@ import { HeroAura } from './HeroAura';
 /**
  * Compact homepage hero — frames the product and its three tracks without
  * pushing the live match list far down. Striker art on the right (lg+),
- * headline + Run Demo on the left, quick links to each track.
+ * headline on the left, quick links to each track.
  */
 const LINKS = [
   { href: '/play', label: 'Play', color: '#3b82f6' },

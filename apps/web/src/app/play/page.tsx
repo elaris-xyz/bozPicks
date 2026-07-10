@@ -21,7 +21,9 @@ export default function PlayPage() {
       <LiveScoreboard />
 
       {/* the three fan games, side by side */}
-      <div className="grid gap-4 lg:grid-cols-3 items-start">
+      {/* items-stretch + h-full roots: the three cards stay equal height in
+          every state — no more columns jumping as content changes */}
+      <div className="grid gap-4 lg:grid-cols-3 items-stretch">
         <HiLoGame />
         <LiveStatsPanel />
         <PunditRail />

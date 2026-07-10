@@ -35,6 +35,7 @@ export default function AgentPage() {
   const [threshold, setThreshold] = useState(10);
   const [windowMin, setWindowMin] = useState(2);
   const [configOpen, setConfigOpen] = useState(false);
+  const [signalsExpanded, setSignalsExpanded] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // load config from localStorage
@@ -216,11 +217,42 @@ export default function AgentPage() {
               Signals appear when odds shift &gt;{threshold}% within {windowMin} min
             </p>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {active.map(s => <SignalRow key={s.id} signal={s} />)}
-          </div>
-        )}
+        ) : (() => {
+          // Collapse the wall: repeated same-direction calls on the same outcome
+          // aggregate into one row with a ×N count — a judge reads the market
+          // stance in 3 rows instead of scrolling 30 near-identical cards.
+          const groups = new Map<string, { latest: AgentSignal; count: number; maxAbs: number }>();
+          for (const s of active) {
+            const key = `${s.affectedOutcome}|${s.deltaPercent > 0 ? 'up' : 'down'}|${s.confidence}`;
+            const g = groups.get(key);
+            if (!g) groups.set(key, { latest: s, count: 1, maxAbs: Math.abs(s.deltaPercent) });
+            else {
+              g.count++;
+              g.maxAbs = Math.max(g.maxAbs, Math.abs(s.deltaPercent));
+              if (new Date(s.detectedAt) > new Date(g.latest.detectedAt)) g.latest = s;
+            }
+          }
+          const rows = [...groups.values()].sort((a, b) => b.count - a.count);
+          const shown = signalsExpanded ? rows : rows.slice(0, 6);
+          return (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {shown.map(g => <SignalRow key={g.latest.id} signal={g.latest} count={g.count} />)}
+              </div>
+              {rows.length > 6 && (
+                <button onClick={() => setSignalsExpanded(v => !v)}
+                  className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all hover:brightness-125"
+                  style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--purple)' }}>
+                  {signalsExpanded ? 'Show less' : `Show all · ${rows.length} stances`}
+                  <svg className={`w-3.5 h-3.5 transition-transform duration-300 ${signalsExpanded ? 'rotate-180' : ''}`}
+                       fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* ── History + accuracy chart ── */}
@@ -267,7 +299,7 @@ export default function AgentPage() {
   );
 }
 
-function SignalRow({ signal, showResult }: { signal: AgentSignal; showResult?: boolean }) {
+function SignalRow({ signal, showResult, count = 1 }: { signal: AgentSignal; showResult?: boolean; count?: number }) {
   const dir = signal.deltaPercent > 0 ? '↑' : '↓';
   const pct = Math.abs(signal.deltaPercent).toFixed(1);
   const cs = {
@@ -284,6 +316,12 @@ function SignalRow({ signal, showResult }: { signal: AgentSignal; showResult?: b
             <span className="inline-flex items-center gap-1.5 font-bold text-sm" style={{ color: cs.color }}>
               <IconBolt size={13} /> {signal.affectedOutcome} {dir}{pct}%
             </span>
+            {count > 1 && (
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full tabular-nums"
+                    style={{ background: 'rgba(167,139,250,0.15)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.4)' }}>
+                ×{count}
+              </span>
+            )}
             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
                   style={{ background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>
               {signal.confidence}

@@ -73,8 +73,12 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
     }).catch(() => {});
   };
 
-  const installed = wallets.filter(w => w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable);
-  const notInstalled = wallets.filter(w => w.readyState === WalletReadyState.NotDetected);
+  // ONLY truly-installed extensions count as connectable. "Loadable" wallets
+  // (e.g. Solflare's web fallback) just bounce to the vendor site — showing
+  // them as READY was a lie. Any installed Solana wallet auto-registers here
+  // via the Wallet Standard, so real extensions always appear.
+  const installed = wallets.filter(w => w.readyState === WalletReadyState.Installed);
+  const notInstalled = wallets.filter(w => w.readyState !== WalletReadyState.Installed);
 
   if (!mounted) return null;
 
@@ -188,8 +192,11 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
 
-            {installed.length === 0 && notInstalled.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-6">No Solana wallets found in this browser.</p>
+            {installed.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-3 leading-relaxed">
+                No wallet extension detected in this browser.
+                {notInstalled.length > 0 && <><br /><span className="text-[11px] text-gray-600">Install one below, then reopen this dialog.</span></>}
+              </p>
             )}
 
             {installed.map(w => {

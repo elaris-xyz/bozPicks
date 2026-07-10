@@ -108,7 +108,7 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   useEffect(() => { scrollRef.current?.scrollTo({ top: 1e6, behavior: 'smooth' }); }, [typed]);
 
   return (
-    <div className="glass p-4 relative overflow-hidden"
+    <div className="glass p-4 relative overflow-hidden h-full flex flex-col"
          style={onAir ? { borderColor: 'rgba(167,139,250,0.4)', boxShadow: '0 0 26px rgba(167,139,250,0.14)' } : undefined}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -161,7 +161,7 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
         ))}
       </div>
 
-      <div ref={scrollRef} className="space-y-2 max-h-52 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
+      <div ref={scrollRef} className="space-y-2 flex-1 min-h-[10rem] max-h-64 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
         {lines.length === 0 && (
           <p className="text-xs text-gray-600 text-center py-6">The pundit is watching — start a live match.</p>
         )}

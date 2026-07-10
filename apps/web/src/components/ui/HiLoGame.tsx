@@ -91,7 +91,7 @@ export function HiLoGame() {
   const awayPoss = 100 - homePoss;
 
   return (
-    <div className={`glass sheen p-5 relative overflow-hidden ${flash === 'lose' ? 'fx-shake' : ''}`}
+    <div className={`glass sheen p-5 relative overflow-hidden h-full flex flex-col ${flash === 'lose' ? 'fx-shake' : ''}`}
          style={{ boxShadow: flash === 'win' ? '0 0 40px rgba(16,185,129,0.35)' : flash === 'lose' ? '0 0 40px rgba(239,68,68,0.3)' : undefined, transition: 'box-shadow .3s' }}>
       {/* +1 pop on a correct read */}
       {flash === 'win' && (

@@ -53,7 +53,7 @@ export function LiveStatsPanel() {
   const pAway = ip ? Math.round(ip.away * 100) : 33;
 
   return (
-    <div className="glass p-5 space-y-4">
+    <div className="glass p-5 space-y-4 h-full">
       <div className="flex items-center justify-between">
         <p className="section-label">Win Probability</p>
         {live?.live && <span className="chip-glass chip-green"><span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'currentColor' }} />LIVE {live.minute}&rsquo;</span>}

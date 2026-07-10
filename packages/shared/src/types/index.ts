@@ -274,4 +274,12 @@ export interface SSEMessage {
   type: SSEMessageType;
   data: BozEvent | MatchState | AgentSignal | PropMarket | null;
   ts: string;
+  /**
+   * True when this event is connect-time HISTORY replay, not a live event.
+   * Consumers that must only react to genuinely-live moments (toasts, sounds,
+   * VFX, Hi-Lo readings) skip on this flag. Deterministic — replaces the old
+   * "is the timestamp older than 8s" heuristic, which silently dropped EVERY
+   * live event whenever the client clock disagreed with the server clock.
+   */
+  catchup?: boolean;
 }

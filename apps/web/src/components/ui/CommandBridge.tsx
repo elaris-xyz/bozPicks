@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SCENARIO_LIST } from '@/lib/scenarios';
+import { useSSEContext, useSSESubscription } from '@/contexts/SSEContext';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { fireToast } from './Toast';
 
 /**
  * Command Bridge — the judge's control panel. Collapsed it's a single launcher
@@ -21,7 +24,8 @@ interface TxStatus { ok: boolean; count?: number; competitions?: string[]; laten
 export function CommandBridge() {
   const [open, setOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'warn' | 'error'; text: string } | null>(null);
   const [speed, setSpeed] = useState(4);
   const [scenarioKey, setScenarioKey] = useState('home-win');
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
@@ -29,6 +33,14 @@ export function CommandBridge() {
   const [tx, setTx] = useState<TxStatus | null>(null);
   const bootstrapped = useRef(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Unified live state (same source every page uses) + stream self-healing.
+  const live = useLiveMatch();
+  const { reconnect } = useSSEContext();
+  const lastLiveEvent = useRef(0);
+  useSSESubscription(msg => {
+    if (msg.type === 'event' && !msg.catchup) lastLiveEvent.current = Date.now();
+  });
 
   useEffect(() => {
     setSpeed(Number(localStorage.getItem('boz_demo_speed')) || 4);
@@ -60,10 +72,10 @@ export function CommandBridge() {
   const chooseScenario = (k: string) => { setScenarioKey(k); localStorage.setItem('boz_demo_scenario', k); };
 
   const run = useCallback(async () => {
-    if (running) return;
-    setRunning(true);
+    if (starting) return;
+    setStarting(true);
+    setNotice(null);
     setPickerOpen(false);
-    setOpen(false); // auto-close the panel so the match is visible immediately
     try {
       const params = new URLSearchParams({ speed: String(speed), scenario: scenarioKey });
       const f = fixtures[fixtureIdx];
@@ -71,9 +83,41 @@ export function CommandBridge() {
         params.set('home', f.home); params.set('away', f.away);
         params.set('competition', f.competition); params.set('fixtureId', f.fixtureId);
       }
-      await fetch(`/api/demo?${params.toString()}`, { method: 'POST' });
-    } catch { /* ignore */ } finally { setRunning(false); }
-  }, [running, speed, scenarioKey, fixtures, fixtureIdx]);
+      const res = await fetch(`/api/demo?${params.toString()}`, { method: 'POST' });
+
+      if (res.status === 409) {
+        // a replay is already on air — honest feedback instead of silence
+        setNotice({ kind: 'warn', text: 'A match is already running — it’s live on every page right now.' });
+        return;
+      }
+      if (!res.ok) {
+        setNotice({ kind: 'error', text: `Could not start (${res.status}) — try again.` });
+        return;
+      }
+
+      const d = await res.json().catch(() => ({}));
+      setOpen(false); // ACK received → the match kicks off within a second
+      fireToast({ kind: 'info', title: 'Match starting', body: `${d.homeTeam ?? 'Home'} v ${d.awayTeam ?? 'Away'} · every page is now live` });
+
+      // Watchdog: if no live event lands within 7s the SSE stream is a zombie
+      // (connected but silent) — force one fresh connection, then warn.
+      const ackAt = Date.now();
+      setTimeout(() => {
+        if (lastLiveEvent.current < ackAt) {
+          reconnect();
+          setTimeout(() => {
+            if (lastLiveEvent.current < ackAt) {
+              fireToast({ kind: 'warn', title: 'Live stream reconnecting…', body: 'Events should resume in a few seconds.' });
+            }
+          }, 7000);
+        }
+      }, 7000);
+    } catch {
+      setNotice({ kind: 'error', text: 'Network error — the demo could not start.' });
+    } finally {
+      setStarting(false);
+    }
+  }, [starting, speed, scenarioKey, fixtures, fixtureIdx, reconnect]);
 
   const activeFixture = fixtures[fixtureIdx];
   const matchLabel = activeFixture ? `${activeFixture.home} v ${activeFixture.away}` : 'Brazil v Argentina (preset)';
@@ -141,6 +185,19 @@ export function CommandBridge() {
               })}
             </div>
 
+            {/* status notice — 409 / errors get honest, visible feedback */}
+            {notice && (
+              <div className="flex items-start gap-2 rounded-xl px-3 py-2 mb-3 text-[11px] leading-snug anim-in"
+                   style={notice.kind === 'warn'
+                     ? { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)', color: '#fcd34d' }
+                     : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5' }}>
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M12 3 2 20h20L12 3z" strokeLinejoin="round" /><path d="M12 10v4M12 17.5v.01" strokeLinecap="round" />
+                </svg>
+                {notice.text}
+              </div>
+            )}
+
             {/* speed + run */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -155,13 +212,18 @@ export function CommandBridge() {
                   ))}
                 </div>
               </div>
-              <button onClick={run} disabled={running}
-                className="flex items-center gap-1.5 text-xs font-bold px-4 h-8 rounded-full transition-all hover:brightness-110 active:scale-95 flex-shrink-0"
-                style={running
+              <button onClick={run} disabled={starting || !!live?.live}
+                className="flex items-center gap-1.5 text-xs font-bold px-4 h-8 rounded-full transition-all hover:brightness-110 active:scale-95 flex-shrink-0 disabled:cursor-default"
+                style={live?.live
                   ? { background: 'rgba(16,185,129,0.15)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.4)' }
+                  : starting
+                  ? { background: 'rgba(59,130,246,0.15)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.4)' }
                   : { background: 'linear-gradient(135deg, rgb(var(--c-blue)), rgb(var(--c-purple)))', color: '#fff' }}>
-                {running ? (<><span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'currentColor' }} />Live…</>)
-                         : (<><svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" /></svg>Run</>)}
+                {live?.live
+                  ? (<><span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'currentColor' }} />Live · {live.minute}&rsquo;</>)
+                  : starting
+                  ? (<><span className="w-3 h-3 rounded-full border-2 animate-spin" style={{ borderColor: 'rgba(147,197,253,0.3)', borderTopColor: '#93c5fd' }} />Starting…</>)
+                  : (<><svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" /></svg>Run</>)}
               </button>
             </div>
             <p className="text-[10px] text-gray-500 mt-2 truncate">{matchLabel} · {SCENARIO_LIST.find(s => s.key === scenarioKey)?.label ?? scenarioKey}</p>
@@ -178,7 +240,12 @@ export function CommandBridge() {
           ? { background: 'linear-gradient(135deg, rgb(var(--c-blue)), rgb(var(--c-purple)))', border: '1px solid rgba(59,130,246,0.5)', color: '#fff', boxShadow: '0 0 18px rgba(59,130,246,0.4)' }
           : { background: 'rgba(9,13,26,0.85)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', color: 'var(--blue)' }}>
         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" /></svg>
-        {tx?.ok && !open && (
+        {/* live match on air → pulsing green ring (unified with every page) */}
+        {live?.live && !open && (
+          <span className="absolute -inset-1 rounded-full animate-ping pointer-events-none"
+                style={{ background: 'rgba(16,185,129,0.25)' }} />
+        )}
+        {(live?.live || tx?.ok) && !open && (
           <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full badge-live"
                 style={{ background: 'var(--green)', border: '2px solid var(--bg-deep)' }} />
         )}

@@ -110,8 +110,7 @@ export function CinematicFX() {
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
-      // only react to fresh events, not the connect catch-up burst
-      if (Date.now() - new Date(e.timestamp).getTime() > 8000) return;
+      if (msg.catchup) return; // history replay, not a live moment
       if (e.type === 'GOAL') { fire({ kind: 'GOAL', team: e.team, score: e.score }); playSfx('goal'); }
       else if (e.type === 'RED_CARD') { fire({ kind: 'RED', team: e.team }); playSfx('red'); }
       else if (e.type === 'MATCH_END') { fire({ kind: 'END' }); playSfx('end'); }

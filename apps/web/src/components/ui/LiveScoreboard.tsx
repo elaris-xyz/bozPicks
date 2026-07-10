@@ -21,7 +21,7 @@ export function LiveScoreboard() {
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
-      if (Date.now() - new Date(e.timestamp).getTime() > 8000) return; // ignore catch-up
+      if (msg.catchup) return; // history replay, not a live moment
       if (e.stats) setStats(e.stats);
       const label = e.type.replace(/_/g, ' ').toLowerCase();
       if (['GOAL', 'RED_CARD', 'YELLOW_CARD', 'CORNER', 'SHOT', 'VAR', 'PENALTY', 'HALFTIME', 'SUBSTITUTION'].includes(e.type)) {

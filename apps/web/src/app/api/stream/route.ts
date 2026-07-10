@@ -35,15 +35,22 @@ export async function GET(req: NextRequest) {
   // uncaughtException that destabilises the server. Guard every touch.
   let closed = false;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
-  const teardown = () => {
+  let ctrl: ReadableStreamDefaultController | null = null;
+  const teardown = (endStream = false) => {
     if (closed) return;
     closed = true;
     if (heartbeat) clearInterval(heartbeat);
     sub.disconnect();
+    // If the Redis subscription died, END the HTTP stream too. Leaving it open
+    // would keep heartbeats flowing — the client stays "connected" to a zombie
+    // that can never deliver an event. Closing makes EventSource auto-reconnect
+    // to a fresh worker with a working subscription.
+    if (endStream && ctrl) { try { ctrl.close(); } catch { /* already closed */ } }
   };
 
   const stream = new ReadableStream({
     start(controller) {
+      ctrl = controller;
       const send = (data: string) => {
         if (closed) return;
         try {
@@ -55,10 +62,12 @@ export async function GET(req: NextRequest) {
 
       send(JSON.stringify({ type: 'ping', ts: new Date().toISOString() }));
 
-      // send recent events so client is up-to-date immediately after connect
+      // Connect-time history replay — explicitly flagged so consumers can tell
+      // it apart from live events without comparing clocks (client clock skew
+      // used to silently drop every live event past the old 8s heuristic).
       for (const raw of history) {
         try {
-          send(JSON.stringify({ type: 'event', data: JSON.parse(raw), ts: new Date().toISOString() }));
+          send(JSON.stringify({ type: 'event', data: JSON.parse(raw), catchup: true, ts: new Date().toISOString() }));
         } catch { /* skip malformed */ }
       }
 
@@ -70,9 +79,11 @@ export async function GET(req: NextRequest) {
         } catch { /* malformed payload — skip */ }
       });
 
-      sub.subscribe(channel).catch(teardown);
-      sub.subscribe('boz:signals').catch(teardown);
-      sub.subscribe('boz:markets').catch(teardown);
+      Promise.all([
+        sub.subscribe(channel),
+        sub.subscribe('boz:signals'),
+        sub.subscribe('boz:markets'),
+      ]).catch(() => teardown(true)); // no zombie ping-only streams
 
       // heartbeat keeps proxies from dropping an idle connection
       heartbeat = setInterval(() => send(JSON.stringify({ type: 'ping', ts: new Date().toISOString() })), 25_000);

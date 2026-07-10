@@ -1,5 +1,9 @@
-const CACHE = 'bozpicks-v1';
-const STATIC = ['/', '/insights', '/agent', '/stats', '/offline.html'];
+// v2: NETWORK-FIRST. v1 was cache-first for pages + JS chunks, which kept
+// serving stale bundles after every deploy — the single biggest source of
+// "works here, broken there" flakiness. The cache is now only an OFFLINE
+// fallback; every online load gets the current code.
+const CACHE = 'bozpicks-v2';
+const STATIC = ['/offline.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -17,16 +21,22 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('/api/')) return; // Always network for API
+  if (e.request.url.includes('/api/')) return; // Always network for API (incl. SSE)
 
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const network = fetch(e.request).then(res => {
-        if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+    fetch(e.request)
+      .then(res => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+        }
         return res;
-      });
-      return cached || network;
-    })
+      })
+      .catch(() =>
+        caches.match(e.request).then(cached =>
+          cached ?? (e.request.mode === 'navigate' ? caches.match('/offline.html') : Response.error())
+        )
+      )
   );
 });
 

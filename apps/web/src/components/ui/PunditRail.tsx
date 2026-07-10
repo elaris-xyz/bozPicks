@@ -44,7 +44,7 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
-      if (Date.now() - new Date(e.timestamp).getTime() > 8000) return; // ignore catch-up
+      if (msg.catchup) return; // history replay, not a live moment
 
       if (e.type === 'ODDS_UPDATE') {
         if (Date.now() - lastOdds.current < 12000) return;   // throttle ticks

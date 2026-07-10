@@ -11,7 +11,7 @@ export function Notifier() {
       // Ignore SSE catch-up: on first load the stream replays recent events from
       // an already-finished demo match. Firing "Goal!"/"Red Card" toasts for a
       // match that's over is confusing — only notify on genuinely live events.
-      if (Date.now() - new Date(ev.timestamp).getTime() > 8000) return;
+      if (msg.catchup) return;
       if (ev.type === 'GOAL') {
         fireToast({
           kind: 'goal',

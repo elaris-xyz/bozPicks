@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import { randomUUID } from 'crypto';
-import { generateMatchReplay, SCENARIOS } from '@/lib/replay';
+import { generateMatchReplay, SCENARIOS, type ReplayScenario } from '@/lib/replay';
 import { buildMarketsForMatch, rowToMarket } from '@/lib/markets';
 import { settleMarketRow } from '@/lib/settle';
 
@@ -30,18 +30,13 @@ async function purgeDemoMatches() {
 }
 
 /**
- * Runs a live replay: publishes a rich, timed event stream to Redis so the whole
- * app reacts in real time. Speed is controllable (?speed=8 → 8× faster).
+ * Starts a live replay. The request ACKs in well under a second (202 +
+ * matchId) and the heavy work — purge, inserts, the timed event stream, and
+ * settlement — continues via after(), so the Run button never feels dead.
+ * One replay at a time via a Redis lock; a second Run gets an honest 409
+ * (with the running matchId) instead of the old silent cooldown 429.
  */
 export async function POST(req: NextRequest) {
-  const cooldownKey = 'boz:demo:cooldown';
-  if (await redis.get(cooldownKey)) {
-    return NextResponse.json({ error: 'Demo cooling down, try again shortly' }, { status: 429 });
-  }
-  await redis.set(cooldownKey, '1', 'EX', 8);
-
-  await purgeDemoMatches();
-
   const p = req.nextUrl.searchParams;
   const speed = Math.max(1, Math.min(90, Number(p.get('speed')) || 4));
   const scenarioKey = p.get('scenario') ?? 'home-win';
@@ -49,8 +44,39 @@ export async function POST(req: NextRequest) {
   const homeTeam = (p.get('home') || 'Brazil').slice(0, 40);
   const awayTeam = (p.get('away') || 'Argentina').slice(0, 40);
   const competition = (p.get('competition') || 'FIFA World Cup').slice(0, 60);
-  const fixtureId = (p.get('fixtureId') || '').slice(0, 40); // real TxLINE fixture provenance
   const id = `demo-${Date.now()}`;
+
+  // one running replay at a time — lock TTL covers the match + settlement
+  const LOCK = 'boz:demo:lock';
+  const lockTtl = Math.ceil(42 / speed) + 30;
+  const acquired = await redis.set(LOCK, id, 'EX', lockTtl, 'NX');
+  if (!acquired) {
+    const runningId = await redis.get(LOCK).catch(() => null);
+    return NextResponse.json({ error: 'already-running', matchId: runningId }, { status: 409 });
+  }
+
+  after(async () => {
+    try {
+      await runReplay(id, speed, scenario, homeTeam, awayTeam, competition);
+    } catch (e) {
+      console.error('[demo] replay failed:', (e as Error).message);
+    } finally {
+      await redis.del(LOCK).catch(() => {});
+    }
+  });
+
+  return NextResponse.json(
+    { ok: true, matchId: id, homeTeam, awayTeam, scenario: scenario.key, speed },
+    { status: 202 },
+  );
+}
+
+/** The full replay lifecycle — runs after the ACK has been sent. */
+async function runReplay(
+  id: string, speed: number, scenario: ReplayScenario,
+  homeTeam: string, awayTeam: string, competition: string,
+) {
+  await purgeDemoMatches();
   const now = new Date();
 
   await db.query(
@@ -180,17 +206,16 @@ export async function POST(req: NextRequest) {
   await redis.set(`boz:match:${id}:final`, JSON.stringify(final), 'EX', 86400);
 
   // ── Auto-settle every prop market trustlessly from the final stats ──────────
-  const settledMarkets: { label: string; winningOutcome?: string; validateTx?: string }[] = [];
+  let settledCount = 0;
   for (const mk of markets) {
     try {
       const { rows } = await db.query(`SELECT * FROM boz_markets WHERE id=$1`, [mk.id]);
       if (!rows[0]) continue;
-      const settled = await settleMarketRow(rowToMarket(rows[0]), final);
-      settledMarkets.push({ label: settled.label, winningOutcome: settled.winningOutcome, validateTx: settled.settlementTx });
+      await settleMarketRow(rowToMarket(rows[0]), final);
+      settledCount++;
     } catch { /* skip */ }
   }
-
-  return NextResponse.json({ ok: true, matchId: id, homeTeam, awayTeam, steps: steps.length, final, markets: settledMarkets });
+  console.log(`[demo] ${id} finished ${final.homeScore}-${final.awayScore} · ${settledCount}/${markets.length} markets settled`);
 }
 
 export async function DELETE() {

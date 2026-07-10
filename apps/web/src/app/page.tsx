@@ -4,12 +4,14 @@ import { MatchList } from '@/components/ui/MatchList';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
 import { LiveTicker } from '@/components/ui/LiveTicker';
 import { HomeHero } from '@/components/ui/HomeHero';
+import { maybeSyncFixtures } from '@/lib/syncFixtures';
 import type { MatchState, OddsSnapshot } from '@bozpicks/shared';
 
 export const dynamic = 'force-dynamic';
 
 async function getMatches(): Promise<MatchState[]> {
   try {
+    await maybeSyncFixtures(); // self-heal a stale fixtures snapshot before reading
     const { rows } = await db.query(
       `SELECT id, home_team, away_team, home_score, away_score,
               status, current_minute, kickoff_time, last_updated,

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { MatchList } from '@/components/ui/MatchList';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { maybeSyncFixtures } from '@/lib/syncFixtures';
 import type { MatchState } from '@bozpicks/shared';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,7 @@ export const metadata = {
 
 async function getSchedule(): Promise<MatchState[]> {
   try {
+    await maybeSyncFixtures(); // self-heal a stale fixtures snapshot before reading
     const { rows } = await db.query(`
       SELECT id, home_team, away_team, home_score, away_score,
              status, current_minute, kickoff_time, last_updated

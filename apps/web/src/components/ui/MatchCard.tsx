@@ -37,6 +37,15 @@ export function MatchCard({
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const cfg = STATUS_CONFIG[match.status] ?? STATUS_CONFIG.SCHEDULED;
 
+  // "SOON" is a promise, not a default — only within 24h of kickoff. Everything
+  // further out shows its date instead (a badge saying SOON on a game 81 days
+  // away reads as broken).
+  const msToKickoff = match.kickoffTime ? new Date(match.kickoffTime).getTime() - Date.now() : Infinity;
+  const isSoon = match.status === 'SCHEDULED' && msToKickoff < 24 * 3600_000 && msToKickoff > -3 * 3600_000;
+  const farDate = match.status === 'SCHEDULED' && !isSoon && match.kickoffTime
+    ? new Date(match.kickoffTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase()
+    : null;
+
   return (
     <Link href={`/match/${match.id}`} className="block group">
       <div
@@ -118,12 +127,34 @@ export function MatchCard({
               {activeSignals}
             </span>
           )}
-          <span className="h-7 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 rounded-full"
-                style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, boxShadow: cfg.glow }}>
-            {isLive && <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: cfg.color }} />}
-            {cfg.label}
-            {isLive && ` ${match.currentMinute}'`}
-          </span>
+          {isSoon ? (
+            /* premium SOON — kicks off within 24h */
+            <span className="h-7 flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 rounded-full"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(16,185,129,0.14))',
+                    color: '#fcd34d', border: '1px solid rgba(245,158,11,0.55)',
+                    boxShadow: '0 0 14px rgba(245,158,11,0.28)',
+                  }}>
+              <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: '#fbbf24' }} />
+              SOON
+            </span>
+          ) : farDate ? (
+            /* future fixture — its date, not a fake "soon" */
+            <span className="h-7 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 rounded-full"
+                  style={{ background: 'rgba(148,163,184,0.10)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.3)' }}>
+              <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" />
+              </svg>
+              {farDate}
+            </span>
+          ) : (
+            <span className="h-7 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 rounded-full"
+                  style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, boxShadow: cfg.glow }}>
+              {isLive && <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: cfg.color }} />}
+              {cfg.label}
+              {isLive && ` ${match.currentMinute}'`}
+            </span>
+          )}
         </div>
 
         {/* ── Center: score / kickoff ── */}

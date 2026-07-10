@@ -4,7 +4,7 @@ import {
   createContext, useContext, useEffect, useRef, useState, useCallback,
   type ReactNode,
 } from 'react';
-import type { SSEMessage } from '@bozpicks/shared';
+import type { SSEMessage, BozEvent } from '@bozpicks/shared';
 
 type Subscriber = (msg: SSEMessage) => void;
 
@@ -16,6 +16,9 @@ interface SSEContextValue {
   reconnect: () => void;
   /** Date.now() of the last real (non-ping) live message — watchdog input. */
   lastEventAt: () => number;
+  /** Recent match events (newest first, deduped, capped) — lets a feed that
+      remounts after navigation seed itself instead of starting empty. */
+  recentEvents: () => BozEvent[];
 }
 
 const SSEContext = createContext<SSEContextValue>({
@@ -23,6 +26,7 @@ const SSEContext = createContext<SSEContextValue>({
   subscribe: () => () => {},
   reconnect: () => {},
   lastEventAt: () => 0,
+  recentEvents: () => [],
 });
 
 export function SSEProvider({ children }: { children: ReactNode }) {
@@ -30,6 +34,7 @@ export function SSEProvider({ children }: { children: ReactNode }) {
   const subs = useRef<Set<Subscriber>>(new Set());
   const esRef = useRef<EventSource | null>(null);
   const lastEvent = useRef(0);
+  const recent = useRef<BozEvent[]>([]);
 
   const connect = useCallback(() => {
     esRef.current?.close();
@@ -42,6 +47,13 @@ export function SSEProvider({ children }: { children: ReactNode }) {
         const msg = JSON.parse(e.data) as SSEMessage;
         if (msg.type === 'ping') { setConnected(true); return; }
         if (!msg.catchup) lastEvent.current = Date.now();
+        // keep a provider-level ring buffer so feeds survive route changes
+        if (msg.type === 'event' && msg.data) {
+          const ev = msg.data as BozEvent;
+          if (!recent.current.some(x => x.id === ev.id)) {
+            recent.current = [ev, ...recent.current].slice(0, 30);
+          }
+        }
         subs.current.forEach(fn => fn(msg));
       } catch { /* skip malformed */ }
     };
@@ -63,9 +75,10 @@ export function SSEProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const lastEventAt = useCallback(() => lastEvent.current, []);
+  const recentEvents = useCallback(() => recent.current, []);
 
   return (
-    <SSEContext.Provider value={{ connected, subscribe, reconnect: connect, lastEventAt }}>
+    <SSEContext.Provider value={{ connected, subscribe, reconnect: connect, lastEventAt, recentEvents }}>
       {children}
     </SSEContext.Provider>
   );

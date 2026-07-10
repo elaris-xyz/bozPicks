@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
  * One-time welcome hint that points first-time visitors at the Command Bridge
  * launcher (bottom-left). Solid (non-glass) panel so it never blends with the
  * flag posters behind it, wrapped in a rotating cinematic glow to draw the eye.
- * Auto-dismisses after 5s (or on click) and is remembered so it never returns.
+ * Auto-dismisses after 10s (or on click) and is remembered so it never returns.
  */
 const KEY = 'boz_seen_hint_v3';
 
@@ -25,10 +25,10 @@ export function FirstVisitHint() {
     return () => clearTimeout(appear);
   }, []);
 
-  // once shown, live for 5s then dismiss for good
+  // once shown, live for 10s then dismiss for good
   useEffect(() => {
     if (!show) return;
-    const t = setTimeout(dismiss, 5000);
+    const t = setTimeout(dismiss, 10000);
     return () => clearTimeout(t);
   }, [show, dismiss]);
 

@@ -1,12 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, PropMarket } from '@bozpicks/shared';
 import { usdcToDisplay, displayToUsdc } from '@bozpicks/shared';
 import { poolOdds, impliedFromPool, payoutFor } from '@/lib/markets';
 import { playSfx } from '@/lib/sfx';
+import { WalletModal } from './WalletModal';
+import { fireToast } from './Toast';
 
 /**
  * Live parametric prop markets + trustless settlement. Each market shows its
@@ -78,7 +81,7 @@ function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
   );
 }
 
-function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; mine?: string }) {
+function MarketCard({ m, onBet, betting, mine, mineTx }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; mine?: string; mineTx?: string }) {
   const settled = m.status === 'SETTLED';
   const k = KIND[m.kind] ?? KIND.MATCH_WINNER;
   const busy = betting === m.id;
@@ -184,10 +187,20 @@ function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: st
         })}
       </div>
 
-      {settled ? <Receipt m={m} stamp={justSettled} /> : (
+      {settled ? <Receipt m={m} stamp={justSettled} /> : mineTx ? (
+        /* your stake's REAL devnet transaction — one click to the explorer */
+        <a href={`https://explorer.solana.com/tx/${mineTx}?cluster=devnet`} target="_blank" rel="noopener noreferrer"
+           className="relative flex items-center justify-center gap-1.5 mt-3 text-[10px] font-bold transition-all hover:brightness-125"
+           style={{ color: '#a78bfa' }}>
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Signed on Solana devnet · {mineTx.slice(0, 8)}… ↗
+        </a>
+      ) : (
         <div className="relative flex items-center justify-center gap-1.5 mt-3 text-[10px] text-gray-500">
           <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 8v8M8 12h8" strokeLinecap="round" /></svg>
-          Tap an outcome to stake 5 USDC · devnet parimutuel
+          Tap an outcome — 5 USDC, signed as a real devnet tx
         </div>
       )}
     </div>
@@ -238,11 +251,13 @@ function ActivityFeed({ items }: { items: Activity[] }) {
 }
 
 export function MarketsPanel() {
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
   const [markets, setMarkets] = useState<PropMarket[]>([]);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [betting, setBetting] = useState<string | null>(null);
-  const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
+  const [walletOpen, setWalletOpen] = useState(false);
+  const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number; tx?: string }>>({});
   const [activity, setActivity] = useState<Activity[]>([]);
   const prevSettled = useRef(0);
   const marketsMap = useRef<Record<string, PropMarket>>({}); // last-seen market per id, for diffing
@@ -298,16 +313,36 @@ export function MarketsPanel() {
     },
   });
 
+  // Solana-first staking: no wallet → open the connect modal (no silent paper
+  // bets); with a wallet, every stake SIGNS A REAL DEVNET TRANSACTION (memo
+  // program) before it hits the pool — the signature is stored as the escrow
+  // tx and linked to the explorer on the card.
   const bet = async (id: string, outcome: string) => {
+    if (!publicKey) { setWalletOpen(true); return; }
     setBetting(id);
     try {
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      const memoIx = new TransactionInstruction({
+        keys: [{ pubkey: publicKey, isSigner: true, isWritable: false }],
+        programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
+        data: Buffer.from(JSON.stringify({ market: id, outcome, amountUsdc: 5_000_000 }), 'utf-8'),
+      });
+      const tx = new Transaction().add(memoIx);
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = publicKey;
+      const signature = await sendTransaction(tx, connection);
+      void connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }).catch(() => {});
+
       const res = await fetch(`/api/markets/${id}/predict`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome, amountUsdc: 5, wallet: publicKey?.toBase58() ?? 'demo-wallet' }),
+        body: JSON.stringify({ outcome, amountUsdc: 5, wallet: publicKey.toBase58(), escrowTx: signature }),
       }).then(r => r.json());
       if (res.market) setMarkets(ms => ms.map(m => m.id === id ? res.market : m));
-      setUserBets(b => ({ ...b, [id]: { outcome, stake: displayToUsdc(5) } }));
+      setUserBets(b => ({ ...b, [id]: { outcome, stake: displayToUsdc(5), tx: signature } }));
       playSfx('tick');
+      fireToast({ kind: 'info', title: 'Stake signed on Solana devnet', body: `${outcome} · 5 USDC · ${signature.slice(0, 8)}…` });
+    } catch (e) {
+      fireToast({ kind: 'warn', title: 'Stake not placed', body: (e as Error).message?.slice(0, 90) ?? 'Transaction rejected' });
     } finally { setBetting(null); }
   };
 
@@ -369,14 +404,19 @@ export function MarketsPanel() {
           )}
         </div>
       )}
-      <div className="grid gap-4 lg:grid-cols-[1fr_296px] items-start">
-        <div className="grid gap-3 sm:grid-cols-2 min-w-0">
-          {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting} mine={userBets[m.id]?.outcome} />)}
+      {/* Order flow only takes a column once there IS flow — no empty shell */}
+      <div className={`grid gap-4 items-start ${activity.length > 0 ? 'lg:grid-cols-[1fr_296px]' : ''}`}>
+        <div className={`grid gap-3 sm:grid-cols-2 min-w-0 ${activity.length === 0 ? 'xl:grid-cols-3' : ''}`}>
+          {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting}
+            mine={userBets[m.id]?.outcome} mineTx={userBets[m.id]?.tx} />)}
         </div>
-        <aside className="lg:sticky lg:top-4">
-          <ActivityFeed items={activity} />
-        </aside>
+        {activity.length > 0 && (
+          <aside className="lg:sticky lg:top-4 anim-in">
+            <ActivityFeed items={activity} />
+          </aside>
+        )}
       </div>
+      {walletOpen && <WalletModal onClose={() => setWalletOpen(false)} />}
     </div>
   );
 }

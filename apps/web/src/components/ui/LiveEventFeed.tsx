@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
+import { useSSEContext } from '@/contexts/SSEContext';
 import type { BozEvent, MatchState, SSEMessage } from '@bozpicks/shared';
 import { Flag } from './Flag';
 import {
@@ -74,7 +75,10 @@ function timeAgo(iso: string) {
 interface Meta { home: string; away: string }
 
 export function LiveEventFeed() {
-  const [events, setEvents] = useState<BozEvent[]>([]);
+  const { recentEvents } = useSSEContext();
+  // seed from the provider's ring buffer — navigating away and back keeps the
+  // feed populated instead of restarting empty mid-match
+  const [events, setEvents] = useState<BozEvent[]>(() => recentEvents());
   const [connected, setConnected] = useState(false);
   const [meta, setMeta] = useState<Record<string, Meta>>({});
   const [finished, setFinished] = useState<Set<string>>(new Set());

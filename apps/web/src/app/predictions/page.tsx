@@ -63,66 +63,54 @@ export default function PredictionsPage() {
         count={preds?.length || undefined}
         subtitle="Every stake, settled on-chain — your record and P&L" />
 
-      {/* ── Not connected ── */}
+      {/* ── Not connected — one mature hero card, no filler blocks ── */}
       {!connected ? (
-        <>
-          <div className="glass py-16 text-center space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center"
-                 style={{ color: 'var(--blue)', background: 'var(--blue-dim)', border: '1px solid rgba(59,130,246,0.25)' }}>
-              <IconWallet size={30} />
-            </div>
-            <div>
-              <p className="font-bold text-gray-200 mb-1">Wallet not connected</p>
-              <p className="text-sm text-gray-500">Connect your Solana wallet to view your predictions and earnings</p>
-            </div>
-            <button onClick={() => setWalletOpen(true)} className="btn-accent mx-auto">
-              <IconWallet size={16} /> Connect Wallet
-            </button>
-          </div>
+        <div className="glass fx-rise relative overflow-hidden"
+             style={{ borderColor: 'rgba(59,130,246,0.3)', boxShadow: '0 0 30px rgba(59,130,246,0.10)' }}>
+          <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: 'linear-gradient(90deg,transparent,var(--blue),transparent)' }} />
+          <div className="relative p-6 md:p-8 text-center">
+            <span className="relative inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
+                  style={{ background: 'linear-gradient(135deg, rgb(var(--c-blue)), rgb(var(--c-purple)))', color: '#fff', boxShadow: '0 0 24px rgba(59,130,246,0.4)' }}>
+              <IconWallet size={28} />
+            </span>
+            <h2 className="font-display text-xl md:text-2xl font-black">Your on-chain record starts here</h2>
+            <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto leading-relaxed">
+              Connect a Solana wallet and every stake you place signs a <span className="font-bold text-gray-300">real devnet
+              transaction</span> — this page becomes your P&amp;L, graded from TxLINE proofs.
+            </p>
 
-          {/* How it works */}
-          <div className="glass p-5 space-y-4">
-            <p className="section-label">How Predictions Work</p>
-            <div className="space-y-3">
+            {/* the journey, inline — not four tall cards */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-5 text-[11px]">
               {[
-                { step: '1', icon: <IconWallet size={13} />, title: 'Connect Wallet', desc: 'Connect your Phantom or Solflare wallet' },
-                { step: '2', icon: <IconBall size={13} />,   title: 'Pick a Match', desc: 'Choose any live or upcoming match' },
-                { step: '3', icon: <IconTarget size={13} />, title: 'Make Prediction', desc: 'Select Home/Draw/Away and stake USDC' },
-                { step: '4', icon: <IconShield size={13} />, title: 'Win On-Chain', desc: 'Correct predictions settle automatically via smart contract' },
-              ].map(({ step, icon, title, desc }) => (
-                <div key={step} className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                       style={{ background: 'var(--blue-dim)', color: 'var(--blue)', border: '1px solid rgba(59,130,246,0.3)' }}>
-                    {icon}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-100">
-                      <span className="text-gray-600 mr-1.5 font-mono text-xs">{step}</span>{title}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
-                  </div>
-                </div>
+                { icon: <IconWallet size={12} />, t: 'Connect' },
+                { icon: <IconBall size={12} />,   t: 'Pick a market' },
+                { icon: <IconTarget size={12} />, t: 'Sign the stake (devnet tx)' },
+                { icon: <IconShield size={12} />, t: 'Settled from TxLINE proof' },
+              ].map((s, i, arr) => (
+                <span key={s.t} className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full font-semibold text-gray-300"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <span style={{ color: 'var(--blue)' }}>{s.icon}</span>{s.t}
+                  </span>
+                  {i < arr.length - 1 && (
+                    <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  )}
+                </span>
               ))}
             </div>
-          </div>
 
-          <div className="glass p-4 flex items-start gap-3">
-            <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ color: 'var(--green)', background: 'var(--green-dim)', border: '1px solid rgba(16,185,129,0.2)' }}>
-              <IconChain size={16} />
-            </span>
-            <div className="text-xs text-gray-500 space-y-1">
-              <p>All predictions use a <strong className="text-gray-300">parimutuel pool</strong> — your payout depends on how many others pick the same outcome.</p>
-              <p>A <strong className="text-gray-300">2% fee</strong> is deducted from each pool before settlement.</p>
-              <p>Payouts are sent automatically to your wallet when the match ends.</p>
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+              <button onClick={() => setWalletOpen(true)} className="btn-accent">
+                <IconWallet size={16} /> Connect Wallet
+              </button>
+              <Link href="/markets" className="btn-ghost">Browse Prop Markets</Link>
             </div>
+            <p className="flex items-center justify-center gap-1.5 text-[10px] text-gray-600 mt-4">
+              <IconChain size={11} />
+              Parimutuel pools · 2% fee · payouts split pro-rata at full time · devnet only, no real funds
+            </p>
           </div>
-
-          <div className="flex gap-3">
-            <Link href="/" className="btn-accent flex-1 justify-center">Browse Live Matches</Link>
-            <Link href="/leaderboard" className="btn-ghost flex-1 justify-center">View Leaderboard</Link>
-          </div>
-        </>
+        </div>
       ) : (
         /* ── Connected ── */
         <>

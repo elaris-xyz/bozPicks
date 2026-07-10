@@ -32,13 +32,18 @@ export function PanScroller({ className, children }: { className?: string; child
     if (Math.abs(dx) > 4) {
       drag.current.moved = true;
       el.setPointerCapture?.(e.pointerId);
+      // grabbing everywhere, including over the card links (they set pointer)
       el.style.cursor = 'grabbing';
+      el.querySelectorAll('a').forEach(a => { (a as HTMLElement).style.cursor = 'grabbing'; });
     }
     el.scrollLeft = drag.current.startLeft - dx;
   };
   const endDrag = (e: React.PointerEvent) => {
     const el = ref.current;
-    if (el) el.style.cursor = '';
+    if (el) {
+      el.style.cursor = '';
+      el.querySelectorAll('a').forEach(a => { (a as HTMLElement).style.cursor = ''; });
+    }
     // suppress the click that follows a real drag (so cards don't navigate)
     if (drag.current.moved) {
       const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
@@ -49,10 +54,13 @@ export function PanScroller({ className, children }: { className?: string; child
   };
 
   return (
-    <div ref={ref} className={className}
+    <div ref={ref} className={`${className ?? ''} select-none`}
          style={{ cursor: 'grab', touchAction: 'pan-x' }}
          onWheel={onWheel} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-         onPointerUp={endDrag} onPointerLeave={endDrag}>
+         onPointerUp={endDrag} onPointerLeave={endDrag}
+         // the flag posters are draggable images by default — a drag must pan
+         // the rail, not pick the picture up
+         onDragStart={e => e.preventDefault()}>
       {children}
     </div>
   );

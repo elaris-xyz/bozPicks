@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletModal } from '@/components/ui/WalletModal';
 import { Flag } from '@/components/ui/Flag';
-import { CountUp } from '@/components/ui/CountUp';
 import { IconWallet, IconBall, IconTarget, IconShield, IconChain, IconClock } from '@/components/ui/Icons';
 
 type Prediction = {
@@ -127,29 +126,32 @@ export default function PredictionsPage() {
       ) : (
         /* ── Connected ── */
         <>
-          {/* Summary */}
-          {preds && preds.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: 'Total Staked', value: usdc(totalStaked), suffix: '', color: 'var(--blue)' },
-                { label: 'Active', value: String(activeCount), suffix: '', color: 'var(--amber)' },
-                { label: 'Win Rate', value: winRate !== null ? String(winRate) : '—', suffix: winRate !== null ? '%' : '', color: winRate !== null && winRate >= 50 ? 'var(--green)' : winRate !== null ? 'var(--red)' : '#9ca3af' },
-                { label: 'Net P&L', value: `${netMicro >= 0 ? '+' : ''}${usdc(netMicro)}`, suffix: '', color: netMicro > 0 ? 'var(--green)' : netMicro < 0 ? 'var(--red)' : '#9ca3af' },
-              ].map(({ label, value, suffix, color }) => {
-                const numeric = parseFloat(value);
-                return (
-                  <div key={label} className="poster-card p-4 text-center">
-                    <p className="stat-display text-2xl" style={{ color }}>
-                      {Number.isFinite(numeric) && !value.startsWith('+') && !value.startsWith('-')
-                        ? <CountUp value={numeric} suffix={suffix} />
-                        : `${value}${suffix}`}
-                    </p>
-                    <p className="section-label mt-1.5">{label}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {/* Summary — the same live-banner pattern as Markets/Agent */}
+          {preds && preds.length > 0 && (() => {
+            const accent = netMicro > 0 ? 'var(--green)' : netMicro < 0 ? 'var(--red)' : 'var(--blue)';
+            return (
+              <div className="glass fx-rise relative overflow-hidden"
+                   style={{ borderColor: `${accent}44`, boxShadow: `0 0 30px ${accent}1c` }}>
+                <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: `linear-gradient(90deg,transparent,${accent},transparent)` }} />
+                <div className="relative p-5 md:p-6 grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                  {[
+                    { label: 'Total staked', value: usdc(totalStaked), color: 'var(--blue)' },
+                    { label: 'Active', value: String(activeCount), color: 'var(--amber)' },
+                    { label: 'Win rate', value: winRate !== null ? `${winRate}%` : '—', color: winRate !== null && winRate >= 50 ? 'var(--green)' : winRate !== null ? 'var(--red)' : '#9ca3af' },
+                    { label: 'Net P&L', value: `${netMicro >= 0 ? '+' : ''}${usdc(netMicro)}`, color: netMicro > 0 ? 'var(--green)' : netMicro < 0 ? 'var(--red)' : '#e2e8f0' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label}>
+                      <p className="font-display text-3xl md:text-4xl font-black tabular-nums" style={{ color }}>{value}</p>
+                      <p className="text-[10px] uppercase tracking-widest text-gray-500 mt-1">{label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="relative text-[11px] text-gray-500 text-center pb-4 -mt-1">
+                  Every settled pick was graded from a TxLINE stat proof — payouts split the parimutuel pool pro-rata.
+                </p>
+              </div>
+            );
+          })()}
 
           {/* List / states */}
           {loading ? (

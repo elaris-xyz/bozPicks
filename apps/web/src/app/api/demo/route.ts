@@ -11,6 +11,12 @@ export const maxDuration = 60;
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+/** Named paper-trading bots — their stakes fill the pools AND the leaderboard. */
+const DEMO_BOTS = [
+  'bot.striker9', 'bot.tikitaka', 'bot.catenaccio', 'bot.parkedbus',
+  'bot.falsenine', 'bot.gegenpress', 'bot.longball', 'bot.golazo',
+];
+
 /** Remove every artifact of previous demo runs (DB rows + Redis keys). */
 async function purgeDemoMatches() {
   const { rows } = await db
@@ -160,16 +166,23 @@ async function runReplay(
     if (event.stats) redisOps.push(redis.set(`boz:match:${id}:stats`, JSON.stringify(event.stats), 'EX', 7200));
     await Promise.all(redisOps);
 
-    // ── simulated live order flow: stakes trickle into the pools so the market
-    // cards move in real time (clearly demo activity — devnet, not real money).
+    // ── simulated live order flow: named demo bots stake into the pools so the
+    // market cards move AND the leaderboard fills — each stake is a real
+    // boz_predictions row that settlement grades WON/LOST at full time.
     if (status === 'LIVE' && event.type !== 'MATCH_START' && markets.length && Math.random() < 0.6) {
       const mk = markets[Math.floor(Math.random() * markets.length)];
       const o = mk.outcomes[Math.floor(Math.random() * mk.outcomes.length)];
       const stake = (1 + Math.floor(Math.random() * 5)) * 1_000_000; // 1–5 USDC
+      const bot = DEMO_BOTS[Math.floor(Math.random() * DEMO_BOTS.length)];
       mk.pools[o] = (mk.pools[o] ?? 0) + stake;
       mk.totalPool += stake;
       void db.query(`UPDATE boz_markets SET pools=$1, total_pool=$2 WHERE id=$3`,
         [JSON.stringify(mk.pools), mk.totalPool, mk.id]).catch(() => {});
+      void db.query(
+        `INSERT INTO boz_predictions (id, match_id, market_id, wallet_address, outcome, amount_usdc, escrow_tx, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'ACTIVE')`,
+        [randomUUID(), id, mk.id, bot, o, stake, `sim-flow-${event.seq ?? 0}`]
+      ).catch(() => {});
       await redis.publish('boz:markets', JSON.stringify(mk)).catch(() => {});
     }
 

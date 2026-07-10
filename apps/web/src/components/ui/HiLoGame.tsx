@@ -110,17 +110,32 @@ export function HiLoGame() {
               : `Guess the next ${readingLabel.toLowerCase()} swing`}
           </p>
         </div>
-        <div className="flex items-center gap-3 text-right">
-          <div>
-            <p className={`text-2xl font-black tabular-nums ${streak >= 3 ? 'fx-flame' : ''}`}
-               style={{ color: streak > 0 ? (streak >= 3 ? '#fbbf24' : 'var(--green)') : '#94a3b8' }}>
-              {streak}{streak > 2 ? ' 🔥' : ''}
-            </p>
-            <p className="text-[9px] uppercase tracking-widest text-gray-600">streak</p>
+        {/* streak + best — arcade medallions */}
+        <div className="flex items-center gap-2">
+          <div className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 ${streak >= 3 ? 'fx-flame' : ''}`}
+               style={streak > 0
+                 ? { background: streak >= 3 ? 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(239,68,68,0.14))' : 'rgba(16,185,129,0.12)',
+                     border: `1px solid ${streak >= 3 ? 'rgba(245,158,11,0.55)' : 'rgba(16,185,129,0.4)'}`,
+                     boxShadow: streak >= 3 ? '0 0 18px rgba(245,158,11,0.3)' : '0 0 12px rgba(16,185,129,0.15)' }
+                 : { background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill={streak >= 3 ? '#fbbf24' : streak > 0 ? 'var(--green)' : '#64748b'}>
+              <path d="M12 2c1 3.5-1 5-2 6.5C8.7 10.4 8 12 8 13.5A4.5 4.5 0 0 0 12.5 18c2.6 0 4.5-2 4.5-4.7 0-2.7-1.6-4.7-2.8-6.3C13 5.4 12.4 3.8 12 2zM12.4 21.8c-4.5 0-7.4-3-7.4-6.9 0-2.1.8-4 2-5.6-.1.5-.1 1-.1 1.4 0 4.4 3.3 7.6 7.6 7.6 1 0 2-.2 2.9-.5-1.2 2.4-3 4-5 4z" />
+            </svg>
+            <div className="text-right">
+              <p className="text-xl font-black tabular-nums leading-none"
+                 style={{ color: streak >= 3 ? '#fbbf24' : streak > 0 ? 'var(--green)' : '#94a3b8' }}>{streak}</p>
+              <p className="text-[8px] uppercase tracking-widest text-gray-600">streak</p>
+            </div>
           </div>
-          <div>
-            <p className="text-2xl font-black tabular-nums text-amber-300">{best}</p>
-            <p className="text-[9px] uppercase tracking-widest text-gray-600">best</p>
+          <div className="flex items-center gap-2 rounded-xl px-3 py-1.5"
+               style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.14), rgba(167,139,250,0.08))', border: '1px solid rgba(245,158,11,0.35)' }}>
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="#fcd34d" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 21h8M12 17v4M5 4h14v3a7 7 0 0 1-14 0V4zM5 6H3v1a3 3 0 0 0 3 3M19 6h2v1a3 3 0 0 1-3 3" />
+            </svg>
+            <div className="text-right">
+              <p className="text-xl font-black tabular-nums leading-none text-amber-300">{best}</p>
+              <p className="text-[8px] uppercase tracking-widest text-gray-600">best</p>
+            </div>
           </div>
         </div>
       </div>

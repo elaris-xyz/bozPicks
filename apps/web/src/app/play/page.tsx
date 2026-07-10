@@ -21,13 +21,15 @@ export default function PlayPage() {
       <LiveScoreboard />
 
       {/* the three fan games, side by side */}
-      {/* items-stretch + h-full roots: the three cards stay equal height in
-          every state — no more columns jumping as content changes */}
+      {/* Hi-Lo is the hero of this track — it takes the stage (2 of 3 columns),
+          with the win-probability panel beside it and the pundit booth across
+          the bottom. items-stretch + h-full roots keep heights locked in every
+          state — no columns jumping as content changes. */}
       <div className="grid gap-4 lg:grid-cols-3 items-stretch">
-        <HiLoGame />
+        <div className="lg:col-span-2"><HiLoGame /></div>
         <LiveStatsPanel />
-        <PunditRail />
       </div>
+      <PunditRail />
 
       {/* full event stream */}
       <section className="space-y-3">

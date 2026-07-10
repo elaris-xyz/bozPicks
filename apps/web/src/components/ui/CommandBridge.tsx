@@ -90,6 +90,10 @@ export function CommandBridge() {
         setNotice({ kind: 'warn', text: 'A match is already running — it’s live on every page right now.' });
         return;
       }
+      if (res.status === 503) {
+        setNotice({ kind: 'error', text: 'Realtime backend unavailable — the Redis instance is down or over its quota. Swap REDIS_URL and restart.' });
+        return;
+      }
       if (!res.ok) {
         setNotice({ kind: 'error', text: `Could not start (${res.status}) — try again.` });
         return;

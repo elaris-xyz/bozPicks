@@ -55,7 +55,15 @@ export async function POST(req: NextRequest) {
   // one running replay at a time — lock TTL covers the match + settlement
   const LOCK = 'boz:demo:lock';
   const lockTtl = Math.ceil(42 / speed) + 30;
-  const acquired = await redis.set(LOCK, id, 'EX', lockTtl, 'NX');
+  let acquired: string | null;
+  try {
+    acquired = await redis.set(LOCK, id, 'EX', lockTtl, 'NX');
+  } catch (e) {
+    // Redis itself is down / over quota — the whole live pipeline depends on
+    // it, so tell the client honestly instead of a mystery 500.
+    console.error('[demo] redis unavailable:', (e as Error).message);
+    return NextResponse.json({ error: 'realtime-unavailable' }, { status: 503 });
+  }
   if (!acquired) {
     const runningId = await redis.get(LOCK).catch(() => null);
     return NextResponse.json({ error: 'already-running', matchId: runningId }, { status: 409 });

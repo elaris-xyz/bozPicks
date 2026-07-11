@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, PropMarket } from '@bozpicks/shared';
 import { usdcToDisplay, displayToUsdc } from '@bozpicks/shared';
 import { poolOdds, impliedFromPool, payoutFor } from '@/lib/markets';
 import { playSfx } from '@/lib/sfx';
+import { useVault } from '@/contexts/VaultContext';
 import { WalletModal } from './WalletModal';
 import { fireToast } from './Toast';
 
@@ -81,7 +81,7 @@ function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
   );
 }
 
-function MarketCard({ m, onBet, betting, mine, mineTx }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; mine?: string; mineTx?: string }) {
+function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; mine?: string }) {
   const settled = m.status === 'SETTLED';
   const k = KIND[m.kind] ?? KIND.MATCH_WINNER;
   const busy = betting === m.id;
@@ -187,20 +187,18 @@ function MarketCard({ m, onBet, betting, mine, mineTx }: { m: PropMarket; onBet:
         })}
       </div>
 
-      {settled ? <Receipt m={m} stamp={justSettled} /> : mineTx ? (
-        /* your stake's REAL devnet transaction — one click to the explorer */
-        <a href={`https://explorer.solana.com/tx/${mineTx}?cluster=devnet`} target="_blank" rel="noopener noreferrer"
-           className="relative flex items-center justify-center gap-1.5 mt-3 text-[10px] font-bold transition-all hover:brightness-125"
-           style={{ color: '#a78bfa' }}>
-          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
+      {settled ? <Receipt m={m} stamp={justSettled} /> : mine ? (
+        /* staked from the game vault — instant, no per-bet signing */
+        <div className="relative flex items-center justify-center gap-1.5 mt-3 text-[10px] font-bold" style={{ color: '#a78bfa' }}>
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="12" cy="12" r="3" />
           </svg>
-          Signed on Solana devnet · {mineTx.slice(0, 8)}… ↗
-        </a>
+          Staked from your vault · 5 USDC on {mine}
+        </div>
       ) : (
         <div className="relative flex items-center justify-center gap-1.5 mt-3 text-[10px] text-gray-500">
           <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 8v8M8 12h8" strokeLinecap="round" /></svg>
-          Tap an outcome — 5 USDC, signed as a real devnet tx
+          Tap an outcome — 5 USDC from your vault, instant
         </div>
       )}
     </div>
@@ -251,13 +249,13 @@ function ActivityFeed({ items }: { items: Activity[] }) {
 }
 
 export function MarketsPanel() {
-  const { publicKey, sendTransaction } = useWallet();
-  const { connection } = useConnection();
+  const { publicKey, connected } = useWallet();
+  const { balance, refresh: refreshVault, open: openVault } = useVault();
   const [markets, setMarkets] = useState<PropMarket[]>([]);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [betting, setBetting] = useState<string | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
-  const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number; tx?: string }>>({});
+  const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
   const [activity, setActivity] = useState<Activity[]>([]);
   const prevSettled = useRef(0);
   const marketsMap = useRef<Record<string, PropMarket>>({}); // last-seen market per id, for diffing
@@ -313,36 +311,36 @@ export function MarketsPanel() {
     },
   });
 
-  // Solana-first staking: no wallet → open the connect modal (no silent paper
-  // bets); with a wallet, every stake SIGNS A REAL DEVNET TRANSACTION (memo
-  // program) before it hits the pool — the signature is stored as the escrow
-  // tx and linked to the explorer on the card.
+  // Vault-first staking: no wallet → connect; empty vault → cashier; otherwise
+  // the stake debits the game balance INSTANTLY (no per-bet signing — you signed
+  // once at deposit). Winnings credit back to the vault at settlement.
+  const STAKE = 5;
   const bet = async (id: string, outcome: string) => {
-    if (!publicKey) { setWalletOpen(true); return; }
+    if (!connected || !publicKey) { setWalletOpen(true); return; }
+    if (balance < displayToUsdc(STAKE)) {
+      fireToast({ kind: 'warn', title: 'Top up your vault', body: `You need ${STAKE} USDC to stake — deposit takes one signature.` });
+      openVault('deposit');
+      return;
+    }
     setBetting(id);
     try {
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-      const memoIx = new TransactionInstruction({
-        keys: [{ pubkey: publicKey, isSigner: true, isWritable: false }],
-        programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
-        data: Buffer.from(JSON.stringify({ market: id, outcome, amountUsdc: 5_000_000 }), 'utf-8'),
-      });
-      const tx = new Transaction().add(memoIx);
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = publicKey;
-      const signature = await sendTransaction(tx, connection);
-      void connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }).catch(() => {});
-
       const res = await fetch(`/api/markets/${id}/predict`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome, amountUsdc: 5, wallet: publicKey.toBase58(), escrowTx: signature }),
-      }).then(r => r.json());
-      if (res.market) setMarkets(ms => ms.map(m => m.id === id ? res.market : m));
-      setUserBets(b => ({ ...b, [id]: { outcome, stake: displayToUsdc(5), tx: signature } }));
+        body: JSON.stringify({ outcome, amountUsdc: STAKE, wallet: publicKey.toBase58() }),
+      });
+      if (res.status === 402) {
+        fireToast({ kind: 'warn', title: 'Not enough in your vault', body: 'Deposit to keep playing — one signature.' });
+        openVault('deposit');
+        return;
+      }
+      const data = await res.json();
+      if (data.market) setMarkets(ms => ms.map(m => m.id === id ? data.market : m));
+      setUserBets(b => ({ ...b, [id]: { outcome, stake: displayToUsdc(STAKE) } }));
+      refreshVault();
       playSfx('tick');
-      fireToast({ kind: 'info', title: 'Stake signed on Solana devnet', body: `${outcome} · 5 USDC · ${signature.slice(0, 8)}…` });
-    } catch (e) {
-      fireToast({ kind: 'warn', title: 'Stake not placed', body: (e as Error).message?.slice(0, 90) ?? 'Transaction rejected' });
+      fireToast({ kind: 'info', title: `Staked ${STAKE} USDC from your vault`, body: `${outcome} · instant · no signing` });
+    } catch {
+      fireToast({ kind: 'warn', title: 'Stake not placed', body: 'Please try again.' });
     } finally { setBetting(null); }
   };
 
@@ -408,7 +406,7 @@ export function MarketsPanel() {
       <div className={`grid gap-4 items-start ${activity.length > 0 ? 'lg:grid-cols-[1fr_296px]' : ''}`}>
         <div className={`grid gap-3 sm:grid-cols-2 min-w-0 ${activity.length === 0 ? 'xl:grid-cols-3' : ''}`}>
           {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting}
-            mine={userBets[m.id]?.outcome} mineTx={userBets[m.id]?.tx} />)}
+            mine={userBets[m.id]?.outcome} />)}
         </div>
         {activity.length > 0 && (
           <aside className="lg:sticky lg:top-4 anim-in">

@@ -4,13 +4,20 @@ import { redis } from '@/lib/redis';
 import { randomUUID } from 'crypto';
 import { rowToMarket } from '@/lib/markets';
 import { displayToUsdc } from '@bozpicks/shared';
+import { moveVault, InsufficientFunds } from '@/lib/vault';
 
 export const dynamic = 'force-dynamic';
+
+// Bots and the legacy demo wallet stake straight into the pool (simulated order
+// flow) — real players stake from their signed game vault.
+const NON_VAULT = (w: string) => w === 'demo-wallet' || w.startsWith('bot.');
 
 /**
  * POST /api/markets/[id]/predict
  * body: { outcome, amountUsdc, wallet, escrowTx? }
- * Records a USDC parimutuel stake and grows the outcome pool atomically.
+ * Debits the player's game vault instantly (no per-stake signing) and grows the
+ * outcome pool. 402 if the vault can't cover the stake — the client prompts a
+ * top-up. Winnings are credited back to the vault at settlement.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -30,6 +37,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (m.status !== 'OPEN') return NextResponse.json({ error: 'market not open' }, { status: 409 });
     if (!m.outcomes.includes(outcome)) return NextResponse.json({ error: 'invalid outcome' }, { status: 400 });
 
+    // Debit the vault FIRST — if the player can't afford it, nothing else moves.
+    let vaultBalance: number | undefined;
+    if (!NON_VAULT(wallet)) {
+      try {
+        vaultBalance = await moveVault({ wallet, delta: -micro, kind: 'STAKE', ref: m.label });
+      } catch (e) {
+        if (e instanceof InsufficientFunds) {
+          return NextResponse.json({ error: 'insufficient', balance: e.balance, needed: micro }, { status: 402 });
+        }
+        throw e;
+      }
+    }
+
     const pools = { ...m.pools, [outcome]: (m.pools[outcome] ?? 0) + micro };
     const total = m.totalPool + micro;
 
@@ -40,12 +60,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await db.query(
       `INSERT INTO boz_predictions (id, match_id, market_id, wallet_address, outcome, amount_usdc, escrow_tx, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'ACTIVE')`,
-      [randomUUID(), m.matchId, id, wallet, outcome, micro, body.escrowTx ?? 'devnet-escrow']
+      [randomUUID(), m.matchId, id, wallet, outcome, micro, body.escrowTx ?? 'vault-stake']
     );
 
     const updated = { ...m, pools, totalPool: total };
     await redis.publish('boz:markets', JSON.stringify(updated)).catch(() => {});
-    return NextResponse.json({ ok: true, market: updated });
+    return NextResponse.json({ ok: true, market: updated, balance: vaultBalance });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

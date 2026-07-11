@@ -5,7 +5,9 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { WalletModal } from './WalletModal';
 import { useSSEContext } from '@/contexts/SSEContext';
+import { useVault } from '@/contexts/VaultContext';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { usdcToDisplay } from '@bozpicks/shared';
 import { IconPulse, IconRadar, IconTrendUp, IconTrophy, IconClock, IconWallet } from './Icons';
 
 type NavVariant = 'desktop' | 'mobile-header' | 'mobile-tabs';
@@ -81,6 +83,31 @@ function Logo({ connected, compact = false }: { connected: boolean; compact?: bo
         title={connected ? 'Live feed connected' : 'Feed offline'}
       />
     </Link>
+  );
+}
+
+/** Game-vault balance pill — opens the vault cashier. Only shown when a wallet
+    is connected (the vault is keyed to the wallet). */
+function VaultChip({ compact = false }: { compact?: boolean }) {
+  const { connected } = useWallet();
+  const { balance, open } = useVault();
+  if (!connected) return null;
+  return (
+    <button onClick={() => open()}
+      className={`inline-flex items-center gap-1.5 font-bold rounded-full transition-all active:scale-95 tabular-nums
+                  ${compact ? 'text-[10px] px-2.5 h-7' : 'text-[11px] px-3 h-8'}`}
+      style={{
+        color: '#c4b5fd',
+        background: 'linear-gradient(135deg, rgba(59,130,246,0.14), rgba(167,139,250,0.14))',
+        border: '1px solid rgba(129,140,248,0.4)',
+      }}
+      title="Game vault — deposit, cash out, history">
+      <svg viewBox="0 0 24 24" className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="12" cy="12" r="3" />
+      </svg>
+      {usdcToDisplay(balance)}
+      {!compact && <span className="text-[9px] font-semibold text-gray-500">USDC</span>}
+    </button>
   );
 }
 
@@ -193,7 +220,10 @@ export function Nav({ variant }: { variant: NavVariant }) {
             </div>
           </nav>
 
-          <WalletButton onClick={() => setWalletOpen(true)} />
+          <div className="flex items-center gap-2">
+            <VaultChip />
+            <WalletButton onClick={() => setWalletOpen(true)} />
+          </div>
         </div>
         {/* hairline gradient under the bar */}
         <div className="h-px"
@@ -215,7 +245,10 @@ export function Nav({ variant }: { variant: NavVariant }) {
                   borderBottom: '1px solid var(--glass-border)',
                 }}>
           <Logo connected={connected} compact />
-          <WalletButton compact onClick={() => setWalletOpen(true)} />
+          <div className="flex items-center gap-1.5">
+            <VaultChip compact />
+            <WalletButton compact onClick={() => setWalletOpen(true)} />
+          </div>
         </header>
         {walletOpen && <WalletModal onClose={() => setWalletOpen(false)} />}
       </>

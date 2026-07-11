@@ -9,6 +9,8 @@ import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { ServiceWorkerRegistrar } from '@/components/ui/ServiceWorkerRegistrar';
 import { SSEProvider } from '@/contexts/SSEContext';
 import { LiveMatchProvider } from '@/contexts/LiveMatchContext';
+import { VaultProvider } from '@/contexts/VaultContext';
+import { VaultModal } from '@/components/ui/VaultModal';
 import { SolanaWalletProvider } from '@/components/providers/WalletProvider';
 import { CinematicFX } from '@/components/ui/CinematicFX';
 import { SfxToggle } from '@/components/ui/SfxToggle';
@@ -66,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <SolanaWalletProvider>
+        <VaultProvider>
         <SSEProvider>
         <LiveMatchProvider>
           {/* Cinematic background + live event VFX */}
@@ -98,8 +101,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <OfflineBanner />
           <KeyboardShortcuts />
           <ServiceWorkerRegistrar />
+          <VaultModal />
         </LiveMatchProvider>
         </SSEProvider>
+        </VaultProvider>
         </SolanaWalletProvider>
       </body>
     </html>

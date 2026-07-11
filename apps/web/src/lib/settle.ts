@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import type { PropMarket, SettlementReceipt } from '@bozpicks/shared';
 import { resolveMarket, payoutFor, type FinalStats } from '@/lib/markets';
+import { moveVault } from '@/lib/vault';
 
 /**
  * Verifiable-resolution receipt (server-only — uses node crypto). For real
@@ -56,7 +57,7 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
   const winningPool = m.pools[winningOutcome] ?? 0;
   try {
     const { rows: preds } = await db.query(
-      `SELECT id, outcome, amount_usdc FROM boz_predictions WHERE market_id=$1 AND status='ACTIVE'`,
+      `SELECT id, outcome, amount_usdc, wallet_address FROM boz_predictions WHERE market_id=$1 AND status='ACTIVE'`,
       [m.id]
     );
     for (const p of preds) {
@@ -66,6 +67,14 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
         `UPDATE boz_predictions SET status=$1, payout_amount=$2 WHERE id=$3`,
         [won ? 'WON' : 'LOST', payout, p.id]
       );
+      // Credit the winner's game vault so the economy closes the loop — but only
+      // for real players that actually hold a vault (skips the demo bots).
+      if (won && payout > 0) {
+        await moveVault({
+          wallet: p.wallet_address, delta: payout, kind: 'WIN',
+          ref: m.label, requireExisting: true,
+        }).catch(() => { /* best-effort credit */ });
+      }
     }
   } catch { /* best-effort payouts */ }
 

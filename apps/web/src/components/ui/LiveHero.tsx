@@ -50,7 +50,7 @@ export function LiveHero({
           {imgOk && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src="/hero-striker.png"
+              src="/hero-striker-baner.png"
               alt=""
               onError={() => setImgOk(false)}
               className="absolute right-0 bottom-0 h-[112%] w-auto max-w-none object-contain object-right-bottom select-none pointer-events-none"

@@ -222,6 +222,23 @@ export function MatchCard({
               ))}
             </div>
           )}
+
+          {/* compact grid cards: a slim 1·X·2 odds strip so the priced info —
+              and the Dec/Frac/US format choice — is visible here too */}
+          {match.currentOdds && compact && (
+            <div className="flex items-center gap-1 mt-2">
+              {[
+                { label: '1', val: match.currentOdds.homeWin, color: 'var(--green)' },
+                { label: 'X', val: match.currentOdds.draw,    color: '#9ca3af' },
+                { label: '2', val: match.currentOdds.awayWin, color: 'var(--blue)' },
+              ].map(({ label, val, color }) => (
+                <span key={label} className="text-[9px] font-bold tabular-nums px-1.5 py-0.5 rounded"
+                      style={{ background: 'rgba(11,16,32,0.6)', color, border: '1px solid rgba(255,255,255,0.09)' }}>
+                  <span className="opacity-50 mr-0.5">{label}</span>{formatOdds(val, oddsFormat)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Bottom: team names slide in from their own flag edge ── */}

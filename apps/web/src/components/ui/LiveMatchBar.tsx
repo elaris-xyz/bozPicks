@@ -39,7 +39,7 @@ export function LiveMatchBar() {
     const dx = vw / 2 - (vw * leftPct) / 100;
     setGoal({ id: now, team: e.team, score: e.score, leftPct, dx });
     if (clearTimer.current) clearTimeout(clearTimer.current);
-    clearTimer.current = setTimeout(() => setGoal(null), 2500);
+    clearTimer.current = setTimeout(() => setGoal(null), 2600);
   });
 
   useEffect(() => () => { if (clearTimer.current) clearTimeout(clearTimer.current); }, []);

@@ -89,8 +89,10 @@ export function Toaster() {
 
   const remove = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
 
+  // lifted on desktop (bottom-20) so toasts sit ABOVE the live match bar's
+  // score pill (pinned bottom-right) instead of landing on top of it
   return (
-    <div className="fixed top-16 right-3 md:top-auto md:bottom-6 md:right-6 z-[200] space-y-2 pointer-events-none">
+    <div className="fixed top-16 right-3 md:top-auto md:bottom-20 md:right-6 z-[200] space-y-2 pointer-events-none">
       {toasts.map(t => (
         <div key={t.id} className="pointer-events-auto">
           <ToastChip item={t} onRemove={() => remove(t.id)} />

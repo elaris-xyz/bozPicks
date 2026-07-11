@@ -16,6 +16,7 @@ import { playSfx } from '@/lib/sfx';
 type BurstInput =
   | { kind: 'GOAL'; team?: string; score?: { home: number; away: number } }
   | { kind: 'RED'; team?: string }
+  | { kind: 'START'; team?: string }
   | { kind: 'END' };
 type Burst = BurstInput & { id: number };
 
@@ -49,6 +50,27 @@ function Overlay({ burst }: { burst: Burst }) {
         <div className="fx-ring" style={{ borderColor: 'rgba(16,185,129,0.8)' }} />
         <div className="fx-ring" style={{ borderColor: 'rgba(59,130,246,0.5)', animationDelay: '0.12s' }} />
         <Confetti />
+      </div>
+    );
+  }
+  if (burst.kind === 'START') {
+    return (
+      <div className="fx-overlay">
+        <div className="fx-flash fx-flash-goal" />
+        <div className="fx-ring" style={{ borderColor: 'rgba(59,130,246,0.7)' }} />
+        <div className="fx-ring" style={{ borderColor: 'rgba(16,185,129,0.5)', animationDelay: '0.12s' }} />
+        <div className="fx-title text-center">
+          <p className="font-display font-black uppercase tracking-widest"
+             style={{ fontSize: 'clamp(1.6rem, 6vw, 3.4rem)', color: '#bfdbfe', textShadow: '0 0 40px rgba(59,130,246,0.6), 0 4px 20px rgba(0,0,0,0.7)' }}>
+            Kick&nbsp;Off
+          </p>
+          {burst.team && (
+            <p className="font-display font-bold uppercase tracking-widest mt-1"
+               style={{ fontSize: 'clamp(0.8rem, 2.6vw, 1.3rem)', color: '#93c5fd', textShadow: '0 2px 16px rgba(0,0,0,0.8)' }}>
+              {burst.team}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -104,6 +126,7 @@ export function CinematicFX() {
       if (msg.catchup) return; // history replay, not a live moment
       if (e.type === 'GOAL') { fire({ kind: 'GOAL', team: e.team, score: e.score }); playSfx('goal'); }
       else if (e.type === 'RED_CARD') { fire({ kind: 'RED', team: e.team }); playSfx('red'); }
+      else if (e.type === 'MATCH_START') { fire({ kind: 'START' }); playSfx('settle'); }
       else if (e.type === 'MATCH_END') { fire({ kind: 'END' }); playSfx('end'); }
     },
   });

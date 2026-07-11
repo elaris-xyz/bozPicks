@@ -22,9 +22,9 @@ export function Notifier() {
       if (ev.type === 'RED_CARD') {
         fireToast({ kind: 'warn', title: 'Red Card', body: `${ev.player ?? ''} · ${ev.team ?? ''} ${ev.matchMinute}'` });
       }
-      if (ev.type === 'MATCH_START') {
-        fireToast({ kind: 'info', title: 'Match Started', body: 'Live odds now active' });
-      }
+      // MATCH_START no longer toasts — kick-off is announced by the cinematic
+      // centre-screen overlay (CinematicFX), and the Command Bridge already
+      // shows an ACK toast, so a Notifier toast here made it fire twice.
     }
 
     if (msg.type === 'signal' && msg.data) {

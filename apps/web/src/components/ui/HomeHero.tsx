@@ -19,7 +19,7 @@ export function HomeHero() {
 
       {/* striker art, right side (desktop) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/hero-striker.png" alt="" aria-hidden
+      <img src="/hero-striker-baner.png" alt="" aria-hidden
            className="hidden lg:block absolute right-0 bottom-0 h-[135%] w-auto max-w-none object-contain object-right-bottom pointer-events-none select-none"
            style={{ filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5))', maskImage: 'linear-gradient(90deg, transparent, #000 40%)', WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 40%)' }} />
 

@@ -8,7 +8,7 @@ import type { BozEvent, MatchState, SSEMessage } from '@bozpicks/shared';
 import { Flag } from './Flag';
 import {
   IconBall, IconCard, IconSub, IconTrendUp, IconKickoff,
-  IconFlagEnd, IconPause, IconChart, IconRadar, IconTarget,
+  IconFlagEnd, IconPause, IconChart, IconTarget,
 } from './Icons';
 
 /**
@@ -131,41 +131,46 @@ export function LiveEventFeed() {
     onReconnect: () => setConnected(false),
   });
 
-  // Only show cards for a live match or genuinely recent activity. A feed left
-  // over from a match that finished long ago should read as idle, not "live" —
-  // otherwise the box looks full when nothing is running.
-  const newestTs = events[0] ? new Date(events[0].timestamp).getTime() : 0;
-  const fresh = Boolean(liveMatch?.live) || (events.length > 0 && Date.now() - newestTs < 120_000);
-  const shown = fresh ? events : [];
+  const isLive = Boolean(liveMatch?.live);
+  const hasEvents = events.length > 0;
+
+  // No events at all → collapse to a slim bar with a corner note. Nothing to
+  // show, so we don't reserve a tall empty box.
+  if (!hasEvents) {
+    return (
+      <div className="glass px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ background: '#4b5563' }} />
+          <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Live Feed</span>
+        </div>
+        <span className="text-[11px] text-gray-500">No active match</span>
+      </div>
+    );
+  }
 
   return (
     <div className="glass p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${connected && fresh ? 'badge-live' : ''}`}
-                style={{ background: connected && fresh ? 'var(--green)' : '#4b5563' }} />
+          <span className={`w-2 h-2 rounded-full ${connected && isLive ? 'badge-live' : ''}`}
+                style={{ background: connected && isLive ? 'var(--green)' : '#4b5563' }} />
           <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Live Feed</span>
+          {/* a finished match's events stay visible but read as inactive */}
+          {!isLive && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(100,116,139,0.15)', color: '#94a3b8' }}>Finished</span>
+          )}
         </div>
-        {shown.length > 0 && <span className="text-[10px] text-gray-500">{shown.length} events</span>}
+        <span className="text-[10px] text-gray-500">{events.length} events</span>
       </div>
 
-      {shown.length === 0 && (
-        <div className="py-10 text-center">
-          <div className="w-10 h-10 mx-auto mb-3 rounded-full flex items-center justify-center text-gray-500"
-               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
-            <IconRadar size={18} />
-          </div>
-          <p className="text-xs text-gray-500">Listening for live events…</p>
-          <p className="text-[10px] text-gray-600 mt-1">Run a match from the ⚡ Command Bridge to see the feed light up.</p>
-        </div>
-      )}
-
-      {shown.length > 0 && (
-        <div className="relative overflow-x-auto rail-scroll pb-1">
+      {(
+        <div className={`relative overflow-x-auto rail-scroll pb-1 ${isLive ? '' : 'opacity-60 saturate-50'}`}>
           <div className="flex gap-2.5 min-w-max pt-1">
-            {shown.map((e, idx) => {
+            {events.map((e, idx) => {
               const cfg = EVENT_CFG[e.type] ?? DEFAULT_CFG;
-              const dead = finished.has(e.matchId) || (activeMatch.current != null && e.matchId !== activeMatch.current);
+              // when no match is live, every card reads as inactive (grey)
+              const dead = !isLive || finished.has(e.matchId) || (activeMatch.current != null && e.matchId !== activeMatch.current);
               const newest = idx === 0 && !dead;
               const c = dead ? '#64748b' : cfg.color;
               const m = meta[e.matchId];

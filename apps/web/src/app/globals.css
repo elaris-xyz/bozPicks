@@ -64,8 +64,15 @@
   /* overflow-x: clip (not hidden) prevents full-bleed 100vw children from
      adding a horizontal scrollbar, without creating a scroll container that
      would break the sticky nav */
-  html { background: var(--bg-deep); overflow-x: clip; }
-  body { background: var(--bg-deep); color: #e2e8f0; overflow-x: clip; }
+  html { background: var(--bg-deep); overflow-x: clip; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    background: var(--bg-deep); color: #e2e8f0; overflow-x: clip;
+    /* crisp type on every page — antialiased rendering + ligatures/kerning */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
 
   /* neon aurora + subtle grid background */
   body::before {
@@ -328,6 +335,12 @@
     .fx-aurora, .fx-grain { animation: none; }
     .fx-overlay, .fx-stamp, .fx-win-glow, .sheen::after,
     .fx-flame, .fx-pop, .fx-shake, .fx-open-pulse, .fx-scan::after { animation: none; }
+    /* decorative motion off — cards, coins, pulses and the whole live-match
+       ball choreography settle to their resting state (still fully visible) */
+    .boz-card-in, .boz-youpin, .boz-coin, .boz-vault-pop, .boz-ball-spin,
+    .boz-ball-bob, .boz-goal-ball, .boz-goal-aura, .boz-goal-trail,
+    .boz-goal-word, .boz-goal-team, .boz-eq, .boz-flow, .boz-poolshine,
+    .boz-stakechip, .boz-settle-ring, .boz-stampin, .fx-rise, .anim-in { animation: none !important; }
   }
 
   /* lighten the cinematic layer on phones (grain + blur are the costly bits) */

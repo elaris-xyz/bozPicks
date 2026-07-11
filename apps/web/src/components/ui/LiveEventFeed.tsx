@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useSSEContext } from '@/contexts/SSEContext';
+import { useLiveMatchContext } from '@/contexts/LiveMatchContext';
 import type { BozEvent, MatchState, SSEMessage } from '@bozpicks/shared';
 import { Flag } from './Flag';
 import {
@@ -76,6 +77,7 @@ interface Meta { home: string; away: string }
 
 export function LiveEventFeed() {
   const { recentEvents } = useSSEContext();
+  const liveMatch = useLiveMatchContext();
   // seed from the provider's ring buffer — navigating away and back keeps the
   // feed populated instead of restarting empty mid-match
   const [events, setEvents] = useState<BozEvent[]>(() => recentEvents());
@@ -129,31 +131,39 @@ export function LiveEventFeed() {
     onReconnect: () => setConnected(false),
   });
 
+  // Only show cards for a live match or genuinely recent activity. A feed left
+  // over from a match that finished long ago should read as idle, not "live" —
+  // otherwise the box looks full when nothing is running.
+  const newestTs = events[0] ? new Date(events[0].timestamp).getTime() : 0;
+  const fresh = Boolean(liveMatch?.live) || (events.length > 0 && Date.now() - newestTs < 120_000);
+  const shown = fresh ? events : [];
+
   return (
     <div className="glass p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${connected ? 'badge-live' : ''}`}
-                style={{ background: connected ? 'var(--green)' : '#4b5563' }} />
+          <span className={`w-2 h-2 rounded-full ${connected && fresh ? 'badge-live' : ''}`}
+                style={{ background: connected && fresh ? 'var(--green)' : '#4b5563' }} />
           <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Live Feed</span>
         </div>
-        {events.length > 0 && <span className="text-[10px] text-gray-500">{events.length} events</span>}
+        {shown.length > 0 && <span className="text-[10px] text-gray-500">{shown.length} events</span>}
       </div>
 
-      {events.length === 0 && (
+      {shown.length === 0 && (
         <div className="py-10 text-center">
           <div className="w-10 h-10 mx-auto mb-3 rounded-full flex items-center justify-center text-gray-500"
                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
             <IconRadar size={18} />
           </div>
           <p className="text-xs text-gray-500">Listening for live events…</p>
+          <p className="text-[10px] text-gray-600 mt-1">Run a match from the ⚡ Command Bridge to see the feed light up.</p>
         </div>
       )}
 
-      {events.length > 0 && (
+      {shown.length > 0 && (
         <div className="relative overflow-x-auto rail-scroll pb-1">
           <div className="flex gap-2.5 min-w-max pt-1">
-            {events.map((e, idx) => {
+            {shown.map((e, idx) => {
               const cfg = EVENT_CFG[e.type] ?? DEFAULT_CFG;
               const dead = finished.has(e.matchId) || (activeMatch.current != null && e.matchId !== activeMatch.current);
               const newest = idx === 0 && !dead;

@@ -47,14 +47,16 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
   const { favorites, toggle: toggleFav, isFav } = useFavorites();
   const { format: oddsFormat, setFormat: setOddsFormat } = useOddsFormat();
 
-  // view mode: cinematic poster rails · multi-column scan list · dense card grid
+  // view mode: dense card grid (default — fills the width) · cinematic poster
+  // rails · multi-column scan list. Key bumped to v2 so the new grid default
+  // reaches everyone once (old 'poster'/'list' prefs no longer apply).
   type View = 'poster' | 'list' | 'grid';
-  const [view, setView] = useState<View>('poster');
+  const [view, setView] = useState<View>('grid');
   useEffect(() => {
-    const saved = localStorage.getItem('match_view');
+    const saved = localStorage.getItem('match_view_v2');
     if (saved === 'list' || saved === 'poster' || saved === 'grid') setView(saved);
   }, []);
-  const chooseView = (v: View) => { setView(v); localStorage.setItem('match_view', v); };
+  const chooseView = (v: View) => { setView(v); localStorage.setItem('match_view_v2', v); };
 
   // transient odds-movement direction per match (flashes ▲▼, then clears)
   const [trends, setTrends] = useState<Record<string, OddsTrend>>({});

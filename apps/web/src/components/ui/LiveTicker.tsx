@@ -80,10 +80,17 @@ export function LiveTicker({ matches }: { matches: MatchState[] }) {
                   {m.homeScore}<span className="text-gray-600 mx-0.5">–</span>{m.awayScore}
                 </span>
               ) : (
-                <span className="text-[10px] font-mono px-1.5 whitespace-nowrap" style={{ color: 'var(--blue)' }}>
-                  {m.kickoffTime
-                    ? new Date(m.kickoffTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-                    : 'vs'}
+                /* upcoming: show the DATE (not just time) so two fixtures with
+                   the same teams — e.g. Australia v Brazil on 25 & 29 Sep —
+                   don't read as a duplicate */
+                <span className="text-[10px] font-mono px-1.5 whitespace-nowrap flex items-center gap-1" style={{ color: 'var(--blue)' }}>
+                  {m.kickoffTime ? (
+                    <>
+                      <span className="font-bold">{new Date(m.kickoffTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                      <span className="text-gray-600">·</span>
+                      <span className="text-gray-500">{new Date(m.kickoffTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </>
+                  ) : 'vs'}
                 </span>
               )}
 

@@ -222,6 +222,23 @@
   .boz-stakechip { animation: boz-stakechip 1.3s ease-out both; }
   @keyframes boz-stakechip { 0% { opacity: 0; transform: translateY(6px) scale(0.9); } 18% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-14px) scale(1); } }
 
+  /* cinematic market-card placement — cards drop in and settle with a soft
+     overshoot; a per-card animation-delay staggers the whole board */
+  .boz-card-in { animation: boz-card-in 0.55s cubic-bezier(0.22,1,0.36,1) both; }
+  @keyframes boz-card-in {
+    0%   { opacity: 0; transform: translateY(18px) scale(0.94); }
+    55%  { opacity: 1; }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* "YOU" pick pin — a gentle living pulse so the player's stake reads at a
+     glance without shouting */
+  .boz-youpin { animation: boz-youpin 1.9s ease-in-out infinite; }
+  @keyframes boz-youpin {
+    0%, 100% { transform: scale(1);    box-shadow: 0 0 7px rgba(59,130,246,0.55); }
+    50%      { transform: scale(1.14); box-shadow: 0 0 13px rgba(59,130,246,0.9); }
+  }
+
   /* hero entrance */
   .fx-rise { animation: fx-rise 0.7s cubic-bezier(0.16,1,0.3,1) both; }
   @keyframes fx-rise { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: none; } }

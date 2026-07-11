@@ -174,8 +174,13 @@ function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: st
                 ? { background: 'rgba(255,255,255,0.015)', border: '1px solid var(--glass-border)', opacity: 0.45 }
                 : { background: `${col}0d`, border: `1px solid ${col}33` }}>
               {picked && (
-                <span className="absolute -top-1.5 -right-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full z-10"
-                      style={{ background: 'var(--blue)', color: '#fff', boxShadow: '0 0 8px rgba(59,130,246,0.6)' }}>YOU</span>
+                /* inside the button bounds — the card clips overflow, so a
+                   negative-offset badge was getting cut off ("YO…") */
+                <span className="boz-youpin absolute top-1 right-1 z-10 flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                      style={{ background: 'var(--blue)', color: '#fff' }}>
+                  <svg viewBox="0 0 24 24" className="w-2 h-2" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6" /></svg>
+                  YOU
+                </span>
               )}
               <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: win ? 'var(--green)' : '#e2e8f0' }}>{o}</p>
               <p className="text-[17px] font-black tabular-nums leading-tight mt-0.5" style={{ color: win ? 'var(--green)' : col }}>{odds.toFixed(2)}</p>
@@ -207,18 +212,20 @@ function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: st
 
 type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number };
 
-/** Live order flow — stakes trickling into pools + settlements as they resolve. */
+/** Live order flow — stakes trickling into pools + settlements as they resolve.
+    h-full + an internal scroll makes the rail exactly as tall as the 6-card
+    grid beside it (items-stretch on the parent), never taller or shorter. */
 function ActivityFeed({ items }: { items: Activity[] }) {
   return (
-    <div className="glass p-4">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="glass p-4 h-full flex flex-col">
+      <div className="flex items-center gap-2 mb-3 flex-shrink-0">
         <span className="w-2 h-2 rounded-full badge-live" style={{ background: 'var(--green)' }} />
         <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Order flow</p>
       </div>
       {items.length === 0 ? (
         <p className="text-xs text-gray-600 text-center py-8 leading-relaxed">Stakes and settlements<br />stream in here live.</p>
       ) : (
-        <div className="space-y-1.5 max-h-[560px] overflow-y-auto rail-scroll pr-1">
+        <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto rail-scroll pr-1">
           {items.map(a => {
             const oc = outcomeColor(a.outcome);
             if (a.kind === 'settle') {
@@ -271,6 +278,31 @@ export function MarketsPanel() {
   }, []);
 
   useEffect(() => { fetchMarkets(); }, [fetchMarkets]);
+
+  // Reconcile with the DB while any market is still open. SSE publishes are the
+  // fast path, but a dropped publish (e.g. Redis over quota) must not leave a
+  // market stuck "open" when it has actually settled — the DB is the truth, so
+  // we re-fetch every few seconds until the whole board is settled. This is
+  // what guarantees the UI reaches 6/6, not 4/6.
+  const anyOpen = markets.length > 0 && markets.some(m => m.status === 'OPEN');
+  const anySettled = markets.some(m => m.status === 'SETTLED');
+  useEffect(() => {
+    if (!anyOpen) return;
+    const t = setInterval(() => fetchMarkets(matchId), 4000);
+    return () => clearInterval(t);
+  }, [anyOpen, matchId, fetchMarkets]);
+
+  // Self-heal a stalled settlement: a board with BOTH open AND settled markets
+  // means full time was reached but some markets didn't finish settling (the
+  // 4/6 case). Kick the settle-sweep once per match to close them out.
+  const sweptFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!(anyOpen && anySettled) || !matchId || sweptFor.current === matchId) return;
+    sweptFor.current = matchId;
+    fetch('/api/markets/settle-sweep', { method: 'POST' })
+      .then(() => setTimeout(() => fetchMarkets(matchId), 600))
+      .catch(() => {});
+  }, [anyOpen, anySettled, matchId, fetchMarkets]);
 
   // Live market updates arrive over SSE (created / pool change / settled) — no
   // polling. Diff against the last-seen market to build the order-flow feed.
@@ -344,15 +376,28 @@ export function MarketsPanel() {
     } finally { setBetting(null); }
   };
 
-  // detect settlement transition → sound
+  // detect settlement transition → sound + pull the vault (winnings just landed)
   const settledCount = markets.filter(m => m.status === 'SETTLED').length;
   const anySimulated = markets.some(m => m.receipt?.source === 'SIMULATED');
   useEffect(() => {
-    if (settledCount > prevSettled.current && prevSettled.current === 0 && settledCount > 0) {
-      playSfx('settle');
+    if (settledCount > prevSettled.current) {
+      if (prevSettled.current === 0) playSfx('settle');
+      refreshVault(); // winnings credited to the game vault on settlement
     }
     prevSettled.current = settledCount;
-  }, [settledCount]);
+  }, [settledCount, refreshVault]);
+
+  // ── Cinematic first reveal: when a match's markets first land, the board is
+  // remounted (keyed on matchId) so the cards drop in staggered, each with a
+  // soft placement tick, and the order-flow rail enters last. ────────────────
+  const revealedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const mid = matchId ?? (markets[0]?.matchId ?? null);
+    if (!mid || markets.length === 0 || revealedFor.current === mid) return;
+    revealedFor.current = mid;
+    const n = Math.min(markets.length, 6);
+    for (let i = 0; i < n; i++) setTimeout(() => playSfx('tick'), 120 + i * 80);
+  }, [matchId, markets]);
 
   // personal result across the user's bets, once resolved
   const myResolved = markets.filter(m => userBets[m.id] && m.status === 'SETTLED');
@@ -402,15 +447,23 @@ export function MarketsPanel() {
           )}
         </div>
       )}
-      {/* Order flow only takes a column once there IS flow — no empty shell */}
-      <div className={`grid gap-4 items-start ${activity.length > 0 ? 'lg:grid-cols-[1fr_296px]' : ''}`}>
-        <div className={`grid gap-3 sm:grid-cols-2 min-w-0 ${activity.length === 0 ? 'xl:grid-cols-3' : ''}`}>
-          {markets.map(m => <MarketCard key={m.id} m={m} onBet={bet} betting={betting}
-            mine={userBets[m.id]?.outcome} />)}
+      {/* Order flow only takes a column once there IS flow — no empty shell.
+          items-stretch lets the rail match the exact height of the card grid. */}
+      <div className={`grid gap-4 items-stretch ${activity.length > 0 ? 'lg:grid-cols-[1fr_296px]' : ''}`}>
+        {/* keyed on matchId so a new match remounts the board → cinematic drop-in */}
+        <div key={matchId ?? 'board'} className={`grid gap-3 sm:grid-cols-2 min-w-0 content-start ${activity.length === 0 ? 'xl:grid-cols-3' : ''}`}>
+          {markets.map((m, i) => (
+            <div key={m.id} className="boz-card-in" style={{ animationDelay: `${i * 80}ms` }}>
+              <MarketCard m={m} onBet={bet} betting={betting} mine={userBets[m.id]?.outcome} />
+            </div>
+          ))}
         </div>
         {activity.length > 0 && (
-          <aside className="lg:sticky lg:top-4 anim-in">
-            <ActivityFeed items={activity} />
+          /* the rail enters last, after the cards have settled into place */
+          <aside className="boz-card-in min-h-0" style={{ animationDelay: `${Math.min(markets.length, 6) * 80 + 120}ms` }}>
+            <div className="lg:sticky lg:top-4 h-full">
+              <ActivityFeed items={activity} />
+            </div>
           </aside>
         )}
       </div>

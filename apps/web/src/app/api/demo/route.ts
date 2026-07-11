@@ -236,7 +236,10 @@ async function runReplay(
       if (!rows[0]) continue;
       await settleMarketRow(rowToMarket(rows[0]), final);
       settledCount++;
-    } catch { /* skip */ }
+    } catch (e) {
+      // never swallow silently — a settle that throws left a market stuck open
+      console.error(`[demo] settle FAILED for ${mk.kind} (${mk.id}):`, (e as Error).message);
+    }
   }
   console.log(`[demo] ${id} finished ${final.homeScore}-${final.awayScore} · ${settledCount}/${markets.length} markets settled`);
 }

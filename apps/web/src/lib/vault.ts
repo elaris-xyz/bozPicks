@@ -73,6 +73,9 @@ export async function moveVault(opts: {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
+    // never wait forever on a contended row lock — settlement calls this in a
+    // loop and must not hang if a row is momentarily locked
+    await client.query(`SET LOCAL lock_timeout = '5s'`);
     const cur = await client.query(
       `SELECT balance_micro FROM boz_vault WHERE wallet_address=$1 FOR UPDATE`,
       [wallet]

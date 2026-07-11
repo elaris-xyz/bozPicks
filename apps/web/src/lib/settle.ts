@@ -53,7 +53,24 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
   const receipt = buildReceipt(m, m.matchId, statValue, recordId);
   const settlementTx = receipt.validateTx;
 
-  // pay winners
+  // 1) SETTLE THE MARKET FIRST. This is the one write that must always land —
+  // doing it before payouts/credits means a slow or failing vault credit can
+  // never leave a market stuck "open" (the bug that stranded BTTS + First Goal
+  // at 4/6). Everything after is best-effort and non-blocking.
+  await db.query(
+    `UPDATE boz_markets SET status='SETTLED', winning_outcome=$1, settled_at=NOW(),
+       settlement_tx=$2, receipt=$3 WHERE id=$4`,
+    [winningOutcome, settlementTx, JSON.stringify(receipt), m.id]
+  );
+
+  const settled: PropMarket = { ...m, status: 'SETTLED', winningOutcome, settlementTx, receipt, settledAt: receipt.verifiedAt };
+
+  // 2) publish for the live UI — fire-and-forget so a stalled Redis (e.g. over
+  // quota) can't block or hang settlement. The client also reconciles via poll.
+  void redis.publish('boz:markets', JSON.stringify(settled)).catch(() => {});
+
+  // 3) grade predictions + credit winners' vaults — best-effort, isolated so one
+  // bad credit can't abort the rest or the settle itself.
   const winningPool = m.pools[winningOutcome] ?? 0;
   try {
     const { rows: preds } = await db.query(
@@ -66,9 +83,7 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
       await db.query(
         `UPDATE boz_predictions SET status=$1, payout_amount=$2 WHERE id=$3`,
         [won ? 'WON' : 'LOST', payout, p.id]
-      );
-      // Credit the winner's game vault so the economy closes the loop — but only
-      // for real players that actually hold a vault (skips the demo bots).
+      ).catch(() => {});
       if (won && payout > 0) {
         await moveVault({
           wallet: p.wallet_address, delta: payout, kind: 'WIN',
@@ -77,14 +92,5 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
       }
     }
   } catch { /* best-effort payouts */ }
-
-  await db.query(
-    `UPDATE boz_markets SET status='SETTLED', winning_outcome=$1, settled_at=NOW(),
-       settlement_tx=$2, receipt=$3 WHERE id=$4`,
-    [winningOutcome, settlementTx, JSON.stringify(receipt), m.id]
-  );
-
-  const settled: PropMarket = { ...m, status: 'SETTLED', winningOutcome, settlementTx, receipt, settledAt: receipt.verifiedAt };
-  await redis.publish('boz:markets', JSON.stringify(settled)).catch(() => {});
   return settled;
 }

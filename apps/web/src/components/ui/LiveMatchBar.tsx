@@ -39,7 +39,7 @@ export function LiveMatchBar() {
     const dx = vw / 2 - (vw * leftPct) / 100;
     setGoal({ id: now, team: e.team, score: e.score, leftPct, dx });
     if (clearTimer.current) clearTimeout(clearTimer.current);
-    clearTimer.current = setTimeout(() => setGoal(null), 2700);
+    clearTimer.current = setTimeout(() => setGoal(null), 2500);
   });
 
   useEffect(() => () => { if (clearTimer.current) clearTimeout(clearTimer.current); }, []);
@@ -50,10 +50,13 @@ export function LiveMatchBar() {
 
   return (
     <>
-      {/* the flying goal ball + word — fixed, above everything, non-interactive */}
+      {/* the flying goal ball + word — fixed, above everything, non-interactive.
+          The ball's home `left` tracks the LIVE pct (not the frozen goal-time
+          value) so when it lands and the clip ends, the orbiting bar ball is at
+          the exact same spot — a seamless hand-off, no teleport to the start. */}
       {goal && (
         <div key={goal.id} className="fixed inset-0 z-[120] pointer-events-none" aria-hidden>
-          <div className="boz-goal-ball absolute" style={{ left: `${goal.leftPct}%`, bottom: 18, marginLeft: -16, ['--dx' as string]: `${goal.dx}px`, willChange: 'transform' }}>
+          <div className="boz-goal-ball absolute" style={{ left: `${pct}%`, bottom: 18, marginLeft: -16, ['--dx' as string]: `${goal.dx}px`, willChange: 'transform' }}>
             <div className="relative" style={{ width: 32, height: 32 }}>
               {/* pulsing energy aura (does not spin) */}
               <span className="boz-goal-aura absolute left-1/2 top-1/2" style={{
@@ -70,18 +73,22 @@ export function LiveMatchBar() {
               <div className="boz-ball-spin absolute inset-0"><Ball size={32} glow /></div>
             </div>
           </div>
-          <div className="boz-goal-word absolute left-1/2 text-center" style={{ bottom: '52vh' }}>
-            <p className="font-display font-black tracking-tighter leading-none"
+          {/* GOAL word — sits below the ball's apex */}
+          <div className="boz-goal-word absolute left-1/2" style={{ bottom: '38vh' }}>
+            <p className="font-display font-black tracking-tighter leading-none text-center"
                style={{ fontSize: 'clamp(2.6rem, 11vw, 7rem)', color: '#fff', textShadow: '0 0 40px rgba(16,185,129,0.75), 0 6px 30px rgba(0,0,0,0.6)' }}>
               GOAL
             </p>
-            {(goal.team || goal.score) && (
-              <p className="font-display font-bold uppercase tracking-widest mt-1"
-                 style={{ fontSize: 'clamp(0.8rem, 2.6vw, 1.4rem)', color: '#a7f3d0', textShadow: '0 2px 16px rgba(0,0,0,0.8)' }}>
+          </div>
+          {/* team + score — its own label UNDER the ball, fades out before the ball drops */}
+          {(goal.team || goal.score) && (
+            <div className="boz-goal-team absolute left-1/2 text-center" style={{ bottom: '28vh' }}>
+              <p className="font-display font-bold uppercase tracking-widest whitespace-nowrap"
+                 style={{ fontSize: 'clamp(0.8rem, 2.6vw, 1.4rem)', color: '#a7f3d0', textShadow: '0 2px 16px rgba(0,0,0,0.85)' }}>
                 {goal.team}{goal.score ? ` · ${goal.score.home}–${goal.score.away}` : ''}
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

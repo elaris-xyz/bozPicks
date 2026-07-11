@@ -260,21 +260,23 @@
      distance to screen centre) up to centre-screen, swells, holds, then flies
      back to that same spot and bounces a couple of times before rejoining the
      run of play. translate origin is the ball's home position. */
-  .boz-goal-ball { animation: boz-goal-ball 2.7s cubic-bezier(0.5,0,0.2,1) both; }
+  .boz-goal-ball { animation: boz-goal-ball 2.5s cubic-bezier(0.4,0,0.2,1) both; }
   @keyframes boz-goal-ball {
-    0%   { transform: translate(0, 0)              scale(1)    rotate(0deg);   opacity: 0.3; }
-    9%   { opacity: 1; }
-    32%  { transform: translate(var(--dx), -46vh)  scale(3.5)  rotate(340deg); }
-    60%  { transform: translate(var(--dx), -46vh)  scale(3.5)  rotate(380deg); }  /* hold at centre */
-    77%  { transform: translate(0, 0)              scale(1)    rotate(690deg); }  /* home */
-    84%  { transform: translate(0, -26px)          scale(1.06) rotate(702deg); }  /* bounce 1 */
-    90%  { transform: translate(0, 0)              scale(0.94) rotate(712deg); }
-    95%  { transform: translate(0, -10px)          scale(1.03) rotate(718deg); }  /* bounce 2 */
-    100% { transform: translate(0, 0)              scale(1)    rotate(720deg);  opacity: 1; }
+    0%   { transform: translate(0, 0)              scale(1)  rotate(0deg);   opacity: 0.3; }
+    8%   { opacity: 1; }
+    30%  { transform: translate(var(--dx), -50vh)  scale(3.4) rotate(320deg); } /* up to centre, big */
+    56%  { transform: translate(var(--dx), -50vh)  scale(3.4) rotate(360deg); } /* hold at centre */
+    /* land back on the line already at FINAL size, then bounce at final size —
+       no post-bounce shrink, no teleport. scale stays 1 from here on. */
+    70%  { transform: translate(0, 0)              scale(1)  rotate(690deg); animation-timing-function: cubic-bezier(0.3,0,0.1,1); } /* impact */
+    79%  { transform: translate(0, -22px)          scale(1)  rotate(702deg); } /* bounce 1 */
+    87%  { transform: translate(0, 0)              scale(1)  rotate(710deg); }
+    93%  { transform: translate(0, -8px)           scale(1)  rotate(716deg); } /* bounce 2 */
+    100% { transform: translate(0, 0)              scale(1)  rotate(720deg);  opacity: 1; }
   }
   /* cinematic goal-ball dressing: a pulsing aura and a comet trail that flare
      up as the ball launches and fade as it settles */
-  .boz-goal-aura { animation: boz-goal-aura 2.7s ease-in-out both; }
+  .boz-goal-aura { animation: boz-goal-aura 2.5s ease-in-out both; }
   @keyframes boz-goal-aura {
     0%   { opacity: 0;    transform: scale(0.4); }
     16%  { opacity: 0.9;  transform: scale(1); }
@@ -282,7 +284,7 @@
     76%  { opacity: 0.5;  transform: scale(0.9); }
     100% { opacity: 0;    transform: scale(0.5); }
   }
-  .boz-goal-trail { animation: boz-goal-trail 2.7s ease-out both; transform-origin: top center; }
+  .boz-goal-trail { animation: boz-goal-trail 2.5s ease-out both; transform-origin: top center; }
   @keyframes boz-goal-trail {
     0%   { opacity: 0;   transform: scaleY(0.2); }
     18%  { opacity: 0.9; transform: scaleY(1.1); }   /* streak out on launch */
@@ -291,13 +293,22 @@
     100% { opacity: 0;   transform: scaleY(0.2); }
   }
 
-  /* the "GOAL" word rides with the ball at the apex */
-  .boz-goal-word { animation: boz-goal-word 2.6s ease-out both; }
+  /* the "GOAL" word sits below the ball's apex */
+  .boz-goal-word { animation: boz-goal-word 2.5s ease-out both; }
   @keyframes boz-goal-word {
-    0%, 22%  { opacity: 0; transform: translateX(-50%) scale(0.6); }
-    36%      { opacity: 1; transform: translateX(-50%) scale(1); }
-    64%      { opacity: 1; transform: translateX(-50%) scale(1); }
-    78%,100% { opacity: 0; transform: translateX(-50%) scale(1.1); }
+    0%, 20%  { opacity: 0; transform: translateX(-50%) scale(0.6); }
+    34%      { opacity: 1; transform: translateX(-50%) scale(1); }
+    58%      { opacity: 1; transform: translateX(-50%) scale(1); }
+    72%,100% { opacity: 0; transform: translateX(-50%) scale(1.1); }
+  }
+  /* team + score label, UNDER the ball — fades out early, before the ball drops,
+     so the descending ball never drags across the team names */
+  .boz-goal-team { animation: boz-goal-team 2.5s ease-out both; }
+  @keyframes boz-goal-team {
+    0%, 14%  { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    28%      { opacity: 1; transform: translateX(-50%) translateY(0); }
+    44%      { opacity: 1; transform: translateX(-50%) translateY(0); }
+    56%,100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
   }
 
   /* hero entrance */

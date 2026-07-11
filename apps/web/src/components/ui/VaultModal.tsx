@@ -28,6 +28,7 @@ export function VaultModal() {
   const { modal, close, balance, deposited, won, ledger, busy, deposit, withdraw } = useVault();
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState(25);
+  const [flash, setFlash] = useState<'deposit' | 'withdraw' | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -48,17 +49,24 @@ export function VaultModal() {
   const canWithdraw = balance > 0;
   const overdraw = mode === 'withdraw' && amount > Number(bal);
 
+  const celebrate = (kind: 'deposit' | 'withdraw') => {
+    setFlash(kind);
+    setTimeout(() => setFlash(null), 1100);
+  };
+
   const run = async () => {
     if (amount <= 0 || overdraw) return;
     if (mode === 'deposit') {
       const ok = await deposit(amount);
+      if (ok) celebrate('deposit');
       fireToast(ok
-        ? { kind: 'info', title: `Deposited ${amount} USDC to your vault`, body: 'Signed on Solana devnet' }
+        ? { kind: 'info', title: `Deposited ${amount} USDC to your vault`, body: 'Signed on Solana devnet · balance topped up' }
         : { kind: 'warn', title: 'Deposit not completed', body: 'The transaction was rejected or cancelled' });
     } else {
       const ok = await withdraw(amount);
+      if (ok) celebrate('withdraw');
       fireToast(ok
-        ? { kind: 'info', title: `Cashed out ${amount} USDC to your wallet`, body: 'Signed on Solana devnet' }
+        ? { kind: 'info', title: `Cashed out ${amount} USDC`, body: 'Vault balance reduced · devnet is simulated (no real transfer)' }
         : { kind: 'warn', title: 'Cash-out not completed', body: 'Rejected, cancelled, or over balance' });
     }
   };
@@ -92,10 +100,22 @@ export function VaultModal() {
 
         {/* balance */}
         <div className="px-5 pt-4">
-          <div className="relative rounded-2xl p-4 overflow-hidden"
-               style={{ background: 'radial-gradient(120% 140% at 0% 0%, rgba(59,130,246,0.14), rgba(10,15,30,0.4))', border: '1px solid rgba(99,140,255,0.22)' }}>
+          <div className="relative rounded-2xl p-4 overflow-hidden transition-shadow duration-300"
+               style={{
+                 background: 'radial-gradient(120% 140% at 0% 0%, rgba(59,130,246,0.14), rgba(10,15,30,0.4))',
+                 border: `1px solid ${flash === 'deposit' ? 'rgba(16,185,129,0.6)' : flash === 'withdraw' ? 'rgba(167,139,250,0.6)' : 'rgba(99,140,255,0.22)'}`,
+                 boxShadow: flash ? `0 0 26px ${flash === 'deposit' ? 'rgba(16,185,129,0.35)' : 'rgba(167,139,250,0.35)'}` : undefined,
+               }}>
+            {/* rising coins on a successful deposit */}
+            {flash === 'deposit' && (
+              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                {[0, 1, 2, 3, 4].map(i => (
+                  <span key={i} className="boz-coin absolute text-sm" style={{ left: `${12 + i * 19}%`, bottom: 0, animationDelay: `${i * 60}ms` }}>🪙</span>
+                ))}
+              </div>
+            )}
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Spendable balance</p>
-            <p className="font-display text-3xl font-black tabular-nums mt-1" style={{ color: '#f8fafc' }}>
+            <p className={`font-display text-3xl font-black tabular-nums mt-1 ${flash ? 'boz-vault-pop' : ''}`} style={{ color: '#f8fafc' }}>
               {bal} <span className="text-sm font-bold text-gray-500">USDC</span>
             </p>
             <div className="flex gap-4 mt-2 text-[10px] text-gray-500">

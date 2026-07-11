@@ -383,10 +383,17 @@ export function MarketsPanel() {
   useEffect(() => {
     if (settledCount > prevSettled.current) {
       if (prevSettled.current === 0) playSfx('settle');
-      refreshVault(); // winnings credited to the game vault on settlement
+      // reconcile first (heals any double-credit from overlapping settle passes),
+      // then pull the corrected balance
+      if (publicKey) {
+        fetch('/api/vault/reconcile', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wallet: publicKey.toBase58() }),
+        }).then(() => refreshVault()).catch(() => refreshVault());
+      }
     }
     prevSettled.current = settledCount;
-  }, [settledCount, refreshVault]);
+  }, [settledCount, refreshVault, publicKey]);
 
   // ── Cinematic first reveal: when a match's markets first land, the board is
   // remounted (keyed on matchId) so the cards drop in staggered, each with a

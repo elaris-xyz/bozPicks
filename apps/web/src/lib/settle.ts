@@ -80,10 +80,16 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
     for (const p of preds) {
       const won = p.outcome === winningOutcome;
       const payout = won ? payoutFor(Number(p.amount_usdc), winningPool, m.totalPool, m.feeBps) : 0;
-      await db.query(
-        `UPDATE boz_predictions SET status=$1, payout_amount=$2 WHERE id=$3`,
+      // Idempotent + race-safe: only THIS pass may grade the prediction, and
+      // only the pass that actually flips ACTIVE→WON credits the vault. If a
+      // second settle pass (demo + sweep + auto-heal can overlap) reaches here,
+      // the row is no longer ACTIVE, rowCount is 0, and we skip the credit — no
+      // more triple-paid winnings inflating the balance.
+      const upd = await db.query(
+        `UPDATE boz_predictions SET status=$1, payout_amount=$2 WHERE id=$3 AND status='ACTIVE'`,
         [won ? 'WON' : 'LOST', payout, p.id]
-      ).catch(() => {});
+      ).catch(() => ({ rowCount: 0 }));
+      if (!upd || upd.rowCount === 0) continue; // already graded by another pass
       if (won && payout > 0) {
         await moveVault({
           wallet: p.wallet_address, delta: payout, kind: 'WIN',

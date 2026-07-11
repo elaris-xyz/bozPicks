@@ -6,6 +6,7 @@ import {
 } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
+import { playSfx } from '@/lib/sfx';
 
 /**
  * bozVault — the in-game economy. The player signs ONE Solana devnet tx to
@@ -105,6 +106,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       }).then(res => res.json());
       if (typeof r.balance === 'number') setBalance(r.balance);
       refresh();
+      if (r.ok === true) playSfx('deposit');
       return r.ok === true;
     } catch { return false; }
     finally { setBusy(false); }
@@ -122,6 +124,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const r = await res.json();
       if (typeof r.balance === 'number') setBalance(r.balance);
       refresh();
+      if (res.ok) playSfx('cashout');
       return res.ok;
     } catch { return false; }
     finally { setBusy(false); }

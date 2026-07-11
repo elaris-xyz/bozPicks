@@ -57,6 +57,49 @@ export class InsufficientFunds extends Error {
 }
 
 /**
+ * Recompute a vault from the LEDGER — the durable source of truth. (boz_predictions
+ * can't be trusted for this: demo matches get purged, taking their prediction
+ * rows with them, but the vault ledger persists.) Every movement is a signed
+ * amount, so the true balance is simply their sum — once the duplicate WIN rows
+ * from the earlier non-idempotent settle are removed. Idempotent + safe to
+ * re-run. Returns the corrected balance.
+ */
+export async function reconcileVault(wallet: string): Promise<number> {
+  // 1) drop duplicate WIN credits — the bug wrote several identical rows (same
+  // market ref, same amount, seconds apart). Keep the earliest of each cluster.
+  await db.query(
+    `DELETE FROM boz_vault_ledger a USING boz_vault_ledger b
+     WHERE a.wallet_address=$1 AND a.kind='WIN' AND b.kind='WIN'
+       AND a.wallet_address=b.wallet_address AND a.ref IS NOT DISTINCT FROM b.ref
+       AND a.amount_micro=b.amount_micro
+       AND a.created_at > b.created_at - interval '2 minutes'
+       AND a.created_at < b.created_at + interval '2 minutes'
+       AND a.ctid > b.ctid`,
+    [wallet]
+  ).catch(() => {});
+
+  // 2) balance = sum of every remaining signed movement
+  const { rows } = await db.query(
+    `SELECT
+       COALESCE(SUM(amount_micro), 0)                                AS balance,
+       COALESCE(SUM(amount_micro) FILTER (WHERE kind='DEPOSIT'), 0)  AS deposited,
+       COALESCE(SUM(amount_micro) FILTER (WHERE kind='WIN'), 0)      AS won
+     FROM boz_vault_ledger WHERE wallet_address=$1`,
+    [wallet]
+  );
+  const balance = Number(rows[0].balance);
+  const deposited = Number(rows[0].deposited);
+  const won = Number(rows[0].won);
+
+  await db.query(
+    `UPDATE boz_vault SET balance_micro=$2, deposited_micro=$3, won_micro=$4, updated_at=NOW()
+     WHERE wallet_address=$1`,
+    [wallet, balance, deposited, won]
+  ).catch(() => {});
+  return balance;
+}
+
+/**
  * Apply a signed delta atomically. Positive credits, negative debits. A debit
  * that would overdraw throws InsufficientFunds (nothing is written). Deposits
  * bump lifetime `deposited`; wins bump lifetime `won`. Returns the new balance.

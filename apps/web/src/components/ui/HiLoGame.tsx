@@ -41,6 +41,12 @@ export function HiLoGame() {
     if (b) setBest(b);
   }, []);
 
+  // No live match → no reading. Clear any value left over from a finished match
+  // so the bar shows "—" instead of a stale (or fabricated 50/50) percentage.
+  useEffect(() => {
+    if (!isLive) { setCurrent(null); setPending(null); }
+  }, [isLive]);
+
   useSSE({
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'event' || !msg.data) return;
@@ -87,6 +93,7 @@ export function HiLoGame() {
     else navigator.clipboard?.writeText(text).catch(() => {});
   };
 
+  const hasReading = isLive && current != null;
   const homePoss = current ?? 50;
   const awayPoss = 100 - homePoss;
 
@@ -140,15 +147,19 @@ export function HiLoGame() {
         </div>
       </div>
 
-      {/* possession bar */}
+      {/* possession bar — dashes + empty track when there's no live reading */}
       <div className="mb-2 flex items-center justify-between text-xs font-bold">
-        <span className="text-[var(--green)]">{homePoss}%</span>
+        <span className="text-[var(--green)]">{hasReading ? `${homePoss}%` : '—'}</span>
         <span className="text-gray-500 text-[10px] uppercase tracking-widest">{readingLabel}</span>
-        <span className="text-[var(--blue)]">{awayPoss}%</span>
+        <span className="text-[var(--blue)]">{hasReading ? `${awayPoss}%` : '—'}</span>
       </div>
       <div className="h-3 rounded-full overflow-hidden flex mb-5" style={{ background: 'rgba(255,255,255,0.05)' }}>
-        <div style={{ width: `${homePoss}%`, background: 'linear-gradient(90deg,var(--green),rgba(16,185,129,0.6))', transition: 'width .5s' }} />
-        <div style={{ width: `${awayPoss}%`, background: 'linear-gradient(90deg,rgba(59,130,246,0.6),var(--blue))', transition: 'width .5s' }} />
+        {hasReading && (
+          <>
+            <div style={{ width: `${homePoss}%`, background: 'linear-gradient(90deg,var(--green),rgba(16,185,129,0.6))', transition: 'width .5s' }} />
+            <div style={{ width: `${awayPoss}%`, background: 'linear-gradient(90deg,rgba(59,130,246,0.6),var(--blue))', transition: 'width .5s' }} />
+          </>
+        )}
       </div>
 
       {!isLive ? (

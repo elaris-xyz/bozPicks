@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, MatchStats, OddsSnapshot, DangerLevel } from '@bozpicks/shared';
@@ -47,10 +47,18 @@ export function LiveStatsPanel() {
     },
   });
 
-  const ip = odds?.impliedProb;
-  const pHome = ip ? Math.round(ip.home * 100) : 33;
-  const pDraw = ip ? Math.round(ip.draw * 100) : 34;
-  const pAway = ip ? Math.round(ip.away * 100) : 33;
+  const isLive = !!live?.live;
+  // No live match → drop any stats/odds left over from a finished match so we
+  // never show numbers for a game that isn't being played.
+  useEffect(() => {
+    if (!isLive) { setStats(null); setOdds(null); }
+  }, [isLive]);
+
+  const ip = isLive ? odds?.impliedProb : undefined;
+  const pHome = ip ? Math.round(ip.home * 100) : 0;
+  const pDraw = ip ? Math.round(ip.draw * 100) : 0;
+  const pAway = ip ? Math.round(ip.away * 100) : 0;
+  const hasProb = !!ip;
 
   return (
     <div className="glass p-5 space-y-4 h-full">
@@ -59,13 +67,21 @@ export function LiveStatsPanel() {
         {live?.live && <span className="chip-glass chip-green"><span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: 'currentColor' }} />LIVE {live.minute}&rsquo;</span>}
       </div>
 
-      {/* win-prob tri-bar */}
+      {/* win-prob tri-bar — an empty track with a hint when no match is live,
+          so we never paint a fabricated probability split */}
       <div>
-        <div className="h-6 rounded-lg overflow-hidden flex text-[10px] font-black">
-          <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pHome}%`, background: 'var(--green)', color: '#04120b', transition: 'width .6s' }}><CountUp value={pHome} duration={600} suffix="%" /></div>
-          <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pDraw}%`, background: '#64748b', color: '#0b1020', transition: 'width .6s' }}><CountUp value={pDraw} duration={600} suffix="%" /></div>
-          <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pAway}%`, background: 'var(--blue)', color: '#020814', transition: 'width .6s' }}><CountUp value={pAway} duration={600} suffix="%" /></div>
-        </div>
+        {hasProb ? (
+          <div className="h-6 rounded-lg overflow-hidden flex text-[10px] font-black">
+            <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pHome}%`, background: 'var(--green)', color: '#04120b', transition: 'width .6s' }}><CountUp value={pHome} duration={600} suffix="%" /></div>
+            <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pDraw}%`, background: '#64748b', color: '#0b1020', transition: 'width .6s' }}><CountUp value={pDraw} duration={600} suffix="%" /></div>
+            <div className="flex items-center justify-center overflow-hidden" style={{ width: `${pAway}%`, background: 'var(--blue)', color: '#020814', transition: 'width .6s' }}><CountUp value={pAway} duration={600} suffix="%" /></div>
+          </div>
+        ) : (
+          <div className="h-6 rounded-lg flex items-center justify-center text-[10px] font-semibold text-gray-600"
+               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
+            live odds appear at kick-off
+          </div>
+        )}
         <div className="flex justify-between text-[10px] uppercase tracking-widest text-gray-500 mt-1.5">
           <span>{live?.homeTeam ?? 'Home'}</span><span>Draw</span><span>{live?.awayTeam ?? 'Away'}</span>
         </div>

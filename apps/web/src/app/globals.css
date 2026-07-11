@@ -272,6 +272,25 @@
     95%  { transform: translate(0, -10px)          scale(1.03) rotate(718deg); }  /* bounce 2 */
     100% { transform: translate(0, 0)              scale(1)    rotate(720deg);  opacity: 1; }
   }
+  /* cinematic goal-ball dressing: a pulsing aura and a comet trail that flare
+     up as the ball launches and fade as it settles */
+  .boz-goal-aura { animation: boz-goal-aura 2.7s ease-in-out both; }
+  @keyframes boz-goal-aura {
+    0%   { opacity: 0;    transform: scale(0.4); }
+    16%  { opacity: 0.9;  transform: scale(1); }
+    50%  { opacity: 0.85; transform: scale(1.25); }
+    76%  { opacity: 0.5;  transform: scale(0.9); }
+    100% { opacity: 0;    transform: scale(0.5); }
+  }
+  .boz-goal-trail { animation: boz-goal-trail 2.7s ease-out both; transform-origin: top center; }
+  @keyframes boz-goal-trail {
+    0%   { opacity: 0;   transform: scaleY(0.2); }
+    18%  { opacity: 0.9; transform: scaleY(1.1); }   /* streak out on launch */
+    34%  { opacity: 0.5; transform: scaleY(0.7); }
+    60%  { opacity: 0;   transform: scaleY(0.4); }   /* gone while it hangs at centre */
+    100% { opacity: 0;   transform: scaleY(0.2); }
+  }
+
   /* the "GOAL" word rides with the ball at the apex */
   .boz-goal-word { animation: boz-goal-word 2.6s ease-out both; }
   @keyframes boz-goal-word {

@@ -239,6 +239,34 @@
     50%      { transform: scale(1.14); box-shadow: 0 0 13px rgba(59,130,246,0.9); }
   }
 
+  /* ── Live match bar (fixed at screen bottom while a match is on) ── */
+  /* the little ball orbits (spins) and gently bobs as the clock advances */
+  .boz-ball-spin { animation: boz-ball-spin 2.4s linear infinite; }
+  @keyframes boz-ball-spin { to { transform: rotate(360deg); } }
+  .boz-ball-bob { animation: boz-ball-bob 1.6s ease-in-out infinite; }
+  @keyframes boz-ball-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+
+  /* GOAL: the ball launches up to centre-screen, swells, holds, then drops
+     back onto the bar with a bouncy settle and rejoins the run of play */
+  .boz-goal-ball { animation: boz-goal-ball 2.6s cubic-bezier(0.5,0,0.2,1) both; }
+  @keyframes boz-goal-ball {
+    0%   { bottom: 8px;   transform: translateX(-50%) scale(1)   rotate(0deg);   opacity: 0.2; }
+    10%  { opacity: 1; }
+    34%  { bottom: 48vh;  transform: translateX(-50%) scale(3.6) rotate(340deg); }
+    64%  { bottom: 48vh;  transform: translateX(-50%) scale(3.6) rotate(380deg); }
+    86%  { bottom: 2px;   transform: translateX(-50%) scale(0.85) rotate(700deg); }  /* impact */
+    93%  { bottom: 14px;  transform: translateX(-50%) scale(1.05) rotate(715deg); }  /* bounce */
+    100% { bottom: 8px;   transform: translateX(-50%) scale(1)    rotate(720deg); opacity: 1; }
+  }
+  /* the "GOAL" word rides with the ball at the apex */
+  .boz-goal-word { animation: boz-goal-word 2.6s ease-out both; }
+  @keyframes boz-goal-word {
+    0%, 22%  { opacity: 0; transform: translateX(-50%) scale(0.6); }
+    36%      { opacity: 1; transform: translateX(-50%) scale(1); }
+    64%      { opacity: 1; transform: translateX(-50%) scale(1); }
+    78%,100% { opacity: 0; transform: translateX(-50%) scale(1.1); }
+  }
+
   /* hero entrance */
   .fx-rise { animation: fx-rise 0.7s cubic-bezier(0.16,1,0.3,1) both; }
   @keyframes fx-rise { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: none; } }

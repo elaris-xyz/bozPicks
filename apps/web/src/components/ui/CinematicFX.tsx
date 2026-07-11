@@ -40,24 +40,15 @@ function Confetti() {
 
 function Overlay({ burst }: { burst: Burst }) {
   if (burst.kind === 'GOAL') {
+    // The "GOAL" title + scorer is carried by the ball on the live match bar
+    // (LiveMatchBar) so it isn't duplicated here — this layer keeps the ambient
+    // flash, rings and confetti that frame the moment.
     return (
       <div className="fx-overlay">
         <div className="fx-flash fx-flash-goal" />
         <div className="fx-ring" style={{ borderColor: 'rgba(16,185,129,0.8)' }} />
         <div className="fx-ring" style={{ borderColor: 'rgba(59,130,246,0.5)', animationDelay: '0.12s' }} />
         <Confetti />
-        <div className="fx-title text-center">
-          <p className="font-display font-black tracking-tighter leading-none"
-             style={{ fontSize: 'clamp(3.5rem, 14vw, 9rem)', color: '#fff', textShadow: '0 0 40px rgba(16,185,129,0.7), 0 6px 30px rgba(0,0,0,0.6)' }}>
-            GOAL
-          </p>
-          {burst.team && (
-            <p className="font-display font-bold uppercase tracking-widest mt-1"
-               style={{ fontSize: 'clamp(0.9rem, 3vw, 1.6rem)', color: '#a7f3d0', textShadow: '0 2px 16px rgba(0,0,0,0.8)' }}>
-              {burst.team}{burst.score ? ` · ${burst.score.home}–${burst.score.away}` : ''}
-            </p>
-          )}
-        </div>
       </div>
     );
   }

@@ -262,6 +262,7 @@ export function MarketsPanel() {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [betting, setBetting] = useState<string | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
   const [activity, setActivity] = useState<Activity[]>([]);
   const prevSettled = useRef(0);
@@ -421,28 +422,74 @@ export function MarketsPanel() {
   return (
     <div className="space-y-4">
       {settledCount > 0 && (
-        <div className="fx-rise glass p-4 flex flex-wrap items-center justify-between gap-3"
+        <div className="fx-rise glass overflow-hidden"
              style={{ borderColor: 'rgba(16,185,129,0.35)', boxShadow: '0 0 30px rgba(16,185,129,0.12)' }}>
-          <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.4)' }}>
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <div>
-              <p className="text-sm font-bold text-gray-100">Full time — {settledCount}/{markets.length} markets settled</p>
-              <p className="text-[11px] text-gray-500">{anySimulated
-                ? 'Simulated from the scenario · real TxLINE proof + on-chain payout run at a played fixture’s final whistle'
-                : 'Resolved from TxLINE Merkle proofs · USDC payouts on-chain'}</p>
+          {/* the banner is a button when the player has resolved picks — click to
+              see exactly which markets paid out and how */}
+          <button
+            onClick={() => myResolved.length > 0 && setBreakdownOpen(o => !o)}
+            className={`w-full p-4 flex flex-wrap items-center justify-between gap-3 text-left ${myResolved.length > 0 ? 'cursor-pointer hover:bg-white/[0.02]' : 'cursor-default'} transition-colors`}>
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.4)' }}>
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <div>
+                <p className="text-sm font-bold text-gray-100">Full time — {settledCount}/{markets.length} markets settled</p>
+                <p className="text-[11px] text-gray-500">{anySimulated
+                  ? 'Simulated from the scenario · real TxLINE proof + on-chain payout run at a played fixture’s final whistle'
+                  : 'Resolved from TxLINE Merkle proofs · USDC payouts on-chain'}</p>
+              </div>
             </div>
-          </div>
-          {myResolved.length > 0 && (
-            <div className="text-right">
-              <p className="text-lg font-black tabular-nums" style={{ color: net >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                {net >= 0 ? '+' : ''}{usdcToDisplay(Math.abs(net) === 0 ? 0 : net)} USDC
-              </p>
-              <p className="text-[10px] text-gray-500">you won {wonCount}/{myResolved.length} of your picks</p>
+            {myResolved.length > 0 && (
+              <div className="flex items-center gap-2.5">
+                <div className="text-right">
+                  <p className="text-lg font-black tabular-nums" style={{ color: net >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                    {net >= 0 ? '+' : ''}{usdcToDisplay(Math.abs(net) === 0 ? 0 : net)} USDC
+                  </p>
+                  <p className="text-[10px] text-gray-500">won {wonCount}/{myResolved.length} · tap for the breakdown</p>
+                </div>
+                <svg viewBox="0 0 24 24" className={`w-4 h-4 text-gray-500 transition-transform ${breakdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+              </div>
+            )}
+          </button>
+
+          {/* per-market receipt: what you picked, whether it hit, and the delta */}
+          {breakdownOpen && myResolved.length > 0 && (
+            <div className="anim-in border-t px-4 py-3 space-y-1.5" style={{ borderColor: 'var(--glass-border)', background: 'rgba(0,0,0,0.15)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">How your {usdcToDisplay(staked)} USDC played out</p>
+              {myResolved.map(m => {
+                const b = userBets[m.id];
+                const won = m.winningOutcome === b.outcome;
+                const ret = won ? payoutFor(b.stake, m.pools[b.outcome] ?? 0, m.totalPool, m.feeBps) : 0;
+                const delta = ret - b.stake;
+                const src = m.receipt?.source === 'TXLINE_ONCHAIN' ? 'on-chain proof' : 'simulated proof';
+                return (
+                  <div key={m.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2"
+                       style={{ background: won ? 'rgba(16,185,129,0.07)' : 'rgba(239,68,68,0.06)', border: `1px solid ${won ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.2)'}` }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded flex-shrink-0"
+                            style={won ? { color: 'var(--green)', background: 'var(--green-dim)' } : { color: 'var(--red)', background: 'rgba(239,68,68,0.12)' }}>
+                        {won ? 'WON' : 'LOST'}
+                      </span>
+                      <span className="text-[11px] text-gray-300 truncate">{m.label}</span>
+                      <span className="text-[10px] text-gray-600 flex-shrink-0">· you picked <span style={{ color: outcomeColor(b.outcome) }} className="font-bold">{b.outcome}</span> · {src}</span>
+                    </div>
+                    <span className="text-[11px] font-black tabular-nums flex-shrink-0" style={{ color: won ? 'var(--green)' : 'var(--red)' }}>
+                      {delta >= 0 ? '+' : '−'}{usdcToDisplay(Math.abs(delta))}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="flex items-center justify-between pt-1.5 px-1">
+                <span className="text-[11px] font-bold text-gray-400">Net to your vault</span>
+                <span className="text-[13px] font-black tabular-nums" style={{ color: net >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {net >= 0 ? '+' : '−'}{usdcToDisplay(Math.abs(net))} USDC
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-600 pt-0.5">Winnings were credited to your game vault · full history in the vault ledger & My Predictions.</p>
             </div>
           )}
         </div>
@@ -459,9 +506,12 @@ export function MarketsPanel() {
           ))}
         </div>
         {activity.length > 0 && (
-          /* the rail enters last, after the cards have settled into place */
-          <aside className="boz-card-in min-h-0" style={{ animationDelay: `${Math.min(markets.length, 6) * 80 + 120}ms` }}>
-            <div className="lg:sticky lg:top-4 h-full">
+          /* The rail enters last. On lg its content is absolutely positioned so
+             it contributes NO intrinsic height to the grid row — the row height
+             is set by the cards, and items-stretch sizes the rail to match it
+             exactly (it scrolls internally instead of overshooting). */
+          <aside className="boz-card-in relative min-h-[16rem] lg:min-h-0" style={{ animationDelay: `${Math.min(markets.length, 6) * 80 + 120}ms` }}>
+            <div className="lg:absolute lg:inset-0">
               <ActivityFeed items={activity} />
             </div>
           </aside>

@@ -10,6 +10,7 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { Countdown } from '@/components/ui/Countdown';
 import { MatchStats } from '@/components/ui/MatchStats';
 import { CountUp } from '@/components/ui/CountUp';
+import { ShareModal } from '@/components/ui/ShareModal';
 import { Flag, FlagBleed } from '@/components/ui/Flag';
 import { TwoSidedTimeline } from '@/components/ui/TwoSidedTimeline';
 import { IconClock, IconChart, IconTrophy, IconSparkles, IconBolt } from '@/components/ui/Icons';
@@ -33,6 +34,7 @@ export default function MatchDetailPage() {
   const router = useRouter();
 
   const [match, setMatch] = useState<MatchState | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const [events, setEvents] = useState<BozEvent[]>([]);
   const [currentOdds, setCurrentOdds] = useState<OddsSnapshot | null>(null);
   const [signals, setSignals] = useState<AgentSignal[]>([]);
@@ -200,15 +202,7 @@ export default function MatchDetailPage() {
             </button>
           )}
           <button
-            onClick={async () => {
-              const url = window.location.href;
-              const title = `${match.homeTeam} vs ${match.awayTeam}`;
-              if (navigator.share) {
-                await navigator.share({ title, url }).catch(() => {});
-              } else {
-                await navigator.clipboard.writeText(url);
-              }
-            }}
+            onClick={() => setShareOpen(true)}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all hover:opacity-80"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)', color: '#9ca3af' }}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -218,6 +212,18 @@ export default function MatchDetailPage() {
           </button>
         </div>
       </div>
+
+      {shareOpen && (
+        <ShareModal
+          data={{
+            headline: `${match.homeTeam} v ${match.awayTeam}`,
+            sub: 'Live on bozPicks — powered by TxLINE, settled on Solana',
+            text: `Watching ${match.homeTeam} v ${match.awayTeam} live on bozPicks — real-time World Cup data + on-chain markets:`,
+            url: typeof window !== 'undefined' ? window.location.href : undefined,
+          }}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {/* Score header */}
       <div className="glass relative overflow-hidden p-6 md:p-8 text-center">

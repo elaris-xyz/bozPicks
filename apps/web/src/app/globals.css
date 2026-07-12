@@ -246,6 +246,26 @@
     50%      { transform: scale(1.14); box-shadow: 0 0 13px rgba(59,130,246,0.9); }
   }
 
+  /* Hi-Lo RECORD SMASHED — flash + rising flames + a scaling number */
+  .boz-record-flash { animation: boz-record-flash 1.8s ease-out both; }
+  @keyframes boz-record-flash {
+    0% { opacity: 0; } 12% { opacity: 1; } 55% { opacity: 0.7; } 100% { opacity: 0; }
+  }
+  .boz-record-flame { animation: boz-record-flame 1.5s ease-out both; }
+  @keyframes boz-record-flame {
+    0%   { opacity: 0; transform: translateY(8px) scale(0.6); }
+    22%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-90px) scale(1.15) rotate(8deg); }
+  }
+  .boz-record-pop { animation: boz-record-pop 1.8s cubic-bezier(0.22,1,0.36,1) both; }
+  @keyframes boz-record-pop {
+    0%   { opacity: 0; transform: scale(0.4) rotate(-6deg); }
+    18%  { opacity: 1; transform: scale(1.14) rotate(2deg); }
+    32%  { transform: scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.05); }
+  }
+
   /* vault cashier feedback — balance number pops, coins rise on deposit */
   .boz-vault-pop { animation: boz-vault-pop 0.6s cubic-bezier(0.22,1,0.36,1) both; }
   @keyframes boz-vault-pop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
@@ -260,8 +280,9 @@
   /* the little ball orbits (spins) and gently bobs as the clock advances */
   .boz-ball-spin { animation: boz-ball-spin 2.4s linear infinite; }
   @keyframes boz-ball-spin { to { transform: rotate(360deg); } }
-  /* the goal ball tumbles slowly as it flies + rolls (calm, not a blur) */
-  .boz-ball-spin-slow { animation: boz-ball-spin 4.5s linear infinite; }
+  /* the goal ball tumbles as it flies + rolls — paced so the roll to the tip
+     reads as one continuous rolling motion, not a lazy drift */
+  .boz-ball-spin-slow { animation: boz-ball-spin 2s linear infinite; }
   .boz-ball-bob { animation: boz-ball-bob 1.6s ease-in-out infinite; }
   @keyframes boz-ball-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 
@@ -279,20 +300,20 @@
   /* 3.6s total: the pre-roll (launch → land) keeps its original ~1.85s timing,
      but the ROLL from behind the edge to the front now takes ~1.75s (was ~0.85s)
      — i.e. the ball rolls to the front of the progress at half speed. */
+  /* Up to centre, hold, come down at final size a bit BEHIND the leading edge,
+     then ROLL smoothly and continuously (steady, linear) until it catches the
+     front of the progress — no hops, no spin-and-snap. The ball tumbles the
+     whole way via boz-ball-spin-slow, so translateX + rotation reads as one
+     continuous roll to the tip. */
   .boz-goal-ball { animation: boz-goal-ball 3.6s cubic-bezier(0.4,0,0.2,1) both; }
   @keyframes boz-goal-ball {
     0%   { transform: translate(0, 0)              scale(1);  opacity: 0.3; }
     6%   { opacity: 1; }
     21%  { transform: translate(var(--dx), -50vh)  scale(6); } /* up to centre, big */
     40%  { transform: translate(var(--dx), -50vh)  scale(6); } /* hold big at centre */
-    47%  { transform: translate(-72px, -8vh)       scale(1); animation-timing-function: cubic-bezier(0.35,0,0.2,1); } /* descended + already final size */
-    51%  { transform: translate(-72px, 0)          scale(1); } /* lands behind the edge */
-    /* rolls forward slowly (half speed) with a couple of soft hops */
-    62%  { transform: translate(-56px, -12px)      scale(1); } /* soft hop */
-    74%  { transform: translate(-40px, 0)          scale(1); } /* rolling forward */
-    84%  { transform: translate(-24px, -7px)       scale(1); } /* small hop */
-    93%  { transform: translate(-10px, 0)          scale(1); } /* rolling to the edge */
-    100% { transform: translate(0, 0)              scale(1);  opacity: 1; } /* reaches the front */
+    48%  { transform: translate(-80px, -6vh)       scale(1); animation-timing-function: cubic-bezier(0.4,0,0.25,1); } /* comes down at final size, behind the edge */
+    53%  { transform: translate(-80px, 0)          scale(1); animation-timing-function: linear; } /* touches down; from here it rolls at a steady pace */
+    100% { transform: translate(0, 0)              scale(1);  opacity: 1; } /* rolls continuously to the front of the progress */
   }
   /* cinematic goal-ball dressing: a pulsing aura and a comet trail that flare
      up as the ball launches and fade as it settles */
@@ -344,28 +365,23 @@
   }
   @keyframes fx-scan { 0% { background-position: -34% 0; } 100% { background-position: 134% 0; } }
 
-  /* ── Interactive gold edge on glass panels: a warm gold→cyan border that
-     lights up on hover. Scoped with :not() so cards that already own ::after
-     (sheen / card-shine) keep their own effect untouched. ── */
-  .glass:not(.sheen):not(.card-shine) { position: relative; }
-  .glass:not(.sheen):not(.card-shine)::after {
-    content: ''; position: absolute; inset: 0; border-radius: inherit;
-    padding: 1px; pointer-events: none; opacity: 0; transition: opacity .4s ease;
-    background: linear-gradient(135deg, rgba(245,200,107,0.55), rgba(56,189,248,0.22) 48%, transparent 72%);
-    /* mask so the gradient only paints the 1px border ring */
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude;
-  }
-  .glass:not(.sheen):not(.card-shine):hover::after { opacity: 1; }
-
-  /* ── Cyber L-bracket (gold): a single "└" at the card's bottom-left whose
-     horizontal arm runs a third of the card's width — a focal tech accent. ── */
+  /* ── Cyber L-brackets (gold): a small "┏" at the top-left, and a long "┘" at
+     the bottom-right whose horizontal arm runs a third of the card width. ── */
+  .cyber-corners { position: relative; }
   .cyber-corners::before {
-    content: ''; position: absolute; bottom: 10px; left: 10px;
-    width: 33%; height: 26px; pointer-events: none; z-index: 6;
+    content: ''; position: absolute; top: 10px; left: 10px;
+    width: 22px; height: 22px; pointer-events: none; z-index: 6;
+    border-top: 2px solid rgba(245,200,107,0.6);
     border-left: 2px solid rgba(245,200,107,0.6);
+    border-top-left-radius: 8px;
+    filter: drop-shadow(0 0 6px rgba(245,200,107,0.35));
+  }
+  .cyber-corners::after {
+    content: ''; position: absolute; bottom: 10px; right: 10px;
+    width: 33%; height: 26px; pointer-events: none; z-index: 6;
+    border-right: 2px solid rgba(245,200,107,0.6);
     border-bottom: 2px solid rgba(245,200,107,0.6);
-    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
     filter: drop-shadow(0 0 6px rgba(245,200,107,0.35));
   }
 

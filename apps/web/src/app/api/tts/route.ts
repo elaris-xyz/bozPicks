@@ -39,13 +39,23 @@ export async function POST(req: NextRequest) {
 const audio = (buf: ArrayBuffer, type: string) =>
   new Response(buf, { headers: { 'content-type': type, 'cache-control': 'no-store' } });
 
-// ── Groq PlayAI TTS (OpenAI-compatible; returns WAV) ─────────────────────────
+// ── Groq TTS (OpenAI-compatible; returns WAV) ────────────────────────────────
+// Defaults to Canopy Labs' Orpheus — a far more natural/expressive voice than
+// PlayAI. Model + voice are env-overridable. Falls back to PlayAI once if
+// Orpheus isn't available on the account, so a config mismatch never goes mute.
 async function groq(text: string, voice?: string) {
-  const res = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+  const model = process.env.GROQ_TTS_MODEL || 'canopylabs/orpheus-v1-english';
+  const call = (m: string, v: string) => fetch('https://api.groq.com/openai/v1/audio/speech', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'playai-tts', voice: voice || 'Fritz-PlayAI', input: text, response_format: 'wav' }),
+    body: JSON.stringify({ model: m, voice: v, input: text, response_format: 'wav' }),
   });
+
+  let res = await call(model, voice || 'autumn');
+  if (!res.ok && model.includes('orpheus')) {
+    console.warn('[tts] orpheus unavailable, falling back to playai-tts');
+    res = await call('playai-tts', 'Fritz-PlayAI');
+  }
   if (!res.ok) throw new Error(`groq ${res.status}: ${await res.text().catch(() => '')}`);
   return audio(await res.arrayBuffer(), 'audio/wav');
 }

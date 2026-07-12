@@ -198,8 +198,8 @@ export function Nav({ variant }: { variant: NavVariant }) {
               {moreOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-                  <div className="absolute right-0 mt-2 z-50 w-48 rounded-2xl p-1.5 glass anim-in"
-                       style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+                  <div className="absolute right-0 top-full mt-2 z-50 w-48 rounded-2xl p-1.5 anim-in"
+                       style={{ background: '#0d1526', border: '1px solid var(--glass-border)', boxShadow: '0 16px 44px rgba(0,0,0,0.6)' }}>
                     {moreLinks.map(({ href, label, icon }) => {
                       const active = pathname === href;
                       return (

@@ -6,6 +6,7 @@ import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
 import { playSfx } from '@/lib/sfx';
 import { hiloReading, isPossession } from '@/lib/hilo';
+import { ShareModal } from './ShareModal';
 
 /**
  * Hi-Lo: guess whether the next TxLINE reading will be higher or lower. Live,
@@ -30,15 +31,19 @@ export function HiLoGame() {
   const [last, setLast] = useState<Round>(null);
   const [flash, setFlash] = useState<'win' | 'lose' | null>(null);
   const [readingLabel, setReadingLabel] = useState('Possession');
+  const [recordBreak, setRecordBreak] = useState(0); // timestamp of the last record smash → triggers the burst
   const live = useLiveMatch();
   const isLive = !!live?.live;
 
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
+  // synchronous mirrors so the SSE callback can detect a record break reliably
+  const streakRef = useRef(0);
+  const bestRef = useRef(0);
 
   useEffect(() => {
     const b = Number(localStorage.getItem(BEST_KEY) || 0);
-    if (b) setBest(b);
+    if (b) { setBest(b); bestRef.current = b; }
   }, []);
 
   // No live match → no reading. Clear any value left over from a finished match
@@ -67,12 +72,23 @@ export function HiLoGame() {
         playSfx(win ? 'win' : 'lose');
         setTimeout(() => setFlash(null), 700);
         if (win) {
-          setStreak(s => {
-            const ns = s + 1;
-            setBest(b => { const nb = Math.max(b, ns); localStorage.setItem(BEST_KEY, String(nb)); return nb; });
-            return ns;
-          });
+          const ns = streakRef.current + 1;
+          streakRef.current = ns;
+          setStreak(ns);
+          if (ns > bestRef.current) {
+            const hadRecord = bestRef.current > 0;
+            bestRef.current = ns;
+            setBest(ns);
+            localStorage.setItem(BEST_KEY, String(ns));
+            // smashed a real previous best → the card catches fire
+            if (hadRecord) {
+              setRecordBreak(Date.now());
+              playSfx('goal');
+              setTimeout(() => setRecordBreak(0), 1800);
+            }
+          }
         } else {
+          streakRef.current = 0;
           setStreak(0);
         }
         setPending(null);
@@ -87,19 +103,31 @@ export function HiLoGame() {
     playSfx('tick');
   };
 
-  const share = () => {
-    const text = `🔥 I hit a streak of ${best} on bozPicks Hi-Lo — reading the World Cup live from TxLINE data. Beat it:`;
-    if (navigator.share) navigator.share({ text }).catch(() => {});
-    else navigator.clipboard?.writeText(text).catch(() => {});
-  };
+  const [shareOpen, setShareOpen] = useState(false);
 
   const hasReading = isLive && current != null;
   const homePoss = current ?? 50;
   const awayPoss = 100 - homePoss;
 
   return (
-    <div className={`glass sheen p-5 relative overflow-hidden h-full flex flex-col ${flash === 'lose' ? 'fx-shake' : ''}`}
-         style={{ boxShadow: flash === 'win' ? '0 0 40px rgba(16,185,129,0.35)' : flash === 'lose' ? '0 0 40px rgba(239,68,68,0.3)' : undefined, transition: 'box-shadow .3s' }}>
+    <div className={`glass sheen p-5 relative overflow-hidden h-full flex flex-col ${flash === 'lose' ? 'fx-shake' : ''} ${recordBreak ? 'fx-shake' : ''}`}
+         style={{ boxShadow: recordBreak ? '0 0 60px rgba(249,115,22,0.55)' : flash === 'win' ? '0 0 40px rgba(16,185,129,0.35)' : flash === 'lose' ? '0 0 40px rgba(239,68,68,0.3)' : undefined, transition: 'box-shadow .3s' }}>
+
+      {/* RECORD SMASHED — the card catches fire */}
+      {recordBreak > 0 && (
+        <div key={recordBreak} className="absolute inset-0 z-30 pointer-events-none overflow-hidden flex items-center justify-center">
+          <div className="boz-record-flash absolute inset-0"
+               style={{ background: 'radial-gradient(circle at 50% 60%, rgba(245,158,11,0.45), rgba(249,115,22,0.18) 45%, transparent 72%)' }} />
+          {[0,1,2,3,4,5,6,7].map(i => (
+            <span key={i} className="boz-record-flame absolute" style={{ left: `${6 + i * 12}%`, bottom: -6, fontSize: `${18 + (i % 3) * 6}px`, animationDelay: `${i * 60}ms` }}>🔥</span>
+          ))}
+          <div className="boz-record-pop relative text-center">
+            <p className="font-display font-black uppercase tracking-widest" style={{ fontSize: 'clamp(1.1rem,4vw,1.7rem)', color: '#fde68a', textShadow: '0 0 24px rgba(245,158,11,0.85), 0 2px 12px rgba(0,0,0,0.8)' }}>New Record</p>
+            <p className="font-display font-black leading-none mt-1" style={{ fontSize: 'clamp(2.4rem,9vw,3.4rem)', color: '#fb923c', textShadow: '0 0 34px rgba(249,115,22,0.8)' }}>{streak}<span className="text-2xl align-top ml-1">🔥</span></p>
+          </div>
+        </div>
+      )}
+
       {/* +1 pop on a correct read */}
       {flash === 'win' && (
         <span className="fx-pop absolute left-1/2 top-1/2 -translate-x-1/2 z-20 font-display font-black pointer-events-none"
@@ -202,13 +230,24 @@ export function HiLoGame() {
             <>Last: <span style={{ color: last.result === 'WIN' ? 'var(--green)' : 'var(--red)' }}>{last.result}</span> → {last.value}% · {rounds} rounds</>
           ) : `${rounds} rounds played`}
         </p>
-        <button onClick={share} className="text-[11px] font-bold text-[var(--blue)] hover:brightness-125 flex items-center gap-1">
+        <button onClick={() => setShareOpen(true)} className="text-[11px] font-bold text-[var(--blue)] hover:brightness-125 flex items-center gap-1">
           <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="M4 12v8h16v-8M16 6l-4-4-4 4M12 2v14" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           Share
         </button>
       </div>
+
+      {shareOpen && (
+        <ShareModal
+          data={{
+            headline: `🔥 ${best} streak`,
+            sub: 'Hi-Lo · reading the World Cup live from TxLINE data',
+            text: `🔥 I hit a streak of ${best} on bozPicks Hi-Lo — reading the World Cup live from TxLINE data. Beat it:`,
+          }}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </div>
   );
 }

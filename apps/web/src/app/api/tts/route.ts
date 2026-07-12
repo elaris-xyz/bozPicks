@@ -41,10 +41,11 @@ const audio = (buf: ArrayBuffer, type: string) =>
 
 // ── Groq TTS (OpenAI-compatible; returns WAV) ────────────────────────────────
 // Defaults to Canopy Labs' Orpheus — a far more natural/expressive voice than
-// PlayAI. The pundit is a MALE commentator, so the default voice is male ('leo';
-// other Orpheus males: 'dan', 'zac'). Set TTS_VOICE to override. Falls back to
-// PlayAI's male 'Fritz-PlayAI' if Orpheus/the voice is unavailable, so it's
-// always a male voice and never goes mute.
+// PlayAI. The pundit is a MALE commentator; Orpheus's valid male voices (checked
+// against the Groq API) are austin, daniel, troy — default 'daniel'. (females:
+// autumn, diana, hannah.) Set TTS_VOICE to override. Falls back to PlayAI's male
+// 'Fritz-PlayAI' if Orpheus/the voice is unavailable, so it's always male and
+// never goes mute.
 async function groq(text: string, voice?: string) {
   const model = process.env.GROQ_TTS_MODEL || 'canopylabs/orpheus-v1-english';
   const call = (m: string, v: string) => fetch('https://api.groq.com/openai/v1/audio/speech', {
@@ -53,7 +54,7 @@ async function groq(text: string, voice?: string) {
     body: JSON.stringify({ model: m, voice: v, input: text, response_format: 'wav' }),
   });
 
-  let res = await call(model, voice || 'leo');
+  let res = await call(model, voice || 'daniel');
   if (!res.ok && model.includes('orpheus')) {
     console.warn('[tts] orpheus/voice unavailable, falling back to playai-tts (Fritz, male)');
     res = await call('playai-tts', 'Fritz-PlayAI');

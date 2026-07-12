@@ -18,12 +18,13 @@ export const dynamic = 'force-dynamic';
  * Optional: TTS_VOICE overrides the default voice for the active provider.
  */
 export async function POST(req: NextRequest) {
-  let text = '';
-  try { ({ text } = await req.json()); } catch { /* ignore */ }
+  let text = '', bodyVoice: string | undefined;
+  try { const b = await req.json(); text = b.text; bodyVoice = b.voice; } catch { /* ignore */ }
   text = (text ?? '').toString().slice(0, 400).trim();
   if (!text) return new Response('missing text', { status: 400 });
 
-  const V = process.env.TTS_VOICE;
+  // per-request voice (client picker) wins over the env default
+  const V = (typeof bodyVoice === 'string' && bodyVoice.trim()) || process.env.TTS_VOICE;
   try {
     if (process.env.GROQ_API_KEY)       return await groq(text, V);
     if (process.env.DEEPGRAM_API_KEY)   return await deepgram(text, V);

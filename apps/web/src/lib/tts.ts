@@ -27,6 +27,8 @@ let queue: string[] = [];
 let active = false;
 /** commentator energy: 0 calm · 1 live · 2 hyped — affects web-speech pace/pitch. */
 let excitement = 1;
+/** chosen neural voice (Orpheus: daniel/austin/troy/autumn/diana/hannah). */
+let voicePref: string | null = null;
 let listener: ((onAir: boolean) => void) | null = null;
 let audioEl: HTMLAudioElement | null = null;
 /** null = untried, true = neural /api/tts works, false = no provider (204) → skip it. */
@@ -67,6 +69,15 @@ export function getExcitement(): number {
   return excitement;
 }
 
+/** Choose the neural commentator voice (Orpheus voice name, or null = default). */
+export function setVoicePref(v: string | null) {
+  voicePref = v || null;
+  neuralOk = null; // re-try neural with the new voice
+}
+export function getVoicePref(): string | null {
+  return voicePref;
+}
+
 /** True once a neural /api/tts voice has successfully played (human voice on). */
 export function neuralActive(): boolean {
   return neuralOk === true;
@@ -91,7 +102,7 @@ async function speakNeural(text: string): Promise<boolean> {
   try {
     const res = await fetch('/api/tts', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean(text) }),
+      body: JSON.stringify({ text: clean(text), voice: voicePref || undefined }),
     });
     if (res.status === 204) { neuralOk = false; return false; } // no provider configured
     if (!res.ok || !(res.headers.get('content-type') || '').startsWith('audio')) return false;
@@ -161,13 +172,23 @@ function stopCurrent() {
 export function say(text: string, priority: 'high' | 'low' = 'low') {
   if (!hasWindow() || !text) return;
   if (priority === 'high') {
-    queue = [...queue, text].slice(-2); // finish current, then play up to 2 pending
+    // finish the current line, then speak only the LATEST big moment — a newer
+    // one replaces any still-pending line so the pundit stays current and never
+    // runs long after the play (goals rain in, the commentator catches up, not
+    // a backlog that finishes seconds after full time).
+    queue = [text];
     if (!active) drain();
   } else {
     if (active || queue.length > 0) return;
     queue.push(text);
     drain();
   }
+}
+
+/** Drop anything queued but let the current line finish (used at full time so
+    stale chatter doesn't run on after the match). */
+export function clearPending() {
+  queue = [];
 }
 
 /** Silence everything (voice toggled off / component unmount). */

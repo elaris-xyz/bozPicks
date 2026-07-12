@@ -5,7 +5,17 @@ import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, BozEventType } from '@bozpicks/shared';
 import { punditLine, PUNDIT_ALWAYS, spokenFor, forSpeech } from '@/lib/pundit';
-import { initVoice, onSpeaking, say, stopSpeaking, voiceName, neuralActive, setExcitement } from '@/lib/tts';
+import { initVoice, onSpeaking, say, stopSpeaking, voiceName, neuralActive, setExcitement, setVoicePref, clearPending } from '@/lib/tts';
+
+// Selectable neural commentator voices (Groq/Orpheus — verified valid).
+const VOICES = [
+  { id: 'daniel', label: 'Daniel', sex: 'M' },
+  { id: 'austin', label: 'Austin', sex: 'M' },
+  { id: 'troy',   label: 'Troy',   sex: 'M' },
+  { id: 'diana',  label: 'Diana',  sex: 'F' },
+  { id: 'hannah', label: 'Hannah', sex: 'F' },
+  { id: 'autumn', label: 'Autumn', sex: 'F' },
+];
 
 /**
  * Live AI Pundit booth. Turns the TxLINE stream into running commentary with a
@@ -30,6 +40,8 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   const [excite, setExcite] = useState(1); // 0 calm · 1 live · 2 hyped
   const exciteRef = useRef(excite);
   exciteRef.current = excite;
+  const [pvoice, setPvoice] = useState('daniel');
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const lastOdds = useRef(0);
   const ttsRef = useRef(tts);
   ttsRef.current = tts;
@@ -40,6 +52,8 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
     initVoice();
     const saved = Number(localStorage.getItem('boz_pundit_excite'));
     if (saved === 0 || saved === 1 || saved === 2) { setExcite(saved); setExcitement(saved); }
+    const sv = localStorage.getItem('boz_pundit_voice');
+    if (sv && VOICES.some(v => v.id === sv)) { setPvoice(sv); setVoicePref(sv); } else { setVoicePref('daniel'); }
     const t = setTimeout(() => setVName(voiceName()), 400);
     const off = onSpeaking(air => { setOnAir(air); if (!air) setNeural(neuralActive()); });
     return () => { clearTimeout(t); off(); stopSpeaking(); };
@@ -48,6 +62,10 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   const chooseExcite = (level: number) => {
     setExcite(level); setExcitement(level);
     try { localStorage.setItem('boz_pundit_excite', String(level)); } catch { /* ignore */ }
+  };
+  const chooseVoice = (id: string) => {
+    setPvoice(id); setVoicePref(id); setVoiceOpen(false);
+    try { localStorage.setItem('boz_pundit_voice', id); } catch { /* ignore */ }
   };
 
   useSSE({
@@ -93,6 +111,9 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
       } else {
         const line = punditLine(e, home, away) ?? '';
         push(line);
+        // at full time, drop any queued chatter so the pundit wraps up promptly
+        // rather than talking on for several seconds after the whistle
+        if (e.type === 'MATCH_END') clearPending();
         if (ttsRef.current) {
           const s = spokenFor(e, home, away);
           if (s) say(s.text, s.priority);
@@ -160,43 +181,83 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* commentator energy — how much he talks + how hyped he sounds */}
-          {tts && (
-            <div className="flex items-center gap-0.5 p-0.5 rounded-full" title="Commentator energy"
-                 style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
-              {[
-                { lvl: 0, label: 'Calm', bars: 1 },
-                { lvl: 1, label: 'Live', bars: 2 },
-                { lvl: 2, label: 'Hyped', bars: 3 },
-              ].map(o => {
-                const on = excite === o.lvl;
-                return (
-                  <button key={o.lvl} onClick={() => chooseExcite(o.lvl)} title={o.label}
-                    className="flex items-end gap-[1.5px] h-6 px-1.5 rounded-full transition-all"
-                    style={on ? { background: 'var(--purple-dim)' } : undefined}>
+        <button onClick={toggleTts} title="Commentary voice"
+          className="flex-shrink-0 text-[10px] font-bold px-2.5 h-7 rounded-full transition-all flex items-center gap-1"
+          style={tts ? { background: 'var(--purple-dim)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.45)' } : { background: 'var(--glass-bg)', color: '#6b7280', border: '1px solid var(--glass-border)' }}>
+          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            {tts ? <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14" /></>
+                 : <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M22 9l-6 6M16 9l6 6" /></>}
+          </svg>
+          {tts ? 'On' : 'Voice'}
+        </button>
+      </div>
+
+      {/* commentator controls — energy (how much he talks + how hyped) + voice */}
+      {tts && (
+        <div className="flex items-center justify-between gap-2 mb-3">
+          {/* energy: a polished 3-stop selector with animated signal bars */}
+          <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--glass-border)' }}>
+            {[
+              { lvl: 0, label: 'Calm', bars: 1 },
+              { lvl: 1, label: 'Live', bars: 2 },
+              { lvl: 2, label: 'Hyped', bars: 3 },
+            ].map(o => {
+              const on = excite === o.lvl;
+              return (
+                <button key={o.lvl} onClick={() => chooseExcite(o.lvl)} title={`${o.label} energy`}
+                  className="flex items-center gap-1 px-2 h-6 rounded-lg transition-all"
+                  style={on
+                    ? { background: 'linear-gradient(135deg, rgb(var(--c-purple)), rgb(var(--c-blue)))', boxShadow: '0 0 12px rgba(167,139,250,0.4)' }
+                    : {}}>
+                  <span className="flex items-end gap-[2px] h-3.5">
                     {[0, 1, 2].map(b => (
-                      <span key={b} className="w-[2.5px] rounded-full" style={{
-                        height: `${5 + b * 3}px`,
-                        background: on && b < o.bars ? 'var(--purple)' : 'rgba(255,255,255,0.18)',
+                      <span key={b} className="w-[3px] rounded-full transition-all" style={{
+                        height: `${4 + b * 4}px`,
+                        background: on ? (b < o.bars ? '#fff' : 'rgba(255,255,255,0.35)') : (b < o.bars ? 'rgba(167,139,250,0.7)' : 'rgba(255,255,255,0.15)'),
                       }} />
                     ))}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <button onClick={toggleTts} title="Commentary voice"
-            className="text-[10px] font-bold px-2.5 h-7 rounded-full transition-all flex items-center gap-1"
-            style={tts ? { background: 'var(--purple-dim)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.45)' } : { background: 'var(--glass-bg)', color: '#6b7280', border: '1px solid var(--glass-border)' }}>
-            <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              {tts ? <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14" /></>
-                   : <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M22 9l-6 6M16 9l6 6" /></>}
-            </svg>
-            {tts ? 'On' : 'Voice'}
-          </button>
+                  </span>
+                  <span className="text-[10px] font-bold" style={{ color: on ? '#fff' : '#8b98ad' }}>{o.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* voice picker */}
+          <div className="relative flex-shrink-0">
+            <button onClick={() => setVoiceOpen(o => !o)} title="Commentator voice"
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl transition-all"
+              style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--glass-border)', color: '#c4b5fd' }}>
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
+              </svg>
+              <span className="text-[11px] font-bold">{VOICES.find(v => v.id === pvoice)?.label ?? 'Voice'}</span>
+              <svg viewBox="0 0 24 24" className={`w-3 h-3 transition-transform ${voiceOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            {voiceOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setVoiceOpen(false)} />
+                <div className="absolute right-0 mt-1.5 z-50 w-36 rounded-xl p-1 anim-in"
+                     style={{ background: '#0d1526', border: '1px solid var(--glass-border)', boxShadow: '0 12px 34px rgba(0,0,0,0.55)' }}>
+                  {VOICES.map(v => {
+                    const on = v.id === pvoice;
+                    return (
+                      <button key={v.id} onClick={() => chooseVoice(v.id)}
+                        className="w-full flex items-center justify-between px-2.5 h-8 rounded-lg text-[12px] font-semibold transition-colors"
+                        style={on ? { background: 'var(--purple-dim)', color: 'var(--purple)' } : { color: '#cbd5e1' }}
+                        onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                        onMouseLeave={e => { if (!on) e.currentTarget.style.background = 'transparent'; }}>
+                        {v.label}
+                        <span className="text-[8px] font-black px-1 py-0.5 rounded" style={{ background: v.sex === 'M' ? 'rgba(59,130,246,0.18)' : 'rgba(236,72,153,0.18)', color: v.sex === 'M' ? '#93c5fd' : '#f9a8d4' }}>{v.sex}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* live equaliser — animates while a line is on air */}
       <div className="flex items-end gap-[3px] h-5 mb-3 px-0.5" aria-hidden>

@@ -19,8 +19,11 @@ export function HomeHero() {
 
       {/* striker art, right side (desktop) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
+      {/* pulled down (bottom -16%) so the striker/ground reaches the card's
+          bottom edge — the PNG's transparent bottom padding is clipped by the
+          card's overflow-hidden instead of leaving an empty strip */}
       <img src="/hero-striker-baner.png" alt="" aria-hidden
-           className="hidden lg:block absolute right-0 bottom-0 h-[168%] w-auto max-w-none object-contain object-right-bottom pointer-events-none select-none"
+           className="hidden lg:block absolute right-0 bottom-[-16%] h-[172%] w-auto max-w-none object-contain object-right-bottom pointer-events-none select-none"
            style={{ filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.5))', maskImage: 'linear-gradient(90deg, transparent, #000 22%)', WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 22%)' }} />
 
       <div className="relative p-5 md:p-7 lg:max-w-[58%]">

@@ -17,14 +17,14 @@ export function punditLine(e: BozEvent, home?: string, away?: string): string | 
   switch (e.type) {
     case 'GOAL':
       return pick([
-        `⚽ ${team} strike at ${min}'! ${sc} now — expect the market to pile in and their price to tumble.`,
-        `GOAL, ${team}! ${sc} at ${min}'. Momentum's flipped; live traders are already repricing this.`,
-        `${team} find the net (${min}'). ${sc}. That's a 15–30% swing in win probability right there.`,
+        `And there it is — ${team} find the net at ${min}'! It's ${sc}, and you can feel the momentum swinging their way.`,
+        `Oh, what a moment — ${team} strike! ${sc} at ${min}', and the whole complexion of this match has just changed.`,
+        `${team} break through at ${min}'! ${sc} now — the market's reacting fast, and their price is tumbling.`,
       ]);
     case 'RED_CARD':
       return pick([
-        `🟥 Red card — ${team} down to ten at ${min}'! Draw and opposition odds are about to shorten hard.`,
-        `${team} lose a man (${min}'). Numbers matter now; the model favours their opponents from here.`,
+        `Red card — ${team} are down to ten at ${min}'! A mountain to climb from here, and the odds know it.`,
+        `Off he goes — ${team} lose a man at ${min}'. That changes everything; their opponents are firm favourites now.`,
       ]);
     case 'YELLOW_CARD':
       return `Yellow for ${team} at ${min}' — tread carefully, a second booking changes everything.`;
@@ -63,6 +63,19 @@ export function punditLine(e: BozEvent, home?: string, away?: string): string | 
     default:
       return null;
   }
+}
+
+/**
+ * Clean a display line for the VOICE: drop emoji/symbols the reader would
+ * otherwise sound out, normalise the score dash to "to", and tidy spacing — so
+ * a rich on-screen line reads as natural spoken commentary.
+ */
+export function forSpeech(line: string): string {
+  return line
+    .replace(/[\p{Extended_Pictographic}☀-➿️]/gu, ' ') // emoji/symbols
+    .replace(/(\d)\s*[–—-]\s*(\d)/g, '$1 to $2')                       // 2–1 → "2 to 1"
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 /** Which events are worth a line, and how often odds ticks may speak (ms). */

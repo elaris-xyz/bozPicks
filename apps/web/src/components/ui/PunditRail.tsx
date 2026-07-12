@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, BozEventType } from '@bozpicks/shared';
-import { punditLine, PUNDIT_ALWAYS, spokenFor } from '@/lib/pundit';
+import { punditLine, PUNDIT_ALWAYS, spokenFor, forSpeech } from '@/lib/pundit';
 import { initVoice, onSpeaking, say, stopSpeaking, voiceName, neuralActive } from '@/lib/tts';
 
 /**
@@ -58,25 +58,32 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
         setLines(prev => [...prev.slice(-14), { id: `${e.id}-${Date.now()}`, text, ai, kind: e.type }]);
       };
 
-      // Voice: only the big moments, in a short punchy line (barge-in). Routine
-      // events are shown on screen but not spoken — no overlap, no clipping.
-      if (ttsRef.current) {
-        const s = spokenFor(e, home, away);
-        if (s) say(s.text, s.priority);
-      }
-
-      // Screen line: big moments get a real LLM line (Claude Haiku, with a
-      // template fallback); everything else uses the instant local template.
+      // GOAL / RED — the commentator's moment. The goal *sound* + on-screen burst
+      // fire instantly; then, a beat later, the pundit delivers the FULL human
+      // line (Claude, with a template fallback) both on screen AND in the voice —
+      // just like real TV, where the crowd roars first and the caller's line
+      // lands a second later. That small lag is intentional, not a glitch.
       if (e.type === 'GOAL' || e.type === 'RED_CARD') {
+        const deliver = (line: string, ai: boolean) => {
+          if (!line) return;
+          push(line, ai);
+          if (ttsRef.current) say(forSpeech(line), 'high'); // rich line, spoken
+        };
         fetch('/api/pundit', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ event: e, home, away }),
         })
           .then(r => r.json())
-          .then((d: { line?: string; ai?: boolean }) => push(d.line ?? punditLine(e, home, away) ?? '', !!d.ai))
-          .catch(() => push(punditLine(e, home, away) ?? ''));
+          .then((d: { line?: string; ai?: boolean }) => deliver(d.line ?? punditLine(e, home, away) ?? '', !!d.ai))
+          .catch(() => deliver(punditLine(e, home, away) ?? '', false));
       } else {
         push(punditLine(e, home, away) ?? '');
+        // other notable moments (penalty, kickoff, full time) get a short spoken
+        // line immediately; routine chatter (corners, cards) is shown, not voiced
+        if (ttsRef.current) {
+          const s = spokenFor(e, home, away);
+          if (s) say(s.text, s.priority);
+        }
       }
     },
   });

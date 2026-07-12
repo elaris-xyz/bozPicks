@@ -14,7 +14,7 @@ const LINKS = [
 
 export function HomeHero() {
   return (
-    <div className="glass fx-rise relative overflow-hidden">
+    <div className="glass cyber-corners fx-rise relative overflow-hidden">
       <HeroAura color="var(--blue)" />
 
       {/* striker art, right side (desktop) */}

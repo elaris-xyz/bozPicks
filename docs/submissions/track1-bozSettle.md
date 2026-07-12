@@ -41,19 +41,47 @@ receipt** for every market (stat key/value, Merkle root, proof nodes, and the
 - **Command Bridge** (bottom-left ⚡ on every page): pick a real TxLINE fixture,
   choose the exact outcome, run — all six markets settle to it, verifiably.
 
+## Settlement path (the real one)
+1. Select the decisive record: `Action = game_finalised` (statusId 100, period
+   Total) — never an in-play/90-minute record. This already accounts for ET +
+   penalties.
+2. Prove the deciding stats via `GET /api/scores/stat-validation?fixtureId=&seq=
+   &statKeys=…` and CPI into **validateStatV2**, reading the returned bool.
+3. Each market proves its REAL TxLINE Stats keys (team-confirmed legend, goals
+   1/2, yellow 3/4, red 5/6, corners 7/8): winner/goals/BTTS → 1,2 ·
+   corners → 7,8 · cards → 3,4,5,6. Shown on every receipt.
+4. Leaf format we reproduce locally (`lib/statproof.ts`, unit-tested):
+   `sha256(u32_le(key) ‖ i32_le(value) ‖ i32_le(period))`, folded by
+   `is_right_sibling` — so a real proof is verifiable client-side too, not just
+   trusted from the feed.
+
+**Data-licence note:** our judge demo replays a *synthetic, deterministic*
+match (no recorded TxLINE data is bundled or redistributed), so it stays within
+§7.1 "use" and never ships the feed's data.
+
+**Abandoned matches:** phase codes 14/15/16/19 aren't carried in the proven
+ScoreStat leaf, so an abandoned fixture can't be settled trustlessly — we fall
+back to a full refund rather than an oracle switch.
+
 ## TxLINE endpoints used
-- `POST /auth/guest/start`, `POST /api/token/activate` — access (free WC tier).
+- `POST /auth/guest/start`, `POST /api/token/activate` — access (free WC tier,
+  devnet host `txline-dev.txodds.com`; same network for tx + JWT + activation).
 - `GET /api/fixtures/snapshot` — auto-create markets per fixture.
 - `GET /api/scores/stream` — watch for the authoritative `game_finalised` record.
 - `GET /api/scores/historical/{fixtureId}` — canonical final stats for resolution.
-- `GET /api/scores/stat-validation` — Merkle proof for `validateStatV2` (total-goals stat keys 1/2, per TxLINE team guidance).
+- `GET /api/scores/stat-validation?fixtureId=&seq=&statKeys=` — Merkle proof for
+  `validateStatV2` (goals 1,2 · corners 7,8 · cards 3,4,5,6).
 - `GET /api/odds/snapshot/{fixtureId}` — pre-match implied prob for seeding.
 
 ## API feedback
 - **Loved:** the on-chain Merkle anchoring + `validate_stat` primitive — it makes
-  "trustless settlement" real instead of aspirational, and the canonicalised
-  single schema made multi-market resolution straightforward.
-- **Friction:** the historical `Scores` shape (nested `scoreSoccer.*.Total`)
-  differs from the SSE shape (flat `score.*`), so we had to read defensively;
-  documented stat-key codes for non-score markets (corners/cards) would let us
-  prove those markets on-chain too, not just the score.
+  "trustless settlement" real instead of aspirational, and the confirmed
+  stat-key legend let us prove corners/cards on-chain too, not just the score.
+  CPI into `validateStatV2` verified at ~55–175k CU, well under the 1.4M ceiling,
+  leaving room for our own escrow logic.
+- **Friction:** the stat-key legend (period prefixes 1000–7000, base keys 1–8)
+  and the Merkle leaf spec weren't in the public docs — we relied on the team's
+  channel answers. A dedicated **phase/status proof** (abandoned vs finished) and
+  documented **correction semantics** (is `game_finalised` exactly-once? do
+  corrections carry strictly-increasing timestamps?) would let settlement handle
+  edge cases trustlessly instead of with a refund/timeout fallback.

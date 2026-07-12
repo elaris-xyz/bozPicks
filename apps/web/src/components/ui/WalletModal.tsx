@@ -253,6 +253,11 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
             <p className="text-[10px] text-center text-gray-600 pt-1">
               Devnet only — no real funds. Your keys never leave the wallet.
             </p>
+            {/* Phantom's default devnet RPC often builds+signs but never lands a
+                tx; Solflare is reliable there. Honest heads-up for the demo. */}
+            <p className="text-[10px] text-center text-gray-600">
+              On devnet, <span className="text-gray-400 font-semibold">Solflare</span> lands transactions most reliably.
+            </p>
           </div>
         )}
       </div>

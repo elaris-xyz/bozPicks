@@ -240,6 +240,7 @@ export interface PropMarket {
 export interface SettlementReceipt {
   statKey: StatKey;
   statValue: number;           // the resolved value (e.g. 11 total corners)
+  txlineStatKeys: number[];    // the real TxLINE Stats keys this market proves (e.g. [7,8] corners)
   fixtureId: string;
   txlineRecordId: string;      // TxScores.id / seq that carried the final stat
   merkleRoot: string;          // on-chain root the record proves against

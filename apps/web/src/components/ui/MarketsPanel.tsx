@@ -66,6 +66,9 @@ function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
         <div className="px-3 pb-3 pt-0.5 anim-in" style={{ borderTop: `1px solid rgba(${rgb},0.15)` }}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] text-gray-400 font-mono mt-2">
             <dt className="text-gray-600">fixture</dt><dd className="truncate">{r.fixtureId}</dd>
+            {r.txlineStatKeys?.length > 0 && (
+              <><dt className="text-gray-600">stat keys</dt><dd title="Real TxLINE Stats keys proved via validateStatV2">{r.txlineStatKeys.join(', ')}</dd></>
+            )}
             <dt className="text-gray-600">record</dt><dd>{short(r.txlineRecordId, 8)}</dd>
             <dt className="text-gray-600">root</dt><dd className="truncate" title={r.merkleRoot}>{short(r.merkleRoot, 8)}</dd>
             <dt className="text-gray-600">validate_stat</dt><dd className="truncate" title={r.validateTx} style={{ color: onchain ? 'var(--blue)' : '#94a3b8' }}>{short(r.validateTx, 8)}</dd>

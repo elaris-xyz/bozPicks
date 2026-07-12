@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import type { PropMarket, SettlementReceipt } from '@bozpicks/shared';
-import { resolveMarket, payoutFor, type FinalStats } from '@/lib/markets';
+import { resolveMarket, payoutFor, TXLINE_STAT_KEYS, type FinalStats } from '@/lib/markets';
 import { moveVault } from '@/lib/vault';
 
 /**
@@ -19,6 +19,7 @@ export function buildReceipt(m: PropMarket, fixtureId: string, statValue: number
   return {
     statKey: m.statKey,
     statValue,
+    txlineStatKeys: TXLINE_STAT_KEYS[m.kind] ?? [],
     fixtureId,
     txlineRecordId: recordId,
     merkleRoot: root,

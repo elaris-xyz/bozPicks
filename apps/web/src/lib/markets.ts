@@ -1,4 +1,5 @@
 import type { PropMarket, MarketKind, StatKey, SettlementReceipt } from '@bozpicks/shared';
+import { statKey } from '@bozpicks/txline-client';
 
 /**
  * Parametric prop markets derived from TxLINE stats. Every market resolves
@@ -36,10 +37,20 @@ const TEMPLATES: Template[] = [
     label: (h, a) => `First Goal — ${h} / ${a} / None` },
 ];
 
-/** TxLINE stat-key codes used in validate_stat (score = 1002; others reserved). */
-export const STAT_KEY_CODE: Record<StatKey, number> = {
-  RESULT: 1002, GOALS_TOTAL: 1002, GOALS_HOME: 1003, GOALS_AWAY: 1004,
-  CORNERS_TOTAL: 1010, CARDS_TOTAL: 1020, FIRST_SCORER: 1030,
+/**
+ * The REAL TxLINE `Stats` keys that decide each market — validated on-chain via
+ * validateStatV2 against the `game_finalised` record (period = Total). Derived
+ * from the team-confirmed legend (goals 1/2, yellow 3/4, red 5/6, corners 7/8),
+ * NOT the earlier placeholder codes (1002 etc., which were actually H1 keys).
+ */
+const G = [statKey('GOALS', 1), statKey('GOALS', 2)];         // [1, 2]
+export const TXLINE_STAT_KEYS: Record<MarketKind, number[]> = {
+  MATCH_WINNER:  G,                                            // winner from final goals
+  TOTAL_GOALS:   G,
+  BTTS:          G,                                            // both participants' goals
+  FIRST_SCORER:  G,                                            // anchored by goals (order from goal events)
+  TOTAL_CORNERS: [statKey('CORNERS', 1), statKey('CORNERS', 2)],                     // [7, 8]
+  TOTAL_CARDS:   [statKey('YELLOW', 1), statKey('YELLOW', 2), statKey('RED', 1), statKey('RED', 2)], // [3,4,5,6]
 };
 
 export function buildMarketsForMatch(matchId: string, home: string, away: string, escrowPda: string): PropMarket[] {

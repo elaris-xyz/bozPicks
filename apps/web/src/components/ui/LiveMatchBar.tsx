@@ -56,11 +56,16 @@ export function LiveMatchBar() {
           the exact same spot — a seamless hand-off, no teleport to the start. */}
       {goal && (
         <div key={goal.id} className="fixed inset-0 z-[120] pointer-events-none" aria-hidden>
-          <div className="boz-goal-ball absolute" style={{ left: `${pct}%`, bottom: 18, marginLeft: -16, ['--dx' as string]: `${goal.dx}px`, willChange: 'transform' }}>
-            <div className="relative" style={{ width: 32, height: 32 }}>
-              {/* pulsing energy aura (does not spin) */}
+          {/* The ball is the SAME 18px as the one riding the bar — it just
+              scales UP to the apex and back down to 1× (=18px), so when it lands
+              it's exactly the bar ball's size and the hand-off is seamless (no
+              snap-shrink). It also spins slowly (boz-ball-spin-slow). */}
+          <div className="boz-goal-ball absolute" style={{ left: `${pct}%`, bottom: 10, marginLeft: -9, ['--dx' as string]: `${goal.dx}px`, willChange: 'transform' }}>
+            <div className="relative" style={{ width: 18, height: 18 }}>
+              {/* pulsing energy aura (does not spin). sized small — the whole
+                  ball scales up ~6× at the apex, which enlarges this with it */}
               <span className="boz-goal-aura absolute left-1/2 top-1/2" style={{
-                width: 96, height: 96, marginLeft: -48, marginTop: -48, borderRadius: '9999px',
+                width: 54, height: 54, marginLeft: -27, marginTop: -27, borderRadius: '9999px',
                 background: 'radial-gradient(circle, rgba(52,211,153,0.6) 0%, rgba(59,130,246,0.25) 45%, transparent 70%)',
               }} />
               {/* comet trail streaking behind the ball (does not spin) */}
@@ -69,8 +74,8 @@ export function LiveMatchBar() {
                 background: 'linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(52,211,153,0.4), transparent)',
                 filter: 'blur(4px)', borderRadius: '9999px',
               }} />
-              {/* only the ball itself spins */}
-              <div className="boz-ball-spin absolute inset-0"><Ball size={32} glow /></div>
+              {/* only the ball itself spins — slowly */}
+              <div className="boz-ball-spin-slow absolute inset-0"><Ball size={18} glow /></div>
             </div>
           </div>
           {/* GOAL word — sits below the ball's apex */}

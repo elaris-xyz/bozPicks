@@ -260,6 +260,8 @@
   /* the little ball orbits (spins) and gently bobs as the clock advances */
   .boz-ball-spin { animation: boz-ball-spin 2.4s linear infinite; }
   @keyframes boz-ball-spin { to { transform: rotate(360deg); } }
+  /* the goal ball tumbles slowly as it flies + rolls (calm, not a blur) */
+  .boz-ball-spin-slow { animation: boz-ball-spin 4.5s linear infinite; }
   .boz-ball-bob { animation: boz-ball-bob 1.6s ease-in-out infinite; }
   @keyframes boz-ball-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 
@@ -267,22 +269,26 @@
      distance to screen centre) up to centre-screen, swells, holds, then flies
      back to that same spot and bounces a couple of times before rejoining the
      run of play. translate origin is the ball's home position. */
-  .boz-goal-ball { animation: boz-goal-ball 2.6s cubic-bezier(0.4,0,0.2,1) both; }
+  /* The ball launches from the bar (1× = bar-ball size), swells to the apex,
+     then shrinks BACK to 1× DURING the descent so by the time it nears the line
+     it is already the final bar-ball size — it then lands behind the leading
+     edge and rolls forward at that size to the front. No rotation here (the ball
+     spins slowly on its own via boz-ball-spin-slow, so the aura/trail don't
+     rotate), and it ends at exactly the size of the ball riding the bar → the
+     hand-off is seamless, no snap-shrink. */
+  .boz-goal-ball { animation: boz-goal-ball 2.7s cubic-bezier(0.4,0,0.2,1) both; }
   @keyframes boz-goal-ball {
-    0%   { transform: translate(0, 0)               scale(1)  rotate(0deg);   opacity: 0.3; }
+    0%   { transform: translate(0, 0)              scale(1);  opacity: 0.3; }
     8%   { opacity: 1; }
-    30%  { transform: translate(var(--dx), -50vh)   scale(3.4) rotate(320deg); } /* up to centre, big */
-    56%  { transform: translate(var(--dx), -50vh)   scale(3.4) rotate(360deg); } /* hold at centre */
-    /* comes down at FINAL size and lands BEHIND the leading edge (to the left),
-       then ROLLS forward — translateX climbs toward 0 while rotation keeps
-       increasing (a real rolling ball) with a couple of small hops — until it
-       reaches the front of the progress. No shrink, no teleport. */
-    66%  { transform: translate(-72px, 0)           scale(1)  rotate(560deg); animation-timing-function: cubic-bezier(0.3,0,0.15,1); } /* land behind, impact */
-    72%  { transform: translate(-66px, -16px)       scale(1)  rotate(600deg); } /* first hop, still behind */
-    80%  { transform: translate(-44px, 0)           scale(1)  rotate(700deg); } /* rolling forward */
-    86%  { transform: translate(-30px, -8px)        scale(1)  rotate(760deg); } /* small hop, rolling on */
-    93%  { transform: translate(-12px, 0)           scale(1)  rotate(820deg); } /* rolling to the edge */
-    100% { transform: translate(0, 0)               scale(1)  rotate(880deg);  opacity: 1; } /* reaches the front */
+    28%  { transform: translate(var(--dx), -50vh)  scale(6); } /* up to centre, big */
+    54%  { transform: translate(var(--dx), -50vh)  scale(6); } /* hold big at centre */
+    64%  { transform: translate(-72px, -8vh)       scale(1); animation-timing-function: cubic-bezier(0.35,0,0.2,1); } /* descended + already final size */
+    69%  { transform: translate(-72px, 0)          scale(1); } /* lands behind the edge */
+    75%  { transform: translate(-62px, -13px)      scale(1); } /* soft hop */
+    83%  { transform: translate(-42px, 0)          scale(1); } /* rolling forward */
+    89%  { transform: translate(-26px, -7px)       scale(1); } /* small hop */
+    95%  { transform: translate(-10px, 0)          scale(1); } /* rolling to the edge */
+    100% { transform: translate(0, 0)              scale(1);  opacity: 1; } /* reaches the front */
   }
   /* cinematic goal-ball dressing: a pulsing aura and a comet trail that flare
      up as the ball launches and fade as it settles */
@@ -340,7 +346,7 @@
     .fx-flame, .fx-pop, .fx-shake, .fx-open-pulse, .fx-scan::after { animation: none; }
     /* decorative motion off — cards, coins, pulses and the whole live-match
        ball choreography settle to their resting state (still fully visible) */
-    .boz-card-in, .boz-youpin, .boz-coin, .boz-vault-pop, .boz-ball-spin,
+    .boz-card-in, .boz-youpin, .boz-coin, .boz-vault-pop, .boz-ball-spin, .boz-ball-spin-slow,
     .boz-ball-bob, .boz-goal-ball, .boz-goal-aura, .boz-goal-trail,
     .boz-goal-word, .boz-goal-team, .boz-eq, .boz-flow, .boz-poolshine,
     .boz-stakechip, .boz-settle-ring, .boz-stampin, .fx-rise, .anim-in { animation: none !important; }

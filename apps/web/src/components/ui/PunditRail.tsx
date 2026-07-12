@@ -5,7 +5,7 @@ import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, BozEventType } from '@bozpicks/shared';
 import { punditLine, PUNDIT_ALWAYS, spokenFor, forSpeech } from '@/lib/pundit';
-import { initVoice, onSpeaking, say, stopSpeaking, voiceName, neuralActive } from '@/lib/tts';
+import { initVoice, onSpeaking, say, stopSpeaking, voiceName, neuralActive, setExcitement } from '@/lib/tts';
 
 /**
  * Live AI Pundit booth. Turns the TxLINE stream into running commentary with a
@@ -27,6 +27,9 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   const [onAir, setOnAir] = useState(false);
   const [vName, setVName] = useState<string | null>(null);
   const [neural, setNeural] = useState(false);
+  const [excite, setExcite] = useState(1); // 0 calm · 1 live · 2 hyped
+  const exciteRef = useRef(excite);
+  exciteRef.current = excite;
   const lastOdds = useRef(0);
   const ttsRef = useRef(tts);
   ttsRef.current = tts;
@@ -35,10 +38,17 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   // load the best available voice + track on-air state for the equaliser
   useEffect(() => {
     initVoice();
+    const saved = Number(localStorage.getItem('boz_pundit_excite'));
+    if (saved === 0 || saved === 1 || saved === 2) { setExcite(saved); setExcitement(saved); }
     const t = setTimeout(() => setVName(voiceName()), 400);
     const off = onSpeaking(air => { setOnAir(air); if (!air) setNeural(neuralActive()); });
     return () => { clearTimeout(t); off(); stopSpeaking(); };
   }, []);
+
+  const chooseExcite = (level: number) => {
+    setExcite(level); setExcitement(level);
+    try { localStorage.setItem('boz_pundit_excite', String(level)); } catch { /* ignore */ }
+  };
 
   useSSE({
     onMessage: (msg: SSEMessage) => {
@@ -46,11 +56,15 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
       const e = msg.data as BozEvent;
       if (msg.catchup) return; // history replay, not a live moment
 
+      const ex = exciteRef.current; // 0 calm · 1 live · 2 hyped
       if (e.type === 'ODDS_UPDATE') {
-        if (Date.now() - lastOdds.current < 12000) return;   // throttle ticks
+        if (Date.now() - lastOdds.current < (ex >= 2 ? 8000 : 12000)) return;  // throttle ticks
         lastOdds.current = Date.now();
-      } else if (!PUNDIT_ALWAYS.has(e.type) && Math.random() > 0.5) {
-        return; // sprinkle in some corners/yellows, not all
+      } else if (!PUNDIT_ALWAYS.has(e.type)) {
+        // routine chatter (corners/shots/yellows): let more through the higher
+        // the energy so the booth never goes quiet — calm 25% · live 55% · hyped 90%
+        const keep = ex >= 2 ? 0.9 : ex === 1 ? 0.55 : 0.25;
+        if (Math.random() > keep) return;
       }
 
       const push = (text: string, ai = false) => {
@@ -77,12 +91,14 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
           .then((d: { line?: string; ai?: boolean }) => deliver(d.line ?? punditLine(e, home, away) ?? '', !!d.ai))
           .catch(() => deliver(punditLine(e, home, away) ?? '', false));
       } else {
-        push(punditLine(e, home, away) ?? '');
-        // other notable moments (penalty, kickoff, full time) get a short spoken
-        // line immediately; routine chatter (corners, cards) is shown, not voiced
+        const line = punditLine(e, home, away) ?? '';
+        push(line);
         if (ttsRef.current) {
           const s = spokenFor(e, home, away);
           if (s) say(s.text, s.priority);
+          // Hyped: also read the on-screen chatter (low priority — only when the
+          // booth is quiet), so the pundit keeps talking between big moments.
+          else if (ex >= 2 && line) say(forSpeech(line), 'low');
         }
       }
     },
@@ -144,15 +160,42 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
             </p>
           </div>
         </div>
-        <button onClick={toggleTts} title="Commentary voice"
-          className="text-[10px] font-bold px-2.5 h-7 rounded-full transition-all flex items-center gap-1 flex-shrink-0"
-          style={tts ? { background: 'var(--purple-dim)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.45)' } : { background: 'var(--glass-bg)', color: '#6b7280', border: '1px solid var(--glass-border)' }}>
-          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            {tts ? <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14" /></>
-                 : <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M22 9l-6 6M16 9l6 6" /></>}
-          </svg>
-          {tts ? 'Voice on' : 'Voice'}
-        </button>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* commentator energy — how much he talks + how hyped he sounds */}
+          {tts && (
+            <div className="flex items-center gap-0.5 p-0.5 rounded-full" title="Commentator energy"
+                 style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+              {[
+                { lvl: 0, label: 'Calm', bars: 1 },
+                { lvl: 1, label: 'Live', bars: 2 },
+                { lvl: 2, label: 'Hyped', bars: 3 },
+              ].map(o => {
+                const on = excite === o.lvl;
+                return (
+                  <button key={o.lvl} onClick={() => chooseExcite(o.lvl)} title={o.label}
+                    className="flex items-end gap-[1.5px] h-6 px-1.5 rounded-full transition-all"
+                    style={on ? { background: 'var(--purple-dim)' } : undefined}>
+                    {[0, 1, 2].map(b => (
+                      <span key={b} className="w-[2.5px] rounded-full" style={{
+                        height: `${5 + b * 3}px`,
+                        background: on && b < o.bars ? 'var(--purple)' : 'rgba(255,255,255,0.18)',
+                      }} />
+                    ))}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <button onClick={toggleTts} title="Commentary voice"
+            className="text-[10px] font-bold px-2.5 h-7 rounded-full transition-all flex items-center gap-1"
+            style={tts ? { background: 'var(--purple-dim)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.45)' } : { background: 'var(--glass-bg)', color: '#6b7280', border: '1px solid var(--glass-border)' }}>
+            <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              {tts ? <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14" /></>
+                   : <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M22 9l-6 6M16 9l6 6" /></>}
+            </svg>
+            {tts ? 'On' : 'Voice'}
+          </button>
+        </div>
       </div>
 
       {/* live equaliser — animates while a line is on air */}

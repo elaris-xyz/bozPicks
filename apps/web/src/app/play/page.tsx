@@ -20,16 +20,14 @@ export default function PlayPage() {
       {/* live centrepiece — broadcast scorebug (or an invite when idle) */}
       <LiveScoreboard />
 
-      {/* the three fan games, side by side */}
-      {/* Hi-Lo is the hero of this track — it takes the stage (2 of 3 columns),
-          with the win-probability panel beside it and the pundit booth across
-          the bottom. items-stretch + h-full roots keep heights locked in every
-          state — no columns jumping as content changes. */}
+      {/* three equal columns, side by side — AI Pundit · Hi-Lo (centre) · Win
+          Probability. items-stretch + h-full roots keep the heights locked in
+          every state so no column jumps as content changes. */}
       <div className="grid gap-4 lg:grid-cols-3 items-stretch">
-        <div className="lg:col-span-2"><HiLoGame /></div>
+        <PunditRail />
+        <HiLoGame />
         <LiveStatsPanel />
       </div>
-      <PunditRail />
 
       {/* full event stream */}
       <section className="space-y-3">

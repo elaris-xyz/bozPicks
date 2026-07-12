@@ -344,54 +344,33 @@
   }
   @keyframes fx-scan { 0% { background-position: -34% 0; } 100% { background-position: 134% 0; } }
 
-  /* ── Cursor aura: gold + cyan flashlight trailing the pointer ── */
-  .cursor-aura {
-    position: fixed; inset: 0; z-index: 35; pointer-events: none;
-    overflow: hidden; mix-blend-mode: screen; contain: strict;
-  }
-  .cursor-orb {
-    position: absolute; top: 0; left: 0; border-radius: 9999px;
-    will-change: transform;
-  }
-  .cursor-orb-gold {
-    width: 460px; height: 460px; margin: -230px 0 0 -230px;
-    background: radial-gradient(circle, rgba(245,200,107,0.11) 0%, rgba(245,180,80,0.05) 38%, transparent 66%);
-  }
-  .cursor-orb-cyan {
-    width: 560px; height: 560px; margin: -280px 0 0 -280px;
-    background: radial-gradient(circle, rgba(56,189,248,0.07) 0%, rgba(59,130,246,0.04) 42%, transparent 68%);
-  }
-  @media (pointer: coarse) { .cursor-aura { display: none; } }
-
-  /* ── Interactive gold edge on glass panels: a viewport-anchored spotlight
-     that lights the border ring nearest the cursor, warming on hover. Scoped
-     with :not() so cards that already own ::after (sheen / card-shine) keep
-     their own effect untouched. ── */
+  /* ── Interactive gold edge on glass panels: a warm gold→cyan border that
+     lights up on hover. Scoped with :not() so cards that already own ::after
+     (sheen / card-shine) keep their own effect untouched. ── */
   .glass:not(.sheen):not(.card-shine) { position: relative; }
   .glass:not(.sheen):not(.card-shine)::after {
     content: ''; position: absolute; inset: 0; border-radius: inherit;
     padding: 1px; pointer-events: none; opacity: 0; transition: opacity .4s ease;
-    background: radial-gradient(300px circle at var(--px, 50%) var(--py, 50%),
-                rgba(245,200,107,0.55), rgba(56,189,248,0.22) 42%, transparent 60%);
-    background-attachment: fixed; /* track the cursor in viewport space */
+    background: linear-gradient(135deg, rgba(245,200,107,0.55), rgba(56,189,248,0.22) 48%, transparent 72%);
     /* mask so the gradient only paints the 1px border ring */
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor; mask-composite: exclude;
   }
   .glass:not(.sheen):not(.card-shine):hover::after { opacity: 1; }
 
-  /* ── Cyber corner brackets (gold) — a focal, tech-y frame for the hero ── */
-  .cyber-corners::before, .cyber-corners::after {
-    content: ''; position: absolute; width: 22px; height: 22px; pointer-events: none;
-    border: 2px solid rgba(245,200,107,0.55); z-index: 6;
+  /* ── Cyber L-bracket (gold): a single "└" at the card's bottom-left whose
+     horizontal arm runs a third of the card's width — a focal tech accent. ── */
+  .cyber-corners::before {
+    content: ''; position: absolute; bottom: 10px; left: 10px;
+    width: 33%; height: 26px; pointer-events: none; z-index: 6;
+    border-left: 2px solid rgba(245,200,107,0.6);
+    border-bottom: 2px solid rgba(245,200,107,0.6);
+    border-bottom-left-radius: 8px;
     filter: drop-shadow(0 0 6px rgba(245,200,107,0.35));
   }
-  .cyber-corners::before { top: 10px; left: 10px; border-right: 0; border-bottom: 0; border-top-left-radius: 8px; }
-  .cyber-corners::after  { bottom: 10px; right: 10px; border-left: 0; border-top: 0; border-bottom-right-radius: 8px; }
 
   @media (prefers-reduced-motion: reduce) {
     .fx-aurora, .fx-grain { animation: none; }
-    .cursor-aura { display: none; }
     .fx-overlay, .fx-stamp, .fx-win-glow, .sheen::after,
     .fx-flame, .fx-pop, .fx-shake, .fx-open-pulse, .fx-scan::after { animation: none; }
     /* decorative motion off — cards, coins, pulses and the whole live-match

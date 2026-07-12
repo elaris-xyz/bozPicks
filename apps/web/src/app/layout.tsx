@@ -13,7 +13,6 @@ import { VaultProvider } from '@/contexts/VaultContext';
 import { VaultModal } from '@/components/ui/VaultModal';
 import { SolanaWalletProvider } from '@/components/providers/WalletProvider';
 import { CinematicFX } from '@/components/ui/CinematicFX';
-import { CursorGlow } from '@/components/ui/CursorGlow';
 import { LiveMatchBar } from '@/components/ui/LiveMatchBar';
 import { SfxToggle } from '@/components/ui/SfxToggle';
 import { FirstVisitHint } from '@/components/ui/FirstVisitHint';
@@ -75,7 +74,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LiveMatchProvider>
           {/* Cinematic background + live event VFX */}
           <CinematicFX />
-          <CursorGlow />
           <LiveMatchBar />
           <CommandBridge />
           <SfxToggle />

@@ -22,7 +22,7 @@ const FEATURES = [
 
 export function AgentHero() {
   return (
-    <div className="glass fx-rise relative overflow-hidden">
+    <div className="glass cyber-corners fx-rise relative overflow-hidden">
       <HeroAura color="var(--purple)" />
       <div className="relative p-5 md:p-7">
         <span className="chip-glass uppercase" style={{ background: 'rgba(167,139,250,0.14)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.4)' }}>

@@ -22,7 +22,7 @@ const FEATURES = [
 
 export function MarketsHero() {
   return (
-    <div className="glass fx-rise relative overflow-hidden">
+    <div className="glass cyber-corners fx-rise relative overflow-hidden">
       <HeroAura color="var(--green)" />
       <div className="relative p-5 md:p-7">
         <span className="chip-glass chip-green uppercase">

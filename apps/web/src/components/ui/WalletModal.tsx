@@ -17,7 +17,7 @@ import { IconWallet } from './Icons';
 const PANEL_BG = 'linear-gradient(180deg, #101a30, #0a0f1e)';
 
 export function WalletModal({ onClose }: { onClose: () => void }) {
-  const { publicKey, disconnect, connected, connecting, wallet, wallets, select, connect } = useWallet();
+  const { publicKey, disconnect, connected, connecting, wallet, wallets, select } = useWallet();
   const [pending, setPending] = useState<WalletName | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -36,18 +36,10 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // after select(), the adapter context updates async — connect once it lands
-  useEffect(() => {
-    if (!pending || wallet?.adapter.name !== pending || connected || connecting) return;
-    connect()
-      .then(() => setPending(null))
-      .catch((e: Error) => {
-        setPending(null);
-        setError(e.name === 'WalletNotReadyError'
-          ? 'Wallet not ready — is the extension unlocked?'
-          : e.message || 'Connection failed — try again.');
-      });
-  }, [pending, wallet, connected, connecting, connect]);
+  // Connection is triggered directly from the click (see pick) so the wallet's
+  // approval popup opens inside the user gesture. A deferred connect() in an
+  // effect (which also raced autoConnect's `connecting` flag) was why Phantom
+  // showed "Ready" but never opened.
 
   // Auto-close ONLY when the connection happened inside this modal session
   // (fresh connect → brief success beat → close). Opening the modal while
@@ -64,10 +56,24 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
   const addr = publicKey?.toBase58() ?? '';
   const shortAddr = addr ? `${addr.slice(0, 4)}…${addr.slice(-4)}` : '';
 
-  const pick = (name: WalletName) => {
+  const pick = async (name: WalletName) => {
     setError(null);
+    const w = wallets.find(x => x.adapter.name === name);
+    if (!w) return;
     setPending(name);
-    select(name);
+    try {
+      // select so the provider tracks this adapter, then connect the adapter
+      // DIRECTLY inside the click gesture → the approval popup actually opens
+      if (wallet?.adapter.name !== name) select(name);
+      await w.adapter.connect();
+    } catch (e) {
+      const err = e as Error;
+      setError(err.name === 'WalletNotReadyError'
+        ? 'Wallet not ready — is the extension unlocked?'
+        : err.message || 'Connection failed — try again.');
+    } finally {
+      setPending(null);
+    }
   };
 
   const copy = () => {
@@ -208,19 +214,19 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
               return (
                 <button key={w.adapter.name} onClick={() => pick(w.adapter.name)} disabled={!!pending || connecting}
                   className="w-full flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left transition-all enabled:hover:-translate-y-px enabled:hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
-                  style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(99,140,255,0.22)' }}>
+                  style={{ background: 'rgba(245,200,107,0.06)', border: '1px solid rgba(245,200,107,0.3)' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={w.adapter.icon} alt="" className="w-8 h-8 rounded-lg flex-shrink-0" />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-bold text-gray-100">{w.adapter.name}</span>
+                    <span className="block text-sm font-bold" style={{ color: '#f5c86b' }}>{w.adapter.name}</span>
                     <span className="block text-[10px] text-gray-500">Detected in this browser</span>
                   </span>
                   {busy ? (
                     <span className="w-4 h-4 rounded-full border-2 animate-spin flex-shrink-0"
-                          style={{ borderColor: 'rgba(59,130,246,0.25)', borderTopColor: 'var(--blue)' }} />
+                          style={{ borderColor: 'rgba(245,200,107,0.25)', borderTopColor: '#f5c86b' }} />
                   ) : (
                     <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.35)' }}>
+                          style={{ background: 'rgba(245,200,107,0.14)', color: '#f5c86b', border: '1px solid rgba(245,200,107,0.4)' }}>
                       Ready
                     </span>
                   )}

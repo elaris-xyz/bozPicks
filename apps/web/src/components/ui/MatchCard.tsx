@@ -33,7 +33,7 @@ export function compBadge(competition?: string): { text: string; wc: boolean } |
 }
 
 export function MatchCard({
-  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false, dateBadge,
+  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false,
 }: {
   match: MatchState; activeSignals?: number;
   isFav?: boolean; onToggleFav?: (id: string) => void;
@@ -44,8 +44,6 @@ export function MatchCard({
   trend?: OddsTrend;
   /** dense variant for horizontal rails — smaller type, shorter card */
   compact?: boolean;
-  /** small date chip shown top-center (grid view — cards aren't grouped by day) */
-  dateBadge?: string;
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const cfg = STATUS_CONFIG[match.status] ?? STATUS_CONFIG.SCHEDULED;
@@ -95,23 +93,14 @@ export function MatchCard({
           </>
         )}
 
-        {/* top-center chips: competition + date (grid view) */}
-        {(dateBadge || comp) && (
-          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1">
-            {comp && (
-              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
-                    style={comp.wc
-                      ? { background: 'rgba(245,158,11,0.16)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.4)', backdropFilter: 'blur(4px)' }
-                      : { background: 'rgba(11,16,32,0.72)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.28)', backdropFilter: 'blur(4px)' }}>
-                {comp.text}
-              </span>
-            )}
-            {dateBadge && (
-              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
-                    style={{ background: 'rgba(11,16,32,0.72)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)' }}>
-                {dateBadge}
-              </span>
-            )}
+        {/* competition chip — top-centre. The date lives ONLY in the top-right
+            corner (SOON inside 24h, calendar date further out) — one date, one place. */}
+        {comp && (
+          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
+                style={comp.wc
+                  ? { background: 'rgba(245,158,11,0.16)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.4)', backdropFilter: 'blur(4px)' }
+                  : { background: 'rgba(11,16,32,0.72)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.28)', backdropFilter: 'blur(4px)' }}>
+            {comp.text}
           </span>
         )}
 

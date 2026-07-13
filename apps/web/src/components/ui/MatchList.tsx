@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { MatchCard, type OddsTrend } from './MatchCard';
 import { MatchRow } from './MatchRow';
@@ -44,6 +44,17 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('all');
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
+
+  // competition filter — the free TxLINE tier carries World Cup AND friendlies
+  type CompFilter = 'all' | 'wc' | 'friendly';
+  const [compFilter, setCompFilter] = useState<CompFilter>('all');
+  const [compOpen, setCompOpen] = useState(false);
+  const compRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => { if (!compRef.current?.contains(e.target as Node)) setCompOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
   const { favorites, toggle: toggleFav, isFav } = useFavorites();
   const { format: oddsFormat, setFormat: setOddsFormat } = useOddsFormat();
 
@@ -181,6 +192,11 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     { key: 'starred',  label: '★',        count: starredCount },
   ];
 
+  const isWC = (m: MatchState) => !!m.competition?.toLowerCase().includes('world cup');
+  const isFriendly = (m: MatchState) => !!m.competition?.toLowerCase().includes('friendl');
+  const wcCount = dedupedMatches.filter(isWC).length;
+  const frCount = dedupedMatches.filter(isFriendly).length;
+
   const q = query.toLowerCase();
   const visible = dedupedMatches.filter(m => {
     const matchesQuery = !q || m.homeTeam.toLowerCase().includes(q) || m.awayTeam.toLowerCase().includes(q);
@@ -190,7 +206,11 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
       tab === 'upcoming' ? m.status === 'SCHEDULED' :
       tab === 'starred'  ? isFav(m.id) :
                            m.status === 'FINISHED';
-    return matchesQuery && matchesTab;
+    const matchesComp =
+      compFilter === 'all' ? true :
+      compFilter === 'wc'  ? isWC(m) :
+                             isFriendly(m);
+    return matchesQuery && matchesTab && matchesComp;
   });
 
   const visLive     = visible.filter(m => m.status === 'LIVE' || m.status === 'HALFTIME');
@@ -233,15 +253,12 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     </PanScroller>
   );
 
-  // Short date chip (grid view — cards aren't grouped by day).
-  const dateBadgeFor = (m: MatchState) =>
-    m.kickoffTime ? new Date(m.kickoffTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : undefined;
-
-  // Grid view: dense compact cards, ungrouped, each stamped with its date.
+  // Grid view: dense compact cards, ungrouped (each card carries its own date
+  // in the top-right corner — SOON inside 24h, calendar date further out).
   const renderGridCards = (list: MatchState[]) => (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
       {list.map((m, i) => (
-        <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]} compact dateBadge={dateBadgeFor(m)}
+        <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]} compact
           activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
           onToggleFav={toggleFav} oddsFormat={oddsFormat} />
       ))}
@@ -327,6 +344,71 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     </div>
   );
 
+  // Competition combobox — glassy dropdown: All · World Cup · Friendlies.
+  const COMP_OPTS: { key: 'all' | 'wc' | 'friendly'; label: string; count: number; accent: string; icon: ReactNode }[] = [
+    { key: 'all', label: 'All comps', count: dedupedMatches.length, accent: '#60a5fa', icon: (
+      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round">
+        <path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" strokeLinecap="round" />
+      </svg>
+    ) },
+    { key: 'wc', label: 'World Cup', count: wcCount, accent: '#fcd34d', icon: (
+      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" />
+      </svg>
+    ) },
+    { key: 'friendly', label: 'Friendlies', count: frCount, accent: '#94a3b8', icon: (
+      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+        <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+      </svg>
+    ) },
+  ];
+  const compActive = COMP_OPTS.find(o => o.key === compFilter)!;
+
+  const compCombo = (
+    <div ref={compRef} className="relative flex-shrink-0">
+      <button onClick={() => setCompOpen(v => !v)}
+        className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-xs font-semibold transition-all"
+        style={compFilter !== 'all'
+          ? { background: `${compActive.accent}1f`, color: compActive.accent, border: `1px solid ${compActive.accent}66`, boxShadow: `0 0 12px ${compActive.accent}26` }
+          : { background: 'var(--glass-bg)', color: '#94a3b8', border: '1px solid var(--glass-border)' }}>
+        {compActive.icon}
+        <span className="hidden sm:inline">{compActive.label}</span>
+        <svg className={`w-3 h-3 transition-transform duration-200 ${compOpen ? 'rotate-180' : ''}`}
+             fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {compOpen && (
+        <div className="absolute right-0 top-full mt-1.5 z-30 min-w-[176px] rounded-xl overflow-hidden anim-in"
+             style={{ background: 'rgba(13,18,36,0.97)', border: '1px solid var(--glass-border)',
+                      boxShadow: '0 14px 40px rgba(0,0,0,0.55)', backdropFilter: 'blur(12px)' }}>
+          {COMP_OPTS.map(o => {
+            const active = compFilter === o.key;
+            return (
+              <button key={o.key}
+                onClick={() => { setCompFilter(o.key); setCompOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold transition-colors text-left hover:bg-white/[0.05]"
+                style={{ color: active ? o.accent : '#cbd5e1' }}>
+                <span style={{ color: o.accent }}>{o.icon}</span>
+                <span className="flex-1">{o.label}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
+                      style={{ background: active ? `${o.accent}22` : 'rgba(255,255,255,0.06)', color: active ? o.accent : '#6b7280' }}>
+                  {o.count}
+                </span>
+                {active && (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
 
@@ -369,6 +451,9 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
           </button>
         ))}
       </div>
+
+        {/* Competition filter — All · World Cup · Friendlies */}
+        {compCombo}
 
         {/* View density toggle */}
         <div className="flex flex-shrink-0 rounded-xl overflow-hidden border" style={{ borderColor: 'var(--glass-border)' }}>

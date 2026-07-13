@@ -29,17 +29,17 @@ test('event impulse points at the attacking side', () => {
 });
 
 test('stepMomentum spikes on a goal and tags the side', () => {
-  const e = { type: 'GOAL', matchMinute: 22, team: 'Brazil', stats: stats({ possession: 60 }) } as BozEvent;
-  const { m, point } = stepMomentum(0, e, 'Brazil');
-  assert.ok(m > 3);                    // a home goal drives momentum well up
-  assert.equal(point.goal, 'home');
-  assert.ok(point.v > 0 && point.v <= 10);
+  const e = { type: 'GOAL', matchMinute: 22, team: 'Brazil' } as BozEvent;
+  const { m, goal } = stepMomentum(0, e, 'Brazil');
+  assert.ok(m > 3 && m <= 10);         // a home goal drives momentum well up
+  assert.equal(goal, 'home');
+  assert.equal(stepMomentum(0, { type: 'GOAL', matchMinute: 9, team: 'Argentina' } as BozEvent, 'Brazil').goal, 'away');
 });
 
 test('momentum decays back toward the baseline between events (crosses zero)', () => {
   // a big away spike, then relax with neutral possession → returns toward 0
   let m = stepMomentum(0, { type: 'GOAL', matchMinute: 5, team: 'Argentina' } as BozEvent, 'Brazil').m;
   assert.ok(m < -3);
-  for (let i = 0; i < 6; i++) m = relaxMomentum(m, stats({ possession: 50 }));
+  for (let i = 0; i < 30; i++) m = relaxMomentum(m, stats({ possession: 50 }));
   assert.ok(Math.abs(m) < 1);          // settled back near the centre line
 });

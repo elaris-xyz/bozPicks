@@ -45,8 +45,9 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
   const [tab, setTab] = useState<Tab>('all');
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
 
-  // competition filter — the free TxLINE tier carries World Cup AND friendlies
-  type CompFilter = 'all' | 'wc' | 'friendly';
+  // competition filter — the free TxLINE tier carries World Cup AND friendlies,
+  // plus our own Command-Bridge demo replays (never counted as real World Cup)
+  type CompFilter = 'all' | 'wc' | 'friendly' | 'demo';
   const [compFilter, setCompFilter] = useState<CompFilter>('all');
   const [compOpen, setCompOpen] = useState(false);
   const compRef = useRef<HTMLDivElement>(null);
@@ -192,10 +193,12 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     { key: 'starred',  label: '★',        count: starredCount },
   ];
 
-  const isWC = (m: MatchState) => !!m.competition?.toLowerCase().includes('world cup');
-  const isFriendly = (m: MatchState) => !!m.competition?.toLowerCase().includes('friendl');
+  const isDemo = (m: MatchState) => m.id.startsWith('demo-');
+  const isWC = (m: MatchState) => !isDemo(m) && !!m.competition?.toLowerCase().includes('world cup');
+  const isFriendly = (m: MatchState) => !isDemo(m) && !!m.competition?.toLowerCase().includes('friendl');
   const wcCount = dedupedMatches.filter(isWC).length;
   const frCount = dedupedMatches.filter(isFriendly).length;
+  const demoCount = dedupedMatches.filter(isDemo).length;
 
   const q = query.toLowerCase();
   const visible = dedupedMatches.filter(m => {
@@ -207,9 +210,10 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
       tab === 'starred'  ? isFav(m.id) :
                            m.status === 'FINISHED';
     const matchesComp =
-      compFilter === 'all' ? true :
-      compFilter === 'wc'  ? isWC(m) :
-                             isFriendly(m);
+      compFilter === 'all'      ? true :
+      compFilter === 'wc'       ? isWC(m) :
+      compFilter === 'friendly' ? isFriendly(m) :
+                                  isDemo(m);
     return matchesQuery && matchesTab && matchesComp;
   });
 
@@ -344,8 +348,8 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     </div>
   );
 
-  // Competition combobox — glassy dropdown: All · World Cup · Friendlies.
-  const COMP_OPTS: { key: 'all' | 'wc' | 'friendly'; label: string; count: number; accent: string; icon: ReactNode }[] = [
+  // Competition combobox — glassy dropdown: All · World Cup · Friendlies · Demos.
+  const COMP_OPTS: { key: CompFilter; label: string; count: number; accent: string; icon: ReactNode }[] = [
     { key: 'all', label: 'All comps', count: dedupedMatches.length, accent: '#60a5fa', icon: (
       <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round">
         <path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" strokeLinecap="round" />
@@ -359,6 +363,11 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     { key: 'friendly', label: 'Friendlies', count: frCount, accent: '#94a3b8', icon: (
       <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
         <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+      </svg>
+    ) },
+    { key: 'demo', label: 'Demos', count: demoCount, accent: '#67e8f9', icon: (
+      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="10 8 16 12 10 16 10 8" /><circle cx="12" cy="12" r="9" />
       </svg>
     ) },
   ];

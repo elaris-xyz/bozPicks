@@ -65,9 +65,11 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
       sRef.current = tickMomentum(sRef.current, statsRef.current);
       const clock = live?.minute ?? 0;
       if (clock >= 90) return;                                    // match over → stop extending the curve
-      const min = Math.max(clock, minRef.current + 0.25);         // strictly increasing x
-      minRef.current = min;
-      setPoints(prev => [...prev, { min, v: sRef.current.m }].slice(-MAX_POINTS));
+      // advance the x-clock SMOOTHLY: a steady base step + a gentle catch-up to
+      // the real minute. This keeps the sample spacing even (so the curve has
+      // uniform curvature) instead of clustering when the minute stalls/jumps.
+      minRef.current = Math.min(89.6, minRef.current + 0.16 + Math.max(0, clock - minRef.current) * 0.2);
+      setPoints(prev => [...prev, { min: minRef.current, v: sRef.current.m }].slice(-MAX_POINTS));
     }, TICK_MS);
     return () => clearInterval(t);
   }, [isLive, live?.minute]);
@@ -85,7 +87,7 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
   // crosses the baseline smoothly, and the fill/stroke are split into green
   // (above) / blue (below) by clip rects — the broadcast standard, with no hard
   // corners where the curve meets the centre line.
-  const sv = movingAverage(points.map(p => p.v), 2);
+  const sv = movingAverage(points.map(p => p.v), 3);
   const curve = points.map((p, i) => ({ x: xFor(p.min), y: yFor(sv[i]) }));
   const areaD = smoothArea(curve, BASE_Y);
   const lineD = smoothLine(curve);

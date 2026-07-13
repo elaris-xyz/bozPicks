@@ -19,6 +19,19 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 export type OddsTrend = { home?: 'up' | 'down'; draw?: 'up' | 'down'; away?: 'up' | 'down' };
 
+/**
+ * competition → badge text/tone. The free TxLINE tier carries World Cup AND
+ * international friendlies, so a September fixture on a World Cup product must
+ * say FRIENDLY or it reads as a bug.
+ */
+export function compBadge(competition?: string): { text: string; wc: boolean } | null {
+  if (!competition) return null;
+  const c = competition.toLowerCase();
+  if (c.includes('world cup')) return { text: 'WORLD CUP', wc: true };
+  if (c.includes('friendl')) return { text: 'FRIENDLY', wc: false };
+  return { text: competition.toUpperCase().slice(0, 18), wc: false };
+}
+
 export function MatchCard({
   match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false, dateBadge,
 }: {
@@ -36,6 +49,7 @@ export function MatchCard({
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const cfg = STATUS_CONFIG[match.status] ?? STATUS_CONFIG.SCHEDULED;
+  const comp = compBadge(match.competition);
 
   // "SOON" is a promise, not a default — only within 24h of kickoff. Everything
   // further out shows its date instead (a badge saying SOON on a game 81 days
@@ -81,11 +95,23 @@ export function MatchCard({
           </>
         )}
 
-        {/* date chip — top-center (grid view only) */}
-        {dateBadge && (
-          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-                style={{ background: 'rgba(11,16,32,0.72)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)' }}>
-            {dateBadge}
+        {/* top-center chips: competition + date (grid view) */}
+        {(dateBadge || comp) && (
+          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1">
+            {comp && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
+                    style={comp.wc
+                      ? { background: 'rgba(245,158,11,0.16)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.4)', backdropFilter: 'blur(4px)' }
+                      : { background: 'rgba(11,16,32,0.72)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.28)', backdropFilter: 'blur(4px)' }}>
+                {comp.text}
+              </span>
+            )}
+            {dateBadge && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
+                    style={{ background: 'rgba(11,16,32,0.72)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)' }}>
+                {dateBadge}
+              </span>
+            )}
           </span>
         )}
 

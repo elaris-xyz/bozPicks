@@ -16,7 +16,7 @@ async function getSchedule(): Promise<MatchState[]> {
     await maybeSyncFixtures(); // self-heal a stale fixtures snapshot before reading
     const { rows } = await db.query(`
       SELECT id, home_team, away_team, home_score, away_score,
-             status, current_minute, kickoff_time, last_updated
+             status, current_minute, kickoff_time, last_updated, competition
       FROM boz_matches
       ORDER BY kickoff_time ASC
     `);
@@ -30,6 +30,7 @@ async function getSchedule(): Promise<MatchState[]> {
       currentMinute: r.current_minute ?? 0,
       kickoffTime: r.kickoff_time,
       lastUpdated: r.last_updated ?? new Date().toISOString(),
+      competition: r.competition ?? undefined,
     }));
   } catch { return []; }
 }

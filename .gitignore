@@ -26,3 +26,4 @@ Thumbs.db
 # reference clone / scratch
 tmp-txodds/
 tmp-*/
+.keeper-railway*

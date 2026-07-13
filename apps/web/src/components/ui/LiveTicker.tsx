@@ -63,7 +63,7 @@ export function LiveTicker({ matches }: { matches: MatchState[] }) {
       <div className="flex items-center animate-ticker py-2.5" style={{ width: 'max-content', animationDuration: `${durationS}s` }}>
         {items.map((m, i) => {
           const live = m.status === 'LIVE' || m.status === 'HALFTIME';
-          const comp = compBadge(m.competition);
+          const comp = compBadge(m.competition, m.id);
           return (
             <Link
               key={`${m.id}-${i}`}
@@ -99,10 +99,12 @@ export function LiveTicker({ matches }: { matches: MatchState[] }) {
               <span className="text-xs font-semibold text-gray-200 whitespace-nowrap">{m.awayTeam}</span>
               <Flag team={m.awayTeam} size="xs" />
 
-              {/* friendlies must say so — this is a World Cup product */}
+              {/* friendlies + demo replays must say so — this is a World Cup product */}
               {comp && !comp.wc && (
                 <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ml-0.5 whitespace-nowrap"
-                      style={{ background: 'rgba(148,163,184,0.12)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.22)' }}>
+                      style={comp.demo
+                        ? { background: 'rgba(34,211,238,0.12)', color: '#67e8f9', border: '1px solid rgba(34,211,238,0.35)' }
+                        : { background: 'rgba(148,163,184,0.12)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.22)' }}>
                   {comp.text}
                 </span>
               )}

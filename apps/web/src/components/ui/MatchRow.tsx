@@ -24,7 +24,7 @@ export function MatchRow({
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const showScore = isLive || match.status === 'FINISHED';
-  const comp = compBadge(match.competition);
+  const comp = compBadge(match.competition, match.id);
 
   const oddsCells = match.currentOdds
     ? [
@@ -98,10 +98,12 @@ export function MatchRow({
           <div className={`flex items-center justify-between gap-2 ${large ? '' : 'mt-0.5'}`}>
             <span className={`flex items-center min-w-0 font-semibold truncate ${large ? 'gap-2.5 text-base sm:text-lg' : 'gap-2 text-[13px]'}`}>
               <Flag team={match.awayTeam} size={large ? 'md' : 'xs'} /> <span className="truncate">{match.awayTeam}</span>
-              {/* friendlies must say so — this is a World Cup product */}
+              {/* friendlies + demo replays must say so — this is a World Cup product */}
               {comp && !comp.wc && (
                 <span className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                      style={{ background: 'rgba(148,163,184,0.10)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.22)' }}>
+                      style={comp.demo
+                        ? { background: 'rgba(34,211,238,0.12)', color: '#67e8f9', border: '1px solid rgba(34,211,238,0.35)' }
+                        : { background: 'rgba(148,163,184,0.10)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.22)' }}>
                   {comp.text}
                 </span>
               )}

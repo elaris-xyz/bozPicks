@@ -22,9 +22,12 @@ export type OddsTrend = { home?: 'up' | 'down'; draw?: 'up' | 'down'; away?: 'up
 /**
  * competition → badge text/tone. The free TxLINE tier carries World Cup AND
  * international friendlies, so a September fixture on a World Cup product must
- * say FRIENDLY or it reads as a bug.
+ * say FRIENDLY or it reads as a bug. Command-Bridge replays are honestly
+ * stamped DEMO — a Brazil v Argentina that never happened must not wear the
+ * WORLD CUP badge.
  */
-export function compBadge(competition?: string): { text: string; wc: boolean } | null {
+export function compBadge(competition?: string, id?: string): { text: string; wc: boolean; demo?: boolean } | null {
+  if (id?.startsWith('demo-')) return { text: 'DEMO', wc: false, demo: true };
   if (!competition) return null;
   const c = competition.toLowerCase();
   if (c.includes('world cup')) return { text: 'WORLD CUP', wc: true };
@@ -47,7 +50,7 @@ export function MatchCard({
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const cfg = STATUS_CONFIG[match.status] ?? STATUS_CONFIG.SCHEDULED;
-  const comp = compBadge(match.competition);
+  const comp = compBadge(match.competition, match.id);
 
   // "SOON" is a promise, not a default — only within 24h of kickoff. Everything
   // further out shows its date instead (a badge saying SOON on a game 81 days
@@ -97,7 +100,9 @@ export function MatchCard({
             corner (SOON inside 24h, calendar date further out) — one date, one place. */}
         {comp && (
           <span className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
-                style={comp.wc
+                style={comp.demo
+                  ? { background: 'rgba(34,211,238,0.14)', color: '#67e8f9', border: '1px solid rgba(34,211,238,0.42)', backdropFilter: 'blur(4px)' }
+                  : comp.wc
                   ? { background: 'rgba(245,158,11,0.16)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.4)', backdropFilter: 'blur(4px)' }
                   : { background: 'rgba(11,16,32,0.72)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.28)', backdropFilter: 'blur(4px)' }}>
             {comp.text}
@@ -143,14 +148,15 @@ export function MatchCard({
             </span>
           )}
           {isSoon ? (
-            /* premium SOON — kicks off within 24h */
+            /* premium SOON — kicks off within 24h. Violet, so it never reads
+               as part of the gold WORLD CUP badge family. */
             <span className="h-7 flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 rounded-full"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(16,185,129,0.14))',
-                    color: '#fcd34d', border: '1px solid rgba(245,158,11,0.55)',
-                    boxShadow: '0 0 14px rgba(245,158,11,0.28)',
+                    background: 'linear-gradient(135deg, rgba(139,92,246,0.24), rgba(59,130,246,0.14))',
+                    color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.55)',
+                    boxShadow: '0 0 14px rgba(139,92,246,0.3)',
                   }}>
-              <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: '#fbbf24' }} />
+              <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: '#a78bfa' }} />
               SOON
             </span>
           ) : farDate ? (

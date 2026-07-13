@@ -3,47 +3,33 @@
 > فایل زنده‌ی وضعیت. PLAN.md = استراتژی بزرگ · این فایل = «resume here».
 > **قانون:** آخر هر session این فایل رو آپدیت کن (۲ دقیقه). تاریخ رو عوض کن.
 
-**آخرین آپدیت:** 2026-07-03 (My Predictions واقعی + fix crash سرور)
+**آخرین آپدیت:** 2026-07-13 (بازبینی جامع آمادگی + Match Momentum نهایی شد)
 
 ---
 
 ## 🎯 الان کجاییم (یک خط)
 
-UI/UX کامل + صفر emoji + **My Predictions واقعی** (تاریخچه‌ی wallet + P&L) + یه **باگ crash سرور** حل شد (SSE controller). محصول از نظر ساخت آماده‌ست؛ **مرحله‌ی بعدی deployment و demo video است** — ولی هنوز روی git نرفتیم (به‌خواست کاربر، همه local).
+**محصول از نظر ساخت تمومه و judge-ready ست** — هر سه تراک hero کامل دارن، ۳۵ تست سبز، build سبز، ~۱۰۰ کامیت روی `github.com/elaris-xyz/bozPicks`. **تنها چیزی که مونده سه شرط اجباری submission ست: Deploy + دمو ویدیو ×۳ + Submit ×۳.** ‏۶ روز مانده (deadline: Jul 19 · 23:59 UTC).
 
 ---
 
-## ✅ آخرین کاری که تموم شد
+## ✅ چی از July 4 به بعد اضافه شد (خلاصه‌ی ~۱۰۰ کامیت)
 
-**سری کامل طراحی UI/UX + بازبینی کیفی (July 2–3):**
-- کارت پوستری، آیکن فلت، منوی نئون، ticker سرتاسری
-- تایم‌لاین دوطرفه، odds کلیک‌پذیر → Bet Slip
-- toggle چگالی (پوستر↔لیست)، نشانگر odds ▲▼
-- همه‌ی صفحه‌ها + مودال‌ها یکدست
-- reskin مودال wallet-adapter، skeleton، reduced-motion
-- **بازبینی کیفی (۲ دور):** آخرین emoji/نمادها (🧠 AI، 🚨 signals، ✅❌، 📼 replay، 🏟️، ⚠ config، error page) حذف → صفر نماد سرگردان
-- **گروه‌بندی روز** در لیست Upcoming (Today / Friday 26 June + شمارش) — کار می‌کنه در هر دو view (لیگ نداریم توی feed، فقط تاریخ)
-- **✅ production build تأیید شد** — `next build` بدون خطا، همه‌ی ۸ صفحه static + همه route ها ساخته شد. **deploy از نظر build de-risk شد.** (dir موقت `.next-build` — gitignore شده)
-- ۴ باگ حل شد (ECONNRESET، async params، demo تکراری، fonts)
+- **J1–J6 credibility hardening**: رسیدهای صادقانه SIMULATED/VERIFIED، تست‌های قطعی، ایجنت headless واقعی، Hi-Lo روی stat واقعی، مسیر settlement آنچین واقعی.
+- **UI بلوغ کامل**: Command Bridge حرفه‌ای، PlayHero/MarketsHero/AgentHero سینمایی، LiveScoreboard broadcast، Live Feed حرفه‌ای، مودال wallet اختصاصی.
+- **Vault economy**: deposit یک‌بار / stake فوری / cash-out (devnet SOL)، ledger روی Postgres + reconcile آنچین، چیپ موجودی در nav.
+- **AI Pundit v2**: صدای عصبی مرد (Groq Orpheus)، انتخاب گزارشگر (۶ صدا)، کنترل انرژی ۳سطحی، صف گفتار بدون قطع‌شدن، متن‌های broadcaster با Claude.
+- **Match Momentum**: منحنی فشار دوطرفه‌ی broadcast از دیتای واقعی TxLINE (possession/danger/events) — تک‌منحنی نرم با color-split استاندارد.
+- **statproof.ts**: تأیید Merkle proof با spec تأییدشده (`sha256(u32_le(key)‖i32_le(value)‖i32_le(period))`).
+- **کلیدهای stat واقعی** در settlement (`TXLINE_STAT_KEYS`) + رسید شامل `txlineStatKeys`.
+- Play page سه‌ستونه (Pundit | Hi-Lo | Win Prob) + Momentum تمام‌عرض.
 
-جزئیات کامل → PLAN.md بخش چهار.
+## 🔴 کار بعدی — سه شرط اجباری submission (به ترتیب)
 
----
-
-## ✅ روی GitHub رفت (July 4)
-
-مخزن: **github.com/elaris-xyz/bozPicks** · branch `main` · commit `4ac80fd`
-- history با orphan branch تازه‌سازی شد → **صفر secret** در history/remote (verified)
-- keypair + پسورد Neon **قبل از push پاک شدن، هیچ‌وقت لو نرفتن → rotate لازم نیست**
-- `check-db.js` حالا `DATABASE_URL` رو از env می‌خونه (پسورد hardcode حذف شد)
-- `.gitignore` کامل شد؛ `.txline-keypair.json` هنوز local روی دیسک هست (gitignore) برای dev
-
-## 🔴 کار بعدی (به ترتیب اولویت)
-
-1. **Deploy** — Vercel (web) + Railway (ingest/agent/keeper). سه subdomain. env vars روی prod ست بشه (DATABASE_URL، REDIS_URL، TXLINE_API_KEY، ANTHROPIC_API_KEY، SETTLEMENT_KEEPER_KEYPAIR، BOZPICKS_PROGRAM_ID).
-2. **Smoke test روی prod** — health، SSE، wallet connect، demo.
-3. **Demo video × 3** (≤5 دقیقه هرکدوم) — بدون این disqualify.
-4. **Submit × 3** — سه لینک جدا.
+1. **Deploy (امروز/فردا)** — Vercel (web) + Railway (ingest/agent/keeper)، سه subdomain. قبلش: `REDIS_URL` تازه + کلید Groq جدید (کلید قبلی توی چت به اشتراک گذاشته شد → revoke). env های prod: DATABASE_URL، REDIS_URL، TXLINE_API_KEY، ANTHROPIC_API_KEY، GROQ_API_KEY، SETTLEMENT_KEEPER_KEYPAIR، NEXT_PUBLIC_RPC_URL.
+2. **Smoke test روی prod** — health، SSE، wallet (با Solflare — باگ Phantom devnet RPC)، Command Bridge، vault.
+3. **دمو ویدیو ×۳ (Jul 14–15، هم‌زمان با نیمه‌نهایی‌ها)** — تیم TxLINE تأیید کرد نیمه‌نهایی/فینال پوشش داده می‌شن. ویدیو با دیتای *زنده‌ی واقعی* > replay. ‏Command Bridge پشتیبانه. Track 1: حتماً TX روی Explorer نشون بده. ≤۵ دقیقه، بدونش disqualify.
+4. **Submit ×۳ (Jul 16–17، نه روز آخر)** — Superteam Earn، سه لینک جدا؛ X-verification گاهی گیر می‌کنه، زود اقدام کن. لینک‌های `<deploy>` توی `docs/submissions/*.md` رو پر کن.
 
 ---
 
@@ -52,43 +38,34 @@ UI/UX کامل + صفر emoji + **My Predictions واقعی** (تاریخچه‌
 ```bash
 # وب — پورت 3100 (پورت 3000 روی این ویندوز رزرو شده)
 pnpm --dir apps/web dev --port 3100
-# یا از طریق preview: launch config «bozpicks-web» در .claude/launch.json پروژه‌ی WP-news-collector
 
-# ingest (داده‌ی زنده TxLINE) و agent (sharp detector)
+# ingest (داده‌ی زنده TxLINE) و agent (sharp detector + arena)
 pnpm ingest
 pnpm agent
+
+# تست‌ها (۳۵ تست قطعی)
+pnpm --filter=web test
 ```
 
 **نکات محیط:**
 - `NEXT_DIST_DIR=.next-dev` در `apps/web/.env.local` — دور زدن قفل `.next/trace` روی ویندوز
-- **اگه preview_screenshot پشت‌سرهم timeout داد** (صفحه سالمه ولی عکس گیر می‌کنه): یه `preview_resize` بزن (مثلاً tablet بعد desktop) — compositor مرورگر رو reset می‌کنه و عکس دوباره کار می‌کنه. eval همیشه کار می‌کنه پس برای تأیید از DOM هم می‌شه استفاده کرد.
-- type-check: `cd apps/web && pnpm exec tsc --noEmit`
-- demo زنده: دکمه‌ی «Run Demo» یا `POST /api/demo` (فقط یک demo در هر لحظه)
-- تست فلش odds به‌صورت دستی: publish یه `ODDS_UPDATE` به کانال `boz:global` روی Redis
+- type-check: `pnpm --filter=web type-check`
+- دمو: Command Bridge (⚡ پایین-چپ) یا `POST /api/demo`
 
 **آدرس‌های کلیدی:**
 - Program ID: `GxH4pi5NY8qKd9vNuYqYT6UWW7jTsjaCFFy233KFTNYh` (devnet)
 - Explorer: `https://explorer.solana.com/address/GxH4pi5NY8qKd9vNuYqYT6UWW7jTsjaCFFy233KFTNYh?cluster=devnet`
-
----
-
-## 🧵 threadهای باز / گزینه‌های کاری
-
-اگه کاربر بگه «ادامه بده» و مسیر مشخصی نگفت، این‌ها روی میزن:
-- **بازبینی کیفی agent + stats + landing ها** — دور بعدی sweep (match page شد)
-- **گروه‌بندی لیگ** در لیست upcoming (نیمه‌کاره؛ schedule گروه‌بندی روز داره، home نداره)
-- ~~My Predictions واقعی~~ ✅ شد — حالت connected با wallet واقعی هنوز چشمی تست نشده (type-safe و API آماده)
-- **light mode** — عمداً به بعد از هکاتون موکول شد (تصمیم ثابت)
-- برگشت به مسیر submission (git/deploy/video) هر وقت کاربر آماده بود
+- TxLINE devnet: `txline-dev.txodds.com` · program `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J`
+- مرجع کامل TxLINE: `docs/TXLINE-REFERENCE.md`
 
 ---
 
 ## ⚠️ یادآوری‌های حیاتی
 
-- **keypair در git history** — تا وقتی پاک نشده، **repo رو public نکن / push نزن**.
-- همه‌چیز فقط local و فقط ۲ commit قدیمی؛ **بک‌آپ خارج از git نداریم** — مراقب باش.
-- تم فقط dark؛ light mode درخواست نشه.
-- LIVE همیشه **سبز** (نه قرمز) — تصمیم طراحی ثابت.
+- **قبل از deploy**: کلید Groq share شده رو revoke کن + `REDIS_URL` تازه بگیر.
+- **لایسنس §7.1 TxLINE**: دیتای خام TxLINE رو توی repo/باندل عمومی commit نکن (الان نمی‌کنیم — replay از API زنده می‌کشه). توی ویدیو هم ادعای bundle نکن.
+- **Phantom devnet RPC باگ داره** (تأیید جمعی در تلگرام) — دمو با Solflare یا `NEXT_PUBLIC_RPC_URL` اختصاصی.
+- تم فقط dark · LIVE همیشه سبز — تصمیمات ثابت طراحی.
 
 ---
 

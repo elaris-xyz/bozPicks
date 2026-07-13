@@ -260,9 +260,14 @@ Currently-supported instruction is **`validateStatV2`** (not the older
   — the timestamp used for `validateStat`'s first arg and the daily-roots PDA
   must be the **same** (use `summary.updateStats.minTimestamp`). Proof hashes
   are exactly 32 bytes, not reversed. Predicate: `{ threshold: value,
-  comparison: { equalTo: {} } }`. The low-level manual Merkle hash spec
-  (sha256/keccak, leaf preimage, `is_right_sibling` order) is **not yet
-  published** — use the payload + `validateStatV2`, don't hand-verify.
+  comparison: { equalTo: {} } }`. The manual Merkle spec was later confirmed
+  publicly in-channel (reproduced against real proofs): leaf =
+  `sha256(u32_le(key) ‖ i32_le(value) ‖ i32_le(period))`, then fold with
+  `is_right_sibling ? sha256(h ‖ sib) : sha256(sib ‖ h)` — raw Borsh field
+  order, no domain prefix. Our `apps/web/src/lib/statproof.ts` implements
+  exactly this (tested). `validate_stat` also works via **CPI** (confirmed
+  on-chain, ~54–173k CU inside TxLINE — far below the 1.4M ceiling), reading
+  the returned Borsh bool via `get_return_data()`.
 
 ### 10.4 Rich event semantics (score events, not `Stats` keys)
 - possession → `Possession` / `PossessionType`
@@ -289,3 +294,27 @@ than depending on a live devnet match at judging time.
 - **Consumer & Fan Experiences** = fan-facing apps / games / bots / social →
   our **Hi-Lo + Pundit** (Track 2).
 - **Prediction Markets & Settlement** → our **prop markets + settlement** (Track 1).
+
+### 10.7 Late-hackathon intel (channel, ~Jul 12–13)
+- **Semi-final + final coverage confirmed** by the team ("Yep they will be
+  available!") — fixtures appear in `/api/fixtures/snapshot` ahead of time.
+  Plan demo recordings around the semis (Jul 14–15).
+- **Data gap reported**: users saw no fixture updates Jul 9→12 (between QF and
+  SF rounds) — normal tournament gap, but it's why the replay engine matters.
+- **Phantom devnet RPC flaky** (community-confirmed): txs built/signed but never
+  land; **Solflare works**. Use Solflare or a custom `NEXT_PUBLIC_RPC_URL` in
+  demos.
+- **"Sign up through Solana"** (Track 2 eligibility) = the TxLINE access flow
+  (on-chain subscribe → activate → API token), not necessarily wallet-login for
+  every end user. Judges should be able to test without creating a wallet.
+- **Shared codebase across tracks is allowed** — but each submission must
+  clearly show what was built for that track and how it uses TxLINE.
+- **Settlement caveats (unconfirmed by team)**: no public guarantee that
+  `game_finalised` is exactly-once per fixture/stat, or that corrections carry
+  strictly-increasing timestamps — don't build monotonic correction ordering
+  into settlement logic; keep a keeper/timeout fallback for abandoned matches
+  (phase codes 14/15/16/19 are NOT provable via `validate_stat`).
+- **Licensing §7.1**: bundling raw TxLINE fixture data in a public repo may
+  count as redistribution — keep replays API-driven (we do), never commit raw
+  captured feeds.
+- Silent 401s on the API token happen — re-mint the token (we cache + refresh).

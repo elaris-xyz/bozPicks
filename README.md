@@ -14,11 +14,12 @@ Built for the TxLINE World Cup Hackathon — submitted to **all three tracks**.
 2. Pick a **real TxLINE fixture** (live from `/api/fixtures/snapshot`) or the
    preset, choose the exact outcome scenario + speed, hit **Run**.
 3. Every page goes live off one SSE stream: the feed, Hi-Lo, the AI pundit
-   (with a neural voice), win probability, the agent arena — and at full time
+   (neural voice with a commentator picker + energy control), the broadcast
+   **Match Momentum** curve, win probability, the agent arena — and at full time
    all six prop markets settle to your chosen outcome with verifiable-resolution
    receipts, honestly labelled **Simulated** (upcoming fixture) vs **Verified**
    (on-chain proof).
-4. Prove determinism offline: `pnpm --filter=web test` — **28 tests**, no mocks,
+4. Prove determinism offline: `pnpm --filter=web test` — **35 tests**, no mocks,
    the exact pure functions the demo + keeper run.
 
 ## Tracks
@@ -26,7 +27,7 @@ Built for the TxLINE World Cup Hackathon — submitted to **all three tracks**.
 | Track | Product | Page |
 |---|---|---|
 | 1 · Prediction Markets & Settlement | **bozSettle** — USDC parimutuel prop markets settled from TxLINE Merkle proofs (`validate_stat`) | `/markets` |
-| 2 · Consumer & Fan Experiences | **bozPicks** — Hi-Lo stat game, win-prob gauge, AI pundit with neural TTS | `/play` |
+| 2 · Consumer & Fan Experiences | **bozPicks** — Hi-Lo stat game, Match Momentum curve, win-prob gauge, AI pundit with neural TTS, USDC-style vault (deposit once · stake instantly · cash out) | `/play` |
 | 3 · Trading Tools & Agents | **bozAgent** — headless Momentum-vs-Contrarian arena + self-grading sharp-move detector | `/agent` |
 
 Per-track briefs (with TxLINE endpoints + API feedback): `docs/submissions/`.
@@ -52,7 +53,7 @@ pnpm --filter=web dev      # UI + APIs (the Command Bridge drives demos)
 pnpm --filter=ingest dev   # live TxLINE ingest (optional for demos)
 pnpm --filter=agent dev    # headless agent (optional for demos)
 
-pnpm --filter=web test     # 28 deterministic settlement/replay tests
+pnpm --filter=web test     # 35 deterministic settlement/replay/momentum tests
 ```
 
 ## Architecture

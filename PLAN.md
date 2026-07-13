@@ -1,7 +1,7 @@
 # bozPicks — پلن اجرایی هکاتون
 
 > **Deadline:** July 19, 2026 · 23:59 UTC
-> **آخرین آپدیت:** July 3, 2026 → **16 روز مانده**
+> **آخرین آپدیت:** July 13, 2026 → **۶ روز مانده**
 > **جایزه کل قابل برد:** تا 32,000 USDT (سه تراک)
 
 ---
@@ -30,9 +30,15 @@ settle.domain.com  → /settle  (Track 1 landing)
 
 ---
 
-## سه — وضعیت دقیق الان (July 3)
+## سه — وضعیت دقیق الان (July 13)
 
-### bozPicks → Track 2 | ✅ ~95% آماده
+> **بازبینی جامع (Jul 13):** محصول در سطح رتبه‌ی اول هر سه تراکه. از July 4 به بعد
+> (~۱۰۰ کامیت): J1–J6 credibility، Vault economy، AI Pundit v2 (صدای عصبی +
+> انتخاب گزارشگر + کنترل انرژی)، Match Momentum broadcast، statproof (spec تأییدشده)،
+> کلیدهای stat واقعی در settlement، ۳۵ تست قطعی، UI بلوغ کامل.
+> **تنها بلاکرها: Deploy + دمو ویدیو ×۳ + Submit ×۳ → STATUS.md.**
+
+### bozPicks → Track 2 | ✅ ~۱۰۰٪ build آماده (deploy مانده)
 
 | بخش | وضعیت |
 |-----|--------|
@@ -53,7 +59,7 @@ settle.domain.com  → /settle  (Track 1 landing)
 | Deploy روی Vercel | ❌ |
 | Demo video | ❌ |
 
-### bozAgent → Track 3 | ✅ ~85% آماده
+### bozAgent → Track 3 | ✅ ~۱۰۰٪ build آماده (deploy مانده)
 
 | بخش | وضعیت |
 |-----|--------|
@@ -68,7 +74,7 @@ settle.domain.com  → /settle  (Track 1 landing)
 | Deploy + subdomain | ❌ |
 | Demo video | ❌ |
 
-### bozSettle → Track 1 | ✅ ~80% آماده
+### bozSettle → Track 1 | ✅ ~۱۰۰٪ build آماده (deploy مانده)
 
 | بخش | وضعیت |
 |-----|--------|
@@ -134,26 +140,24 @@ schedule / predictions / replay / stats / insights / leaderboard — آیکن ف
 ## پنج — تایم‌لاین (آپدیت Jul 3)
 
 ```
-هفته ۱  ✅ (تمام)              هفته ۲  Jul 6–12          هفته ۳  Jul 13–19
-────────────────────────      ────────────────────────   ──────────────────
-✅ Wallet TX                  🔴 Deploy Vercel+Railway    Demo video × 3
-✅ /api/agents/stats          Subdomain routing live      Git push public (بعد پاکسازی)
-✅ landing × 3                Smoke test روی prod         Submit × 3
-✅ Anchor deploy devnet
-✅ CPI به TxLINE
-✅ UI/UX production-grade
+هفته ۱–۲  ✅ (تمام — build کامل)         هفته‌ی آخر  Jul 13–19
+──────────────────────────────────      ─────────────────────────────
+✅ Wallet TX + Vault economy            🔴 Jul 13–14  Deploy + smoke test
+✅ J1–J6 credibility + ۳۵ تست           🔴 Jul 14–15  Demo video × 3 (هم‌زمان با نیمه‌نهایی‌ها!)
+✅ AI Pundit v2 + Match Momentum        🔴 Jul 16–17  Submit × 3 (نه روز آخر — ریسک X-verification)
+✅ Anchor deploy devnet + CPI           🟡 Jul 18–19  بافر / رفع ایراد داوران
+✅ UI/UX production-grade + push
 ```
 
 ### اولویت الان
 
 | # | کار | محصول | وضعیت |
 |---|-----|--------|--------|
-| ✅ | UI/UX کامل production-grade | همه | انجام شد |
-| ✅ | production build تأیید شد (`next build` بدون خطا) | web | انجام شد — deploy de-risk شد |
-| ✅ | پاکسازی secrets + push به github.com/elaris-xyz/bozPicks | همه | history تمیز، صفر secret |
-| 🔴 1 | Deploy Vercel + Railway | همه | بعدی |
-| 🟢 3 | Demo video × 3 | همه | هفته ۳ |
-| 🟢 4 | Submit × 3 | همه | آخر |
+| ✅ | Build کامل: heroها + credibility + vault + pundit v2 + momentum | همه | انجام شد |
+| 🔴 1 | Revoke کلید Groq لو رفته + `REDIS_URL` تازه | — | **قبل از deploy** |
+| 🔴 2 | Deploy Vercel + Railway + smoke test | همه | بعدی |
+| 🔴 3 | Demo video × 3 — ضبط هنگام نیمه‌نهایی‌ها (پوشش تأیید شد) | همه | Jul 14–15 |
+| 🔴 4 | Submit × 3 + پر کردن لینک‌های `<deploy>` در briefها | همه | Jul 16–17 |
 
 ---
 
@@ -186,9 +190,11 @@ schedule / predictions / replay / stats / insights / leaderboard — آیکن ف
 
 | ریسک | وضعیت | اقدام |
 |------|--------|-------|
-| **`.txline-keypair.json` در git history** (commit `8ac1ef5`) | 🔴 خطرناک | باید از history حذف بشه + به `.gitignore` اضافه بشه — **قبل هر push عمومی** |
-| فقط ۲ commit، remote تنظیم نشده | 🟡 | همه‌چیز local؛ بک‌آپ نداریم |
+| keypair در git history | ✅ حل شد (Jul 4) | history با orphan branch تازه‌سازی شد؛ صفر secret روی remote (verified) |
+| **کلید Groq در چت به اشتراک گذاشته شد** (Jul ~10) | 🔴 | revoke + کلید جدید فقط در env — **قبل از deploy** |
+| `REDIS_URL` قدیمی | 🟡 | نمونه‌ی تازه بگیر و در env پروڈ ست کن |
 | `.env` (شامل API keys) | ✅ gitignored | امنه |
+| **لایسنس §7.1 TxLINE** — redistribution دیتای خام | 🟡 آگاه باش | دیتای خام رو در repo/باندل عمومی commit نکن (الان نمی‌کنیم — replay از API زنده می‌کشه) |
 
 ---
 

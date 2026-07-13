@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { basePressure, eventImpulse, stepMomentum, relaxMomentum } from './momentum';
+import { basePressure, eventImpulse, addImpulse, tickMomentum } from './momentum';
 import type { BozEvent, MatchStats } from '@bozpicks/shared';
 
 const stats = (o: Partial<MatchStats>): MatchStats => ({
@@ -28,18 +28,19 @@ test('event impulse points at the attacking side', () => {
   assert.ok(eventImpulse(red, false) > 0);
 });
 
-test('stepMomentum spikes on a goal and tags the side', () => {
-  const e = { type: 'GOAL', matchMinute: 22, team: 'Brazil' } as BozEvent;
-  const { m, goal } = stepMomentum(0, e, 'Brazil');
-  assert.ok(m > 3 && m <= 10);         // a home goal drives momentum well up
-  assert.equal(goal, 'home');
-  assert.equal(stepMomentum(0, { type: 'GOAL', matchMinute: 9, team: 'Argentina' } as BozEvent, 'Brazil').goal, 'away');
+test('addImpulse raises the target on a goal and tags the side', () => {
+  const home = addImpulse(0, { type: 'GOAL', matchMinute: 22, team: 'Brazil' } as BozEvent, 'Brazil');
+  assert.ok(home.target > 3 && home.target <= 10);
+  assert.equal(home.goal, 'home');
+  assert.equal(addImpulse(0, { type: 'GOAL', matchMinute: 9, team: 'Argentina' } as BozEvent, 'Brazil').goal, 'away');
 });
 
-test('momentum decays back toward the baseline between events (crosses zero)', () => {
-  // a big away spike, then relax with neutral possession → returns toward 0
-  let m = stepMomentum(0, { type: 'GOAL', matchMinute: 5, team: 'Argentina' } as BozEvent, 'Brazil').m;
-  assert.ok(m < -3);
-  for (let i = 0; i < 30; i++) m = relaxMomentum(m, stats({ possession: 50 }));
-  assert.ok(Math.abs(m) < 1);          // settled back near the centre line
+test('displayed value eases toward the target (smooth rise), then decays to baseline', () => {
+  let s = { target: addImpulse(0, { type: 'GOAL', matchMinute: 5, team: 'Argentina' } as BozEvent, 'Brazil').target, m: 0 };
+  // eases in — the very first tick is only partway to the target (rounded rise)
+  const first = tickMomentum(s, stats({ possession: 50 }));
+  assert.ok(first.m < 0 && first.m > s.target);   // moved toward, not all the way
+  s = first;
+  for (let i = 0; i < 40; i++) s = tickMomentum(s, stats({ possession: 50 }));
+  assert.ok(Math.abs(s.m) < 1);                    // settles back near the centre line
 });

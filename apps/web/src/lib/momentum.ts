@@ -50,32 +50,34 @@ const clamp = (v: number) => Math.max(-MOM_CLAMP, Math.min(MOM_CLAMP, v));
 
 // possession/threat is only a gentle, persistent lean; the spikes carry the drama
 const LEAN = 0.22;
-// per-sample memory: an event's spike decays over several samples, so it renders
-// as a rounded hump (not a thin vertical spike). Higher = smoother/rounder.
-const HOLD = 0.82;
+// the TARGET pressure decays toward the lean each tick (how long a spike lingers)
+const HOLD = 0.86;
+// the DISPLAYED value eases toward the target each tick — this is what rounds the
+// rise AND the fall, so a goal reads as a smooth swell, not a vertical needle
+const EASE = 0.42;
 
-/**
- * Apply one event to the running momentum — just add its attacking spike to the
- * current value (the sampler's HOLD decay rounds it out over time). Returns the
- * new value + which side, if any, just scored.
- */
-export function stepMomentum(
-  prev: number,
+export interface MomentumState { target: number; m: number }
+
+/** Add an event's attacking spike to the momentum TARGET (not the displayed
+    value — the sampler eases toward it, keeping the curve smooth). */
+export function addImpulse(
+  target: number,
   e: BozEvent,
   homeTeam?: string,
-): { m: number; goal?: 'home' | 'away' } {
+): { target: number; goal?: 'home' | 'away' } {
   const isHome = e.team && homeTeam ? e.team === homeTeam : null;
-  const m = clamp(prev + eventImpulse(e, isHome));
   const goal = e.type === 'GOAL' && isHome != null ? (isHome ? 'home' : 'away') : undefined;
-  return { m, goal };
+  return { target: clamp(target + eventImpulse(e, isHome)), goal };
 }
 
 /**
- * One sampler tick: decay the running momentum toward the possession/threat
- * lean. Called on a fixed timer so the series is evenly spaced → a smooth,
- * organic wave rather than jagged event-driven spikes.
+ * One sampler tick: the target relaxes toward the possession/threat lean, and
+ * the displayed value eases toward the target. Called on a fixed timer so the
+ * series is evenly spaced and every rise/fall is a rounded curve.
  */
-export function relaxMomentum(prev: number, stats?: MatchStats): number {
-  const target = basePressure(stats) * LEAN;             // gentle steady lean (≈0 at even play)
-  return clamp(prev * HOLD + target * (1 - HOLD));
+export function tickMomentum(s: MomentumState, stats?: MatchStats): MomentumState {
+  const lean = basePressure(stats) * LEAN;
+  const target = clamp(s.target * HOLD + lean * (1 - HOLD));
+  const m = clamp(s.m + (target - s.m) * EASE);
+  return { target, m };
 }

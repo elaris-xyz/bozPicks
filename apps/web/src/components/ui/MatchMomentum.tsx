@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
-import { stepMomentum, relaxMomentum, MOM_CLAMP } from '@/lib/momentum';
+import { addImpulse, tickMomentum, MOM_CLAMP, type MomentumState } from '@/lib/momentum';
 import { Flag } from './Flag';
 
 /**
@@ -34,43 +34,47 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
 
   const [points, setPoints] = useState<Pt[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
-  const mRef = useRef(0);
+  const sRef = useRef<MomentumState>({ target: 0, m: 0 });
   const statsRef = useRef<MatchStats | undefined>(undefined);
   const minRef = useRef(0);
   const matchRef = useRef<string | null>(null);
 
-  // events only nudge the running momentum + record goals; the timer samples it
+  // events only nudge the momentum TARGET + record goals; the timer samples the
+  // eased displayed value
   useSSE({
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
       if (e.matchId && matchRef.current !== e.matchId && (e.type === 'MATCH_START' || !matchRef.current)) {
-        matchRef.current = e.matchId; mRef.current = 0; minRef.current = 0; statsRef.current = undefined;
+        matchRef.current = e.matchId; sRef.current = { target: 0, m: 0 }; minRef.current = 0; statsRef.current = undefined;
         setPoints([]); setGoals([]);
       }
-      if (e.type === 'MATCH_START') { mRef.current = 0; minRef.current = 0; setPoints([]); setGoals([]); return; }
+      if (e.type === 'MATCH_START') { sRef.current = { target: 0, m: 0 }; minRef.current = 0; setPoints([]); setGoals([]); return; }
       if (e.stats) statsRef.current = e.stats;
-      const { m, goal } = stepMomentum(mRef.current, e, home);
-      mRef.current = m;
+      const { target, goal } = addImpulse(sRef.current.target, e, home);
+      sRef.current.target = target;
       if (goal) setGoals(g => [...g.slice(-12), { min: e.matchMinute || minRef.current, side: goal }]);
     },
   });
 
-  // fixed-cadence sampler → an even, smooth series (only while a match is live)
+  // fixed-cadence sampler → an even, smooth series (only while a match is live,
+  // and only up to full time so it never trails past 90')
   useEffect(() => {
     if (!isLive) return;
     const t = setInterval(() => {
-      mRef.current = relaxMomentum(mRef.current, statsRef.current);
-      const min = Math.max(live?.minute ?? 0, minRef.current + 0.25); // strictly increasing x
+      sRef.current = tickMomentum(sRef.current, statsRef.current);
+      const clock = live?.minute ?? 0;
+      if (clock >= 90) return;                                    // match over → stop extending the curve
+      const min = Math.max(clock, minRef.current + 0.25);         // strictly increasing x
       minRef.current = min;
-      setPoints(prev => [...prev, { min, v: mRef.current }].slice(-MAX_POINTS));
+      setPoints(prev => [...prev, { min, v: sRef.current.m }].slice(-MAX_POINTS));
     }, TICK_MS);
     return () => clearInterval(t);
   }, [isLive, live?.minute]);
 
   // no live match → wipe the wave so a finished/idle board doesn't show a stale curve
   useEffect(() => {
-    if (!isLive) { setPoints([]); setGoals([]); mRef.current = 0; minRef.current = 0; }
+    if (!isLive) { setPoints([]); setGoals([]); sRef.current = { target: 0, m: 0 }; minRef.current = 0; }
   }, [isLive]);
 
   const maxMin = Math.max(90, live?.minute ?? 0, points.length ? points[points.length - 1].min : 0);

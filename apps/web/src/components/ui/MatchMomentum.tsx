@@ -3,71 +3,70 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
-import type { SSEMessage, BozEvent } from '@bozpicks/shared';
-import { foldMomentum, MOM_CLAMP, type MomentumPoint } from '@/lib/momentum';
+import type { SSEMessage, BozEvent, MatchStats } from '@bozpicks/shared';
+import { stepMomentum, relaxMomentum, MOM_CLAMP, type MomentumPoint } from '@/lib/momentum';
 import { Flag } from './Flag';
 
 /**
  * MATCH MOMENTUM — a broadcast-style two-sided pressure curve. Home pressure
- * spikes UP (green), away pressure spikes DOWN (blue), around a centre baseline,
- * built live from TxLINE possession + threat state + attacking events. Goals
- * plant a flag on the curve. Backfills from the SSE catch-up so joining mid-match
- * still shows the whole story.
+ * rises ABOVE the centre line (green), away pressure dips BELOW (blue), built
+ * live from TxLINE possession + threat state + attacking events. Goals plant a
+ * flag; a pulsing cursor marks "now". Backfills from the SSE catch-up.
+ *
+ * The SVG has a FIXED pixel height and only stretches horizontally, so the
+ * vertical proportions stay true (no exaggerated spikes) and the HTML overlays
+ * (crests, labels) line up with the curve.
  */
 
-const W = 640, H = 190;
-const PAD_L = 46, PAD_R = 14, PAD_T = 30, PAD_B = 22;
-const BASE_Y = PAD_T + (H - PAD_T - PAD_B) / 2;       // centre line
-const AMP = (H - PAD_T - PAD_B) / 2 - 4;               // px per full-scale side
-const MAX_POINTS = 260;
+const W = 1000, H = 200;              // viewBox — H matches the rendered px height
+const PAD_L = 8, PAD_R = 10, PAD_T = 16, PAD_B = 22;
+const BASE_Y = PAD_T + (H - PAD_T - PAD_B) / 2;   // centre line
+const AMP = (H - PAD_T - PAD_B) / 2 - 6;          // px per full-scale side
+const MAX_POINTS = 320;
 
 export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: string; away?: string } = {}) {
   const live = useLiveMatch();
   const home = homeProp ?? live?.homeTeam;
   const away = awayProp ?? live?.awayTeam;
   const [points, setPoints] = useState<MomentumPoint[]>([]);
-  const baseRef = useRef(0);
+  const mRef = useRef(0);                 // running momentum
+  const statsRef = useRef<MatchStats | undefined>(undefined);
   const matchRef = useRef<string | null>(null);
 
   useSSE({
     onMessage: (msg: SSEMessage) => {
-      if (msg.type === 'match_update' && msg.data) return;
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
 
-      // new match → reset the curve
-      if (e.matchId && matchRef.current !== e.matchId) {
-        if (e.type === 'MATCH_START' || !matchRef.current) {
-          matchRef.current = e.matchId; baseRef.current = 0; setPoints([]);
-        }
+      if (e.matchId && matchRef.current !== e.matchId && (e.type === 'MATCH_START' || !matchRef.current)) {
+        matchRef.current = e.matchId; mRef.current = 0; statsRef.current = undefined; setPoints([]);
       }
-      if (e.type === 'MATCH_START') { baseRef.current = 0; setPoints([]); return; }
+      if (e.type === 'MATCH_START') { mRef.current = 0; setPoints([]); return; }
 
-      const { base, point } = foldMomentum(baseRef.current, e, home);
-      baseRef.current = base;
-      // stat-only ticks refresh the baseline without a spike; skip flat dupes
+      if (e.stats) statsRef.current = e.stats;
+      const { m, point } = stepMomentum(mRef.current, e, home);
+      mRef.current = m;
       setPoints(prev => {
         const last = prev[prev.length - 1];
-        if (last && last.min === point.min && Math.abs(last.v - point.v) < 0.25 && !point.goal) return prev;
+        if (last && last.min === point.min && Math.abs(last.v - point.v) < 0.2 && !point.goal) return prev;
         return [...prev, point].slice(-MAX_POINTS);
       });
     },
   });
 
-  // gently relax toward the possession/threat baseline between events so spikes
-  // decay like the real thing (only while a match is live)
+  // relax toward the baseline between events so spikes decay + the line crosses
+  // zero, adding a fresh sample at the live minute (only while a match is on)
   useEffect(() => {
     if (!live?.live) return;
     const t = setInterval(() => {
+      const m = relaxMomentum(mRef.current, statsRef.current);
+      mRef.current = m;
       setPoints(prev => {
         if (prev.length === 0) return prev;
-        const last = prev[prev.length - 1];
-        const target = baseRef.current;
-        if (Math.abs(last.v - target) < 0.3) return prev;
-        const v = last.v + (target - last.v) * 0.5;
-        return [...prev.slice(-MAX_POINTS + 1), { min: (live.minute || last.min), v }];
+        const min = live.minute || prev[prev.length - 1].min;
+        return [...prev, { min, v: m }].slice(-MAX_POINTS);
       });
-    }, 3000);
+    }, 2500);
     return () => clearInterval(t);
   }, [live?.live, live?.minute]);
 
@@ -75,14 +74,11 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
   const xFor = (min: number) => PAD_L + (Math.min(min, maxMin) / maxMin) * (W - PAD_L - PAD_R);
   const yFor = (v: number) => BASE_Y - (Math.max(-MOM_CLAMP, Math.min(MOM_CLAMP, v)) / MOM_CLAMP) * AMP;
 
-  // split into home (v>0 → up) and away (v<0 → down) so each side spikes on its
-  // own half of the baseline
-  const pts = points.map(p => ({ x: xFor(p.min), vUp: Math.max(0, p.v), vDown: Math.max(0, -p.v), p }));
-  const homeArea = areaPath(pts.map(q => ({ x: q.x, y: yFor(q.vUp) })), BASE_Y);
-  const awayArea = areaPath(pts.map(q => ({ x: q.x, y: yFor(-q.vDown) })), BASE_Y);
+  const pts = points.map(p => ({ x: xFor(p.min), p }));
+  const homeArea = areaPath(pts.map(q => ({ x: q.x, y: yFor(Math.max(0, q.p.v)) })), BASE_Y);
+  const awayArea = areaPath(pts.map(q => ({ x: q.x, y: yFor(-Math.max(0, -q.p.v)) })), BASE_Y);
   const goals = points.filter(p => p.goal);
   const latest = pts[pts.length - 1];
-
   const ticks = [0, 15, 30, 45, 60, 75, 90].filter(m => m <= maxMin + 1);
   const hasData = points.length > 1;
 
@@ -93,74 +89,75 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
           <span className="w-2 h-2 rounded-full" style={{ background: 'var(--amber)', boxShadow: '0 0 10px rgba(245,158,11,0.6)' }} />
           <p className="text-xs font-bold uppercase tracking-widest text-gray-300">Match Momentum</p>
         </div>
-        <p className="text-[10px] text-gray-500">possession · threat · shots — live from TxLINE</p>
+        <p className="text-[10px] text-gray-500 hidden sm:block">possession · threat · shots — live from TxLINE</p>
       </div>
 
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ display: 'block' }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="momHome" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(16,185,129,0.55)" /><stop offset="100%" stopColor="rgba(16,185,129,0.05)" />
-          </linearGradient>
-          <linearGradient id="momAway" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor="rgba(59,130,246,0.55)" /><stop offset="100%" stopColor="rgba(59,130,246,0.05)" />
-          </linearGradient>
-        </defs>
+      {/* fixed-height plot; the SVG stretches horizontally only */}
+      <div className="relative w-full" style={{ height: H }}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
+          <defs>
+            <linearGradient id="momHome" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(16,185,129,0.5)" /><stop offset="100%" stopColor="rgba(16,185,129,0.04)" />
+            </linearGradient>
+            <linearGradient id="momAway" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stopColor="rgba(59,130,246,0.5)" /><stop offset="100%" stopColor="rgba(59,130,246,0.04)" />
+            </linearGradient>
+          </defs>
 
-        {/* minute grid + labels */}
+          {ticks.map(m => (
+            <line key={m} x1={xFor(m)} y1={PAD_T - 4} x2={xFor(m)} y2={H - PAD_B + 2} stroke="rgba(255,255,255,0.05)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          ))}
+          <line x1={PAD_L} y1={BASE_Y} x2={W - PAD_R} y2={BASE_Y} stroke="rgba(255,255,255,0.2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+
+          {hasData && (
+            <>
+              <path d={awayArea} fill="url(#momAway)" stroke="rgba(59,130,246,0.9)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+              <path d={homeArea} fill="url(#momHome)" stroke="rgba(16,185,129,0.9)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+
+              {goals.map((g, i) => {
+                const x = xFor(g.min);
+                const up = g.goal === 'home';
+                const yTip = up ? PAD_T + 8 : H - PAD_B - 8;       // flag near the outer edge of its side
+                const c = up ? 'var(--green)' : 'var(--blue)';
+                return (
+                  <g key={i}>
+                    <line x1={x} y1={BASE_Y} x2={x} y2={yTip} stroke={c} strokeWidth={1.3} strokeDasharray="none" vectorEffect="non-scaling-stroke" opacity={0.5} />
+                    <path d={up ? `M ${x} ${yTip} l 11 4 l -11 4 z` : `M ${x} ${yTip} l 11 -4 l -11 -4 z`} fill={c} />
+                  </g>
+                );
+              })}
+
+              {latest && live?.live && (
+                <>
+                  <line x1={latest.x} y1={PAD_T} x2={latest.x} y2={H - PAD_B} stroke="rgba(245,158,11,0.35)" strokeWidth={1} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+                  <circle cx={latest.x} cy={yFor(latest.p.v)} r={3.5} fill="var(--amber)" />
+                </>
+              )}
+            </>
+          )}
+        </svg>
+
+        {/* minute labels (crisp HTML, not stretched with the SVG) */}
         {ticks.map(m => (
-          <g key={m}>
-            <line x1={xFor(m)} y1={PAD_T - 4} x2={xFor(m)} y2={H - PAD_B + 2} stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
-            <text x={xFor(m)} y={H - 6} textAnchor="middle" fontSize="9" fill="#64748b">{m === 45 ? 'HT' : `${m}'`}</text>
-          </g>
+          <span key={m} className="absolute text-[9px] text-gray-500 -translate-x-1/2" style={{ left: `${(xFor(m) / W) * 100}%`, bottom: 2 }}>
+            {m === 45 ? 'HT' : `${m}'`}
+          </span>
         ))}
-        {/* centre baseline */}
-        <line x1={PAD_L} y1={BASE_Y} x2={W - PAD_R} y2={BASE_Y} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
 
-        {hasData && (
-          <>
-            <path d={awayArea} fill="url(#momAway)" stroke="rgba(59,130,246,0.9)" strokeWidth={1.4} />
-            <path d={homeArea} fill="url(#momHome)" stroke="rgba(16,185,129,0.9)" strokeWidth={1.4} />
-
-            {/* goal flags on the curve */}
-            {goals.map((g, i) => {
-              const x = xFor(g.min);
-              const up = g.goal === 'home';
-              const y = yFor(up ? Math.max(1.5, g.v) : Math.min(-1.5, g.v));
-              const c = up ? 'var(--green)' : 'var(--blue)';
-              return (
-                <g key={i}>
-                  <line x1={x} y1={y} x2={x} y2={up ? y - 16 : y + 16} stroke={c} strokeWidth={1.5} />
-                  <path d={up ? `M ${x} ${y - 16} l 9 3 l -9 3 z` : `M ${x} ${y + 16} l 9 -3 l -9 -3 z`} fill={c} />
-                </g>
-              );
-            })}
-
-            {/* live cursor */}
-            {latest && live?.live && (
-              <g>
-                <line x1={latest.x} y1={PAD_T - 2} x2={latest.x} y2={H - PAD_B} stroke="rgba(245,158,11,0.4)" strokeWidth={1} strokeDasharray="2 3" />
-                <circle cx={latest.x} cy={yFor(latest.p.v)} r={3.5} fill="var(--amber)" />
-                <circle cx={latest.x} cy={yFor(latest.p.v)} r={3.5} fill="none" stroke="var(--amber)" strokeWidth={1.5}>
-                  <animate attributeName="r" from="3.5" to="10" dur="1.3s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" from="0.7" to="0" dur="1.3s" repeatCount="indefinite" />
-                </circle>
-              </g>
-            )}
-          </>
-        )}
-      </svg>
-
-      {/* team crests left, tied to their side of the baseline */}
-      <div className="absolute left-3 top-9 flex flex-col justify-between" style={{ height: H - PAD_T - PAD_B }}>
-        <div className="flex items-center gap-1"><Flag team={home} size="xs" /><span className="text-[9px] font-bold" style={{ color: 'var(--green)' }}>{shortName(home)}</span></div>
-        <div className="flex items-center gap-1"><Flag team={away} size="xs" /><span className="text-[9px] font-bold" style={{ color: 'var(--blue)' }}>{shortName(away)}</span></div>
-      </div>
-
-      {!hasData && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <p className="text-xs text-gray-600">Momentum builds as the match plays — run one from the ⚡ Command Bridge.</p>
+        {/* team crests, pinned to their side of the baseline */}
+        <div className="absolute left-2 flex items-center gap-1" style={{ top: (BASE_Y - AMP * 0.6) - 8 }}>
+          <Flag team={home} size="xs" /><span className="text-[9px] font-black" style={{ color: 'var(--green)' }}>{shortName(home)}</span>
         </div>
-      )}
+        <div className="absolute left-2 flex items-center gap-1" style={{ top: (BASE_Y + AMP * 0.6) - 8 }}>
+          <Flag team={away} size="xs" /><span className="text-[9px] font-black" style={{ color: 'var(--blue)' }}>{shortName(away)}</span>
+        </div>
+
+        {!hasData && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <p className="text-xs text-gray-600">Momentum builds as the match plays — run one from the ⚡ Command Bridge.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

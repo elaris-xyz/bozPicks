@@ -48,20 +48,31 @@ export function eventImpulse(e: BozEvent, isHome: boolean | null): number {
 
 const clamp = (v: number) => Math.max(-MOM_CLAMP, Math.min(MOM_CLAMP, v));
 
+// possession/threat is only a gentle, persistent lean; the spikes carry the drama
+const LEAN = 0.22;
+// how much lingering momentum survives to the next sample — the rest decays back
+// toward the lean, so the curve crosses the baseline between attacks (not a
+// permanently one-sided fill)
+const DECAY = 0.5;
+
 /**
- * Fold one event into the momentum series. `base` is the running possession/
- * threat pressure (updated when the event carries fresh stats). Returns the new
- * base + the point to append (base + this event's spike).
+ * Advance the running momentum with one event: decay the lingering pressure,
+ * apply a small possession/threat lean, then add this event's attacking spike.
+ * `prev` is the current momentum value; returns the new value + the point.
  */
-export function foldMomentum(
-  base: number,
+export function stepMomentum(
+  prev: number,
   e: BozEvent,
   homeTeam?: string,
-): { base: number; point: MomentumPoint } {
-  const nextBase = e.stats ? basePressure(e.stats) : base;
+): { m: number; point: MomentumPoint } {
   const isHome = e.team && homeTeam ? e.team === homeTeam : null;
-  const spike = eventImpulse(e, isHome);
-  const v = clamp(nextBase + spike);
+  const lean = e.stats ? basePressure(e.stats) * LEAN : 0; // no fresh stats → prev's lean carries via decay
+  const m = clamp(prev * DECAY + lean + eventImpulse(e, isHome));
   const goal = e.type === 'GOAL' && isHome != null ? (isHome ? 'home' : 'away') : undefined;
-  return { base: nextBase, point: { min: e.matchMinute || 0, v, goal } };
+  return { m, point: { min: e.matchMinute || 0, v: m, goal } };
+}
+
+/** Relax momentum toward the possession/threat lean between events (decay). */
+export function relaxMomentum(prev: number, stats?: MatchStats): number {
+  return clamp(prev * (DECAY + 0.1) + basePressure(stats) * LEAN);
 }

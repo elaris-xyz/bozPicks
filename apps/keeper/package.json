@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev":   "tsx watch src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "start:prod": "node -r tsx/cjs src/index.ts"
   },
   "dependencies": {
     "@bozpicks/shared": "workspace:*",

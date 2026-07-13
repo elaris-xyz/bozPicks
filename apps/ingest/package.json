@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node --env-file=../../.env -r tsx/cjs src/index.ts",
-    "dev": "node --env-file=../../.env -r tsx/cjs src/index.ts"
+    "dev": "node --env-file=../../.env -r tsx/cjs src/index.ts",
+    "start:prod": "node -r tsx/cjs src/index.ts"
   },
   "dependencies": {
     "@bozpicks/shared": "workspace:*",

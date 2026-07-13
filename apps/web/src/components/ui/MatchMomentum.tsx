@@ -81,8 +81,14 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
   const xFor = (min: number) => PAD_L + (Math.min(min, maxMin) / maxMin) * (W - PAD_L - PAD_R);
   const yFor = (v: number) => BASE_Y - (Math.max(-MOM_CLAMP, Math.min(MOM_CLAMP, v)) / MOM_CLAMP) * AMP;
 
-  const homeLine = points.map(p => ({ x: xFor(p.min), y: yFor(Math.max(0, p.v)) }));
-  const awayLine = points.map(p => ({ x: xFor(p.min), y: yFor(-Math.max(0, -p.v)) }));
+  // ONE continuous curve (a light moving average removes sampler jitter); it
+  // crosses the baseline smoothly, and the fill/stroke are split into green
+  // (above) / blue (below) by clip rects — the broadcast standard, with no hard
+  // corners where the curve meets the centre line.
+  const sv = movingAverage(points.map(p => p.v), 2);
+  const curve = points.map((p, i) => ({ x: xFor(p.min), y: yFor(sv[i]) }));
+  const areaD = smoothArea(curve, BASE_Y);
+  const lineD = smoothLine(curve);
   const latest = points[points.length - 1];
   const ticks = [0, 15, 30, 45, 60, 75, 90].filter(m => m <= maxMin + 1);
   const hasData = points.length > 2;
@@ -101,12 +107,14 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
       <div className="relative w-full" style={{ height: H }}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
           <defs>
-            <linearGradient id="momHome" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(16,185,129,0.45)" /><stop offset="100%" stopColor="rgba(16,185,129,0.03)" />
+            <linearGradient id="momHome" gradientUnits="userSpaceOnUse" x1="0" y1={PAD_T} x2="0" y2={BASE_Y}>
+              <stop offset="0%" stopColor="rgba(16,185,129,0.5)" /><stop offset="100%" stopColor="rgba(16,185,129,0.04)" />
             </linearGradient>
-            <linearGradient id="momAway" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="rgba(59,130,246,0.45)" /><stop offset="100%" stopColor="rgba(59,130,246,0.03)" />
+            <linearGradient id="momAway" gradientUnits="userSpaceOnUse" x1="0" y1={H - PAD_B} x2="0" y2={BASE_Y}>
+              <stop offset="0%" stopColor="rgba(59,130,246,0.5)" /><stop offset="100%" stopColor="rgba(59,130,246,0.04)" />
             </linearGradient>
+            <clipPath id="momAbove"><rect x="0" y="0" width={W} height={BASE_Y} /></clipPath>
+            <clipPath id="momBelow"><rect x="0" y={BASE_Y} width={W} height={H - BASE_Y} /></clipPath>
           </defs>
 
           {ticks.map(m => (
@@ -116,8 +124,11 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
 
           {hasData && (
             <>
-              <path d={smoothArea(awayLine, BASE_Y)} fill="url(#momAway)" stroke="rgba(59,130,246,0.85)" strokeWidth={1.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-              <path d={smoothArea(homeLine, BASE_Y)} fill="url(#momHome)" stroke="rgba(16,185,129,0.85)" strokeWidth={1.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+              {/* one smooth curve; fill + stroke clipped into green (above) / blue (below) */}
+              <path d={areaD} fill="url(#momHome)" clipPath="url(#momAbove)" />
+              <path d={areaD} fill="url(#momAway)" clipPath="url(#momBelow)" />
+              <path d={lineD} fill="none" stroke="rgba(16,185,129,0.9)" strokeWidth={1.7} strokeLinejoin="round" strokeLinecap="round" clipPath="url(#momAbove)" vectorEffect="non-scaling-stroke" />
+              <path d={lineD} fill="none" stroke="rgba(59,130,246,0.9)" strokeWidth={1.7} strokeLinejoin="round" strokeLinecap="round" clipPath="url(#momBelow)" vectorEffect="non-scaling-stroke" />
 
               {goals.map((g, i) => {
                 const x = xFor(g.min);
@@ -169,10 +180,20 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
   );
 }
 
-/** Catmull-Rom → cubic-Bézier smooth area, closed to the baseline. */
-function smoothArea(pts: { x: number; y: number }[], baseY: number): string {
+/** centered moving average — smooths sampler jitter before drawing. */
+function movingAverage(vals: number[], radius: number): number[] {
+  if (radius < 1) return vals;
+  return vals.map((_, i) => {
+    let sum = 0, n = 0;
+    for (let j = i - radius; j <= i + radius; j++) if (j >= 0 && j < vals.length) { sum += vals[j]; n++; }
+    return sum / n;
+  });
+}
+
+/** Catmull-Rom → cubic-Bézier smooth open line (for the stroke). */
+function smoothLine(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return '';
-  let d = `M ${pts[0].x.toFixed(1)} ${baseY} L ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i];
     const p1 = pts[i];
@@ -182,9 +203,15 @@ function smoothArea(pts: { x: number; y: number }[], baseY: number): string {
     const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
     d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
   }
-  const last = pts[pts.length - 1];
-  d += ` L ${last.x.toFixed(1)} ${baseY} Z`;
   return d;
+}
+
+/** the same smooth curve, closed down to the baseline (for the fill). */
+function smoothArea(pts: { x: number; y: number }[], baseY: number): string {
+  if (pts.length < 2) return '';
+  const line = smoothLine(pts);
+  const last = pts[pts.length - 1];
+  return `M ${pts[0].x.toFixed(1)} ${baseY} L ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} ${line.slice(line.indexOf('C'))} L ${last.x.toFixed(1)} ${baseY} Z`;
 }
 
 function shortName(t?: string): string {

@@ -3,7 +3,7 @@
 > فایل زنده‌ی وضعیت. PLAN.md = استراتژی بزرگ · این فایل = «resume here».
 > **قانون:** آخر هر session این فایل رو آپدیت کن (۲ دقیقه). تاریخ رو عوض کن.
 
-**آخرین آپدیت:** 2026-07-13 (بازبینی جامع آمادگی + Match Momentum نهایی شد)
+**آخرین آپدیت:** 2026-07-13 شب (✅ DEPLOY کامل شد — Vercel + Railway ×۳، تست سرتاسری پاس)
 
 ---
 
@@ -24,12 +24,22 @@
 - **کلیدهای stat واقعی** در settlement (`TXLINE_STAT_KEYS`) + رسید شامل `txlineStatKeys`.
 - Play page سه‌ستونه (Pundit | Hi-Lo | Win Prob) + Momentum تمام‌عرض.
 
-## 🔴 کار بعدی — سه شرط اجباری submission (به ترتیب)
+## ✅ DEPLOY کامل شد (Jul 13 شب)
 
-1. **Deploy (امروز/فردا)** — Vercel (web) + Railway (ingest/agent/keeper)، سه subdomain. قبلش: `REDIS_URL` تازه + کلید Groq جدید (کلید قبلی توی چت به اشتراک گذاشته شد → revoke). env های prod: DATABASE_URL، REDIS_URL، TXLINE_API_KEY، ANTHROPIC_API_KEY، GROQ_API_KEY، SETTLEMENT_KEEPER_KEYPAIR، NEXT_PUBLIC_RPC_URL.
-2. **Smoke test روی prod** — health، SSE، wallet (با Solflare — باگ Phantom devnet RPC)، Command Bridge، vault.
-3. **دمو ویدیو ×۳ (Jul 14–15، هم‌زمان با نیمه‌نهایی‌ها)** — تیم TxLINE تأیید کرد نیمه‌نهایی/فینال پوشش داده می‌شن. ویدیو با دیتای *زنده‌ی واقعی* > replay. ‏Command Bridge پشتیبانه. Track 1: حتماً TX روی Explorer نشون بده. ≤۵ دقیقه، بدونش disqualify.
-4. **Submit ×۳ (Jul 16–17، نه روز آخر)** — Superteam Earn، سه لینک جدا؛ X-verification گاهی گیر می‌کنه، زود اقدام کن. لینک‌های `<deploy>` توی `docs/submissions/*.md` رو پر کن.
+- **web** → Vercel: `https://boz-picks.vercel.app` (auto-deploy از GitHub main)
+- **ingest / agent / keeper** → Railway (پروژه‌ی «attractive-heart»)، هر سه Online
+- **Redis**: Upstash `equal-pheasant-153456` (rediss://) — مشترک بین Vercel و Railway
+- **DB**: Neon `ep-long-shadow-as1k9txg` — مشترک، هر ۱۰ جدول
+- **تست سرتاسری پاس شد**: دمو روی prod → agent روی Railway از Redis مشترک شنید → سیگنال ۸۹→۹۲ در DB مشترک → `/api/agents/stats` زنده. TTS هم روی prod سبز (audio/wav).
+- نکات Railway که خوردیم (برای آینده): تشخیص Rust به‌خاطر Cargo.toml → فیکس `RAILPACK_PACKAGES=node@20 pnpm` + `railpack.json`؛ Watch Paths جلوی auto-deploy رو می‌گرفت → خالی شد؛ `REDIS_URL` باید URL خالص `rediss://` باشه نه دستور CLI؛ «Redeploy» همون کامیت قبلی رو می‌سازه، کامیت جدید فقط با push.
+- **Vercel Security Checkpoint** ممکنه برای درخواست‌های API ای 403 بده (bot challenge) — اگه داورها گزارش کردن، Attack Challenge Mode رو در Vercel چک کن.
+
+## 🔴 کار بعدی — دو شرط اجباری باقی‌مانده
+
+1. **دمو ویدیو ×۳ (Jul 14–15، هم‌زمان با نیمه‌نهایی‌ها)** — تیم TxLINE تأیید کرد نیمه‌نهایی/فینال پوشش داده می‌شن. ویدیو با دیتای *زنده‌ی واقعی* > replay. ‏Command Bridge پشتیبانه. Track 1: حتماً TX روی Explorer نشون بده. ≤۵ دقیقه، بدونش disqualify. Wallet با Solflare (باگ Phantom devnet).
+2. **Submit ×۳ (Jul 16–17، نه روز آخر)** — Superteam Earn، سه لینک: `/play` · `/markets` · `/agent` روی همین دامنه؛ X-verification گاهی گیر می‌کنه، زود اقدام کن. لینک‌های `<deploy>` توی `docs/submissions/*.md` رو پر کن.
+
+(یادآوری: کلید Groq ای که توی چت TxLINE به اشتراک گذاشته شد هنوز revoke نشده — قبل از submit انجامش بده و کلید جدید رو در Vercel ست کن.)
 
 ---
 

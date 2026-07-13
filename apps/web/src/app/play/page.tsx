@@ -2,6 +2,7 @@ import { PlayHero } from '@/components/ui/PlayHero';
 import { LiveScoreboard } from '@/components/ui/LiveScoreboard';
 import { HiLoGame } from '@/components/ui/HiLoGame';
 import { LiveStatsPanel } from '@/components/ui/LiveStatsPanel';
+import { MatchMomentum } from '@/components/ui/MatchMomentum';
 import { LiveEventFeed } from '@/components/ui/LiveEventFeed';
 import { PunditRail } from '@/components/ui/PunditRail';
 
@@ -19,6 +20,9 @@ export default function PlayPage() {
 
       {/* live centrepiece — broadcast scorebug (or an invite when idle) */}
       <LiveScoreboard />
+
+      {/* broadcast-style pressure curve — who's on top, minute by minute */}
+      <MatchMomentum />
 
       {/* three equal columns, side by side — AI Pundit · Hi-Lo (centre) · Win
           Probability. items-stretch + h-full roots keep the heights locked in

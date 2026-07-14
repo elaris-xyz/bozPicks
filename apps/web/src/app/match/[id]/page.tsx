@@ -11,9 +11,9 @@ import { Countdown } from '@/components/ui/Countdown';
 import { MatchStats } from '@/components/ui/MatchStats';
 import { CountUp } from '@/components/ui/CountUp';
 import { ShareModal } from '@/components/ui/ShareModal';
-import { Flag, FlagBleed } from '@/components/ui/Flag';
+import { Flag, FlagBleed, FlagCorner, FlagWash } from '@/components/ui/Flag';
 import { TwoSidedTimeline } from '@/components/ui/TwoSidedTimeline';
-import { IconClock, IconChart, IconTrophy, IconSparkles, IconBolt } from '@/components/ui/Icons';
+import { IconChart, IconTrophy, IconSparkles, IconBolt } from '@/components/ui/Icons';
 
 // Wallet-heavy bet slip is loaded only when an outcome is picked, keeping the
 // Solana wallet adapter out of the match page's initial bundle.
@@ -225,30 +225,37 @@ export default function MatchDetailPage() {
         />
       )}
 
-      {/* Score header */}
-      <div className="glass relative overflow-hidden p-6 md:p-8 text-center">
-        {/* full-bleed flags fading toward the center — same look as the cards */}
-        <FlagBleed team={match.homeTeam} side="home" opacity={0.3} />
-        <FlagBleed team={match.awayTeam} side="away" opacity={0.3} />
+      {/* ── Broadcast hero: full corner flags (every stripe visible) over a
+             blended wash of both teams' colours; countdown lives here too ── */}
+      <div className="glass relative overflow-hidden p-6 md:p-9 text-center">
+        {/* colour-mix layer — both flags blurred + stretched into each other */}
+        <FlagWash home={match.homeTeam} away={match.awayTeam} />
+        {/* crisp full-height flags in the corners, correct 4:3 aspect */}
+        <FlagCorner team={match.homeTeam} side="home" />
+        <FlagCorner team={match.awayTeam} side="away" />
+        {/* readability vignette — darkens centre + bottom for the type */}
         <div className="absolute inset-0 pointer-events-none"
-             style={{ background: 'radial-gradient(ellipse 55% 100% at 50% 50%, rgba(7,11,24,0.6), transparent 100%)' }} />
+             style={{
+               background: `
+                 radial-gradient(ellipse 62% 120% at 50% 50%, rgba(7,11,24,0.78), rgba(7,11,24,0.28) 70%, transparent 100%),
+                 linear-gradient(to top, rgba(7,11,24,0.55), transparent 45%)
+               `,
+             }} />
         {isLive && (
-          <>
-            <div className="absolute top-0 left-0 right-0 h-px"
-                 style={{ background: 'linear-gradient(90deg,transparent,var(--red),transparent)' }} />
-            {/* ambient live glow */}
-            <div className="absolute inset-0 pointer-events-none"
-                 style={{ background: 'radial-gradient(ellipse 60% 80% at 50% 0%, rgba(239,68,68,0.07), transparent 70%)' }} />
-          </>
+          <div className="absolute top-0 left-0 right-0 h-[2px]"
+               style={{ background: 'linear-gradient(90deg,transparent,var(--green),transparent)' }} />
         )}
+
         <div className="relative flex items-center justify-center gap-4 md:gap-8">
-          <div className="flex-1 flex flex-col items-end gap-2">
+          <div className="flex-1 flex flex-col items-end gap-2 min-w-0">
             <Flag team={match.homeTeam} size="lg" className="rounded-md" />
-            <p className="font-bold text-base md:text-xl leading-tight text-right">{match.homeTeam}</p>
+            <p className="font-display font-bold text-base md:text-2xl leading-tight text-right truncate w-full"
+               style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{match.homeTeam}</p>
           </div>
           <div className="text-center flex-shrink-0">
             {isLive || match.status === 'FINISHED' ? (
-              <div className={`font-display text-4xl md:text-6xl font-black tabular-nums tracking-tight ${scoreFlash ? 'score-flash' : ''}`}>
+              <div className={`font-display text-4xl md:text-6xl font-black tabular-nums tracking-tight ${scoreFlash ? 'score-flash' : ''}`}
+                   style={{ filter: 'drop-shadow(0 2px 16px rgba(0,0,0,0.9))' }}>
                 <CountUp value={match.homeScore} duration={600} />
                 <span className="text-gray-600 mx-2">–</span>
                 <CountUp value={match.awayScore} duration={600} />
@@ -258,17 +265,31 @@ export default function MatchDetailPage() {
             )}
             <div className="flex items-center justify-center gap-1.5 mt-2">
               {isLive && <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: statusColor }} />}
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: statusColor }}>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: statusColor, textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
                 {match.status === 'HALFTIME' ? 'Half Time' : match.status}
                 {isLive && ` · ${liveMinute}'`}
               </span>
             </div>
           </div>
-          <div className="flex-1 flex flex-col items-start gap-2">
+          <div className="flex-1 flex flex-col items-start gap-2 min-w-0">
             <Flag team={match.awayTeam} size="lg" className="rounded-md" />
-            <p className="font-bold text-base md:text-xl leading-tight text-left">{match.awayTeam}</p>
+            <p className="font-display font-bold text-base md:text-2xl leading-tight text-left truncate w-full"
+               style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{match.awayTeam}</p>
           </div>
         </div>
+
+        {/* scheduled: countdown INSIDE the hero — no orphan card below */}
+        {match.status === 'SCHEDULED' && match.kickoffTime && (
+          <div className="relative mt-5 flex flex-col items-center gap-1.5">
+            <div className="flex justify-center"><Countdown kickoffTime={match.kickoffTime} /></div>
+            <p className="text-[11px] text-gray-500" style={{ textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
+              {new Date(match.kickoffTime).toLocaleString('en-GB', {
+                weekday: 'short', day: 'numeric', month: 'short',
+                hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+              })}
+            </p>
+          </div>
+        )}
 
         {/* live match-minute progress bar */}
         {isLive && (
@@ -286,22 +307,6 @@ export default function MatchDetailPage() {
           </div>
         )}
       </div>
-
-      {/* Countdown for scheduled */}
-      {match.status === 'SCHEDULED' && match.kickoffTime && (
-        <div className="glass p-4 text-center space-y-1">
-          <p className="text-xs text-gray-500 uppercase tracking-widest">Kickoff in</p>
-          <div className="flex justify-center">
-            <Countdown kickoffTime={match.kickoffTime} />
-          </div>
-          <p className="text-xs text-gray-600">
-            {new Date(match.kickoffTime).toLocaleString('en-GB', {
-              weekday: 'short', day: 'numeric', month: 'short',
-              hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
-            })}
-          </p>
-        </div>
-      )}
 
       {/* ── Match Odds — interactive selector when a pool is open ── */}
       {currentOdds && (() => {
@@ -358,10 +363,13 @@ export default function MatchDetailPage() {
           onClear={() => setPrediction(null)} />
       )}
 
-      {/* ── Match centre: timeline (main) + markets/analysis (side) ── */}
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] items-start">
-      <div className="space-y-4">
-      {/* Timeline */}
+      {/* ── Match centre — layout branches on match state:
+             · SCHEDULED: no empty timeline shell; pre-match cards in 2 columns
+             · LIVE/FINISHED: timeline (main) + stats-first side column ── */}
+      {(() => {
+      const isSched = match.status === 'SCHEDULED';
+
+      const timelineCard = (
       <div className="glass p-5">
         <div className="flex items-center justify-between mb-5">
           <h2 className="section-label">Timeline</h2>
@@ -372,22 +380,17 @@ export default function MatchDetailPage() {
           <div className="py-10 text-center">
             <div className="w-11 h-11 mx-auto mb-3 rounded-2xl flex items-center justify-center text-gray-500"
                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
-              {match.status === 'SCHEDULED' ? <IconClock size={20} /> : <IconChart size={20} />}
+              <IconChart size={20} />
             </div>
-            <p className="text-xs text-gray-600">
-              {match.status === 'SCHEDULED' ? "Match hasn't started yet" : 'No events yet'}
-            </p>
+            <p className="text-xs text-gray-600">No events yet</p>
           </div>
         ) : (
           <TwoSidedTimeline events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
         )}
       </div>
-      </div>
+      );
 
-      {/* ── Side column: markets + analysis ── */}
-      <div className="space-y-4">
-      {/* Odds Movement Chart */}
-      {oddsHistory.length >= 3 && (
+      const oddsMovementCard = oddsHistory.length >= 3 && (
         <div className="glass p-5">
           <h2 className="section-label mb-4">Odds Movement</h2>
           <div className="grid grid-cols-3 gap-4">
@@ -416,10 +419,9 @@ export default function MatchDetailPage() {
             })}
           </div>
         </div>
-      )}
+      );
 
-      {/* Pool */}
-      {pool && (
+      const poolCard = pool && (
         <div className="glass p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="section-label">Prediction Pool</h2>
@@ -472,9 +474,9 @@ export default function MatchDetailPage() {
             );
           })()}
         </div>
-      )}
+      );
 
-      {/* AI Analysis */}
+      const aiCard = (
       <div className="glass p-5">
         <div className="flex items-center gap-2 mb-4">
           <span className="w-2 h-2 rounded-full spin-slow" style={{ background: 'var(--blue)', boxShadow: '0 0 6px var(--blue)' }} />
@@ -512,14 +514,13 @@ export default function MatchDetailPage() {
           </div>
         )}
       </div>
+      );
 
-      {/* Match Stats */}
-      {events.length > 0 && match && (
+      const statsCard = events.length > 0 && (
         <MatchStats events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
-      )}
+      );
 
-      {/* Sharp Signals */}
-      {signals.length > 0 && (
+      const signalsCard = signals.length > 0 && (
         <div className="glass p-5">
           <h2 className="section-label mb-4">Sharp Signals ({signals.length})</h2>
           <div className="space-y-2">
@@ -559,9 +560,24 @@ export default function MatchDetailPage() {
             })}
           </div>
         </div>
-      )}
-      </div>
-      </div>
+      );
+
+      // pre-match: balanced two columns, no empty timeline shell
+      if (isSched) return (
+        <div className="grid gap-4 md:grid-cols-2 items-start">
+          <div className="space-y-4">{poolCard}{signalsCard}</div>
+          <div className="space-y-4">{aiCard}{oddsMovementCard}</div>
+        </div>
+      );
+
+      // live / finished: timeline is the main column, stats lead the side
+      return (
+        <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] items-start">
+          <div className="space-y-4">{timelineCard}</div>
+          <div className="space-y-4">{statsCard}{oddsMovementCard}{poolCard}{aiCard}{signalsCard}</div>
+        </div>
+      );
+      })()}
 
     </div>
   );

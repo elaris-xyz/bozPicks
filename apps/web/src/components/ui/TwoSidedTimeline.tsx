@@ -2,8 +2,24 @@
 
 import type { BozEvent } from '@bozpicks/shared';
 import {
-  IconBall, IconCard, IconSub, IconKickoff, IconFlagEnd, IconPause,
+  IconBall, IconCard, IconSub, IconKickoff, IconFlagEnd, IconPause, IconTarget,
 } from './Icons';
+
+const IconOffside = ({ size = 13 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 3v18" /><path d="M5 4h11l-2.5 3.5L16 11H5" />
+  </svg>
+);
+const IconWhistle = ({ size = 13 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="14" r="5" /><path d="M14 12h7M14 12l-1-4h5l-1 4" />
+  </svg>
+);
+const IconVar = ({ size = 13 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M8 12l2.5 2.5L16 9" />
+  </svg>
+);
 
 /**
  * Match timeline as a two-sided commentary spine:
@@ -21,10 +37,28 @@ type TeamCfg = { color: string; bg: string; border: string; label: string; icon:
 
 const TEAM_EVENT: Record<string, TeamCfg> = {
   GOAL:         { color: 'var(--green)',  bg: 'var(--green-dim)',       border: 'rgba(16,185,129,0.35)', label: 'Goal',         icon: <IconBall size={13} /> },
+  PENALTY:      { color: '#4ade80',       bg: 'rgba(74,222,128,0.10)',  border: 'rgba(74,222,128,0.35)', label: 'Penalty',      icon: <IconBall size={13} /> },
   RED_CARD:     { color: 'var(--red)',    bg: 'var(--red-dim)',         border: 'rgba(239,68,68,0.35)',  label: 'Red Card',     icon: <IconCard size={12} /> },
   YELLOW_CARD:  { color: 'var(--amber)',  bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.35)', label: 'Yellow Card',  icon: <IconCard size={12} /> },
   SUBSTITUTION: { color: 'var(--purple)', bg: 'var(--purple-dim)',      border: 'rgba(167,139,250,0.3)', label: 'Substitution', icon: <IconSub size={12} /> },
+  VAR:          { color: '#a855f7',       bg: 'rgba(168,85,247,0.10)',  border: 'rgba(168,85,247,0.32)', label: 'VAR Review',   icon: <IconVar size={12} /> },
 };
+
+/** Minor flow events — rendered as quiet compact rows so the goals/cards
+    hierarchy survives while the timeline still tells the full story. */
+const MINOR_EVENT: Record<string, { color: string; label: string; icon: React.ReactNode }> = {
+  SHOT:    { color: '#06b6d4', label: 'Shot',    icon: <IconTarget size={11} /> },
+  CORNER:  { color: '#f59e0b', label: 'Corner',  icon: <IconFlagEnd size={11} /> },
+  OFFSIDE: { color: '#fb7185', label: 'Offside', icon: <IconOffside size={11} /> },
+  FOUL:    { color: '#8b9bb4', label: 'Foul',    icon: <IconWhistle size={11} /> },
+};
+
+/** One-line detail under/next to an event chip. */
+function detailFor(e: BozEvent): string | undefined {
+  if (e.type === 'SHOT' && e.shotOutcome) return e.shotOutcome.replace(/([a-z])([A-Z])/g, '$1 $2');
+  if (e.type === 'VAR') return `${e.varType ?? 'Review'} — ${e.varOutcome ?? 'checking'}`;
+  return e.player ?? e.team;
+}
 
 const NEUTRAL: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   MATCH_START: { label: 'Kick-off',   color: 'var(--green)', icon: <IconKickoff size={12} /> },
@@ -96,6 +130,30 @@ export function TwoSidedTimeline({
             );
           }
 
+          // ── Minor flow event: quiet compact row on its own side ──
+          if (e.type in MINOR_EVENT) {
+            const m = MINOR_EVENT[e.type];
+            const isHome = e.team ? e.team === homeTeam : true;
+            const detail = detailFor(e);
+            const pill = (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px]"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: '#94a3b8' }}>
+                <span style={{ color: m.color }}>{m.icon}</span>
+                <span className="font-semibold" style={{ color: m.color }}>{m.label}</span>
+                {detail && detail !== m.label && <span className="text-gray-600 truncate max-w-[110px]">{detail}</span>}
+                <span className="font-mono text-gray-600">{e.matchMinute}&rsquo;</span>
+              </span>
+            );
+            return (
+              <div key={e.id ?? idx} className="relative flex items-center min-h-[24px]">
+                <div className="w-1/2 pr-4 flex justify-end">{isHome && pill}</div>
+                <div className="w-1/2 pl-4 flex justify-start">{!isHome && pill}</div>
+                <div className="absolute left-1/2 -translate-x-1/2 z-10 w-[7px] h-[7px] rounded-full"
+                     style={{ background: m.color, boxShadow: '0 0 0 3px var(--bg-deep)' }} />
+              </div>
+            );
+          }
+
           // ── Team event: chip on its own side ──
           if (isTeamEvent(e.type)) {
             const cfg = TEAM_EVENT[e.type];
@@ -113,9 +171,9 @@ export function TwoSidedTimeline({
                     </span>
                   )}
                 </div>
-                {(e.player || e.team) && (
+                {detailFor(e) && (
                   <p className={`text-[11px] text-gray-400 mt-0.5 truncate ${isHome ? 'text-right' : 'text-left'}`}>
-                    {e.player ?? e.team}
+                    {detailFor(e)}
                   </p>
                 )}
               </div>

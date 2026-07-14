@@ -98,11 +98,9 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
 
   return (
     <div className="glass p-4 relative overflow-hidden">
+      {/* card header — section-label dash, same as every other card */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--amber)', boxShadow: '0 0 10px rgba(245,158,11,0.6)' }} />
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-300">Match Momentum</p>
-        </div>
+        <h2 className="section-label">Match Momentum</h2>
         <p className="text-[10px] text-gray-500 hidden sm:block">possession · threat · shots — live from TxLINE</p>
       </div>
 
@@ -224,11 +222,9 @@ export function MomentumRecap({ events, homeTeam, awayTeam }: {
 
   return (
     <div className="glass p-4 relative overflow-hidden">
+      {/* card header — section-label dash, same as every other card */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--amber)', boxShadow: '0 0 10px rgba(245,158,11,0.6)' }} />
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-300">Match Momentum</p>
-        </div>
+        <h2 className="section-label">Match Momentum</h2>
         <p className="text-[10px] text-gray-500 hidden sm:block">full-time recap — from the recorded TxLINE events</p>
       </div>
 

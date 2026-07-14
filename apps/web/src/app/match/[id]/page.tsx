@@ -14,8 +14,8 @@ import { ShareModal } from '@/components/ui/ShareModal';
 import { Flag, FlagBleed, FlagCorner, FlagWash } from '@/components/ui/Flag';
 import { TwoSidedTimeline } from '@/components/ui/TwoSidedTimeline';
 import { MomentumRecap } from '@/components/ui/MatchMomentum';
-import { IconBall } from '@/components/ui/Icons';
-import { IconChart, IconTrophy, IconSparkles, IconBolt } from '@/components/ui/Icons';
+import { IconBall, IconChart, IconTrophy, IconBolt } from '@/components/ui/Icons';
+import { useOddsFormat, formatOdds, type OddsFormat } from '@/hooks/useOddsFormat';
 
 // Wallet-heavy bet slip is loaded only when an outcome is picked, keeping the
 // Solana wallet adapter out of the match page's initial bundle.
@@ -43,6 +43,7 @@ export default function MatchDetailPage() {
   const [pool, setPool] = useState<ParimutuelPool | null>(null);
   const [oddsHistory, setOddsHistory] = useState<OddsSnapshot[]>([]);
   const [prediction, setPrediction] = useState<Outcome | null>(null);
+  const { format: oddsFormat, setFormat: setOddsFormat } = useOddsFormat();
   const [explanations, setExplanations] = useState<{ headline: string; body: string; importance: string; generatedAt: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [scoreFlash, setScoreFlash] = useState(false);
@@ -373,9 +374,23 @@ export default function MatchDetailPage() {
         ];
         return (
           <div className="glass p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-2">
               <h2 className="section-label">Match Odds</h2>
-              {bettable && <span className="text-[10px] text-gray-600">Tap an outcome to predict →</span>}
+              <div className="flex items-center gap-2">
+                {bettable && <span className="text-[10px] text-gray-600 hidden sm:block">Tap an outcome to predict →</span>}
+                {/* Dec / Frac / US format toggle */}
+                <div className="flex flex-shrink-0 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--glass-border)' }}>
+                  {([['decimal', 'Dec'], ['fractional', 'Frac'], ['american', 'US']] as [OddsFormat, string][]).map(([f, label]) => (
+                    <button key={f} onClick={() => setOddsFormat(f)}
+                      className="px-2 h-6 text-[10px] font-bold transition-all"
+                      style={oddsFormat === f
+                        ? { background: 'var(--blue-dim)', color: 'var(--blue)' }
+                        : { background: 'transparent', color: '#4b5563' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {opts.map(o => {
@@ -383,19 +398,37 @@ export default function MatchDetailPage() {
                 return (
                   <button key={o.outcome} disabled={!bettable}
                     onClick={() => setPrediction(active ? null : o.outcome)}
-                    className={`odds-btn relative rounded-2xl p-3.5 text-center ${bettable ? '' : '!cursor-default'}`}
+                    className={`odds-btn card-shine group relative overflow-hidden rounded-2xl p-3.5 pb-4 text-center transition-all duration-200
+                                ${bettable ? 'hover:-translate-y-0.5' : '!cursor-default'}`}
                     style={{
-                      background: active ? `rgba(${o.t},0.14)` : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${active ? `rgba(${o.t},0.55)` : 'var(--glass-border)'}`,
-                      boxShadow: active ? `0 0 18px rgba(${o.t},0.2)` : 'none',
+                      background: active
+                        ? `linear-gradient(160deg, rgba(${o.t},0.16), rgba(${o.t},0.05))`
+                        : `linear-gradient(160deg, rgba(${o.t},0.07), rgba(255,255,255,0.02) 60%)`,
+                      border: `1px solid ${active ? `rgba(${o.t},0.6)` : `rgba(${o.t},0.18)`}`,
+                      boxShadow: active ? `0 0 22px rgba(${o.t},0.22)` : 'none',
                     }}>
-                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                    {/* outcome-coloured accent edge */}
+                    <span className="absolute top-0 left-0 right-0 h-[2px]"
+                          style={{ background: `linear-gradient(90deg, transparent, rgba(${o.t},${active ? 0.9 : 0.5}), transparent)` }} />
+                    {/* soft glow behind the number */}
+                    <span className="absolute inset-0 pointer-events-none"
+                          style={{ background: `radial-gradient(ellipse 70% 55% at 50% 42%, rgba(${o.t},0.10), transparent 70%)` }} />
+
+                    <div className="relative flex items-center justify-center gap-1.5 mb-2">
                       <span className="text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded"
                             style={{ background: `rgba(${o.t},0.18)`, color: o.c }}>{o.short}</span>
                       <span className="text-[10px] text-gray-500">{o.label}</span>
                     </div>
-                    <p className="stat-display text-2xl" style={{ color: active ? o.c : '#e2e8f0' }}>{o.val.toFixed(2)}</p>
-                    <p className="text-[10px] text-gray-600 mt-1">{(o.prob * 100).toFixed(0)}%</p>
+                    <p className="relative stat-display text-2xl transition-transform duration-200 group-hover:scale-105"
+                       style={{ color: o.c, filter: `drop-shadow(0 0 10px rgba(${o.t},0.35))` }}>
+                      {formatOdds(o.val, oddsFormat)}
+                    </p>
+                    <p className="relative text-[10px] text-gray-500 mt-1 tabular-nums">{(o.prob * 100).toFixed(0)}%</p>
+                    {/* implied-probability meter along the bottom */}
+                    <span className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                      <span className="absolute left-0 top-0 bottom-0 rounded-r-full"
+                            style={{ width: `${Math.round(o.prob * 100)}%`, background: `rgba(${o.t},0.75)`, transition: 'width .6s' }} />
+                    </span>
                     {active && (
                       <span className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center"
                             style={{ background: o.c }}>
@@ -505,7 +538,11 @@ export default function MatchDetailPage() {
             <p className="text-xs text-gray-600">No events yet</p>
           </div>
         ) : (
-          <TwoSidedTimeline events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+          /* capped + inner scroll: keeps the left column the same height as the
+             side column instead of one long tail */
+          <div className="max-h-[860px] overflow-y-auto rail-scroll pr-1.5">
+            <TwoSidedTimeline events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+          </div>
         )}
       </div>
       );
@@ -523,9 +560,12 @@ export default function MatchDetailPage() {
               const last  = vals[vals.length - 1] ?? 0;
               const delta = ((last - first) / (first || 0.001)) * 100;
               return (
-                <div key={label} className="space-y-2">
+                /* each outcome gets its OWN glass panel — three distinct tiles,
+                   not one run-on strip */
+                <div key={label} className="space-y-2 rounded-xl p-3"
+                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{label}</span>
+                    <span className="text-xs font-semibold" style={{ color }}>{label}</span>
                     <span className={`text-[10px] font-bold ${delta > 0 ? 'text-green-400' : delta < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                       {delta > 0 ? '+' : ''}{delta.toFixed(1)}%
                     </span>
@@ -596,7 +636,9 @@ export default function MatchDetailPage() {
         </div>
       );
 
-      const aiCard = (
+      // only rendered once Claude has actually written something — a permanently
+      // "monitoring…" placeholder card is dead weight
+      const aiCard = explanations.length > 0 && (
       <div className="glass p-5">
         <div className="flex items-center gap-2 mb-4">
           <span className="w-2 h-2 rounded-full spin-slow" style={{ background: 'var(--blue)', boxShadow: '0 0 6px var(--blue)' }} />
@@ -621,18 +663,7 @@ export default function MatchDetailPage() {
               );
             })}
           </div>
-        ) : (
-          <div className="py-8 text-center">
-            <div className="w-11 h-11 mx-auto mb-3 rounded-2xl flex items-center justify-center"
-                 style={{ color: 'var(--blue)', background: 'var(--blue-dim)', border: '1px solid rgba(59,130,246,0.2)' }}>
-              <IconSparkles size={20} />
-            </div>
-            <p className="text-xs font-medium text-gray-500">Monitoring market patterns…</p>
-            <p className="text-[10px] text-gray-700 mt-1">
-              AI explanations appear when significant events are detected
-            </p>
-          </div>
-        )}
+        ) : null}
       </div>
       );
 
@@ -646,9 +677,10 @@ export default function MatchDetailPage() {
           <div className="space-y-2">
             {signals.map(s => {
               const dir = s.deltaPercent > 0 ? '↑' : '↓';
+              // sharp signals are OPPORTUNITY, not danger — orange/amber, never red
               const cs = {
-                HIGH:   { color: 'var(--red)',    border: 'rgba(239,68,68,0.3)',   bg: 'var(--red-dim)' },
-                MEDIUM: { color: 'var(--orange)', border: 'rgba(249,115,22,0.3)',  bg: 'var(--orange-dim)' },
+                HIGH:   { color: 'var(--orange)', border: 'rgba(249,115,22,0.35)', bg: 'var(--orange-dim)' },
+                MEDIUM: { color: 'var(--amber)',  border: 'rgba(245,158,11,0.3)',  bg: 'rgba(245,158,11,0.1)' },
                 LOW:    { color: '#9ca3af',       border: 'rgba(107,114,128,0.2)', bg: 'rgba(107,114,128,0.08)' },
               }[s.confidence];
               return (
@@ -682,11 +714,11 @@ export default function MatchDetailPage() {
         </div>
       );
 
-      // pre-match: balanced two columns, no empty timeline shell
+      // pre-match: balanced auto-flow grid, no empty timeline shell (cards that
+      // have nothing to say — AI, signals — simply don't render)
       if (isSched) return (
         <div className="grid gap-4 md:grid-cols-2 items-start">
-          <div className="space-y-4">{poolCard}{signalsCard}</div>
-          <div className="space-y-4">{aiCard}{oddsMovementCard}</div>
+          {poolCard}{aiCard}{signalsCard}{oddsMovementCard}
         </div>
       );
 

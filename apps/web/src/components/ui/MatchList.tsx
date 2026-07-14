@@ -494,9 +494,6 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
           ))}
         </div>
 
-        {/* Odds format toggle — always visible up here so the Dec/Frac/US
-            choice is discoverable, not buried in the finished section */}
-        <div className="hidden sm:block">{oddsFormatToggle}</div>
       </div>
 
       {/* No results */}
@@ -571,8 +568,9 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
         <Reveal as="section" className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             {sectionHead('Finished', visFinished.length, '#94a3b8')}
-            {/* odds-format toggle also here on mobile (hidden in the top row on sm-) */}
-            <div className="sm:hidden">{oddsFormatToggle}</div>
+            {/* Dec/Frac/US lives HERE — finished cards are where priced odds
+                actually show, so the control sits next to what it changes */}
+            {oddsFormatToggle}
           </div>
           {view === 'list'
             ? renderRows(visFinished)

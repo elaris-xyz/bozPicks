@@ -51,14 +51,20 @@ function StatRow({ label, pair, icon, iconColor, grow, delay }: {
         </span>
         <span className="font-bold text-gray-200 tabular-nums">{away}</span>
       </div>
-      <div className="flex gap-1 h-1.5 rounded-full overflow-hidden">
-        <div className="rounded-full"
-             style={{ width: grow ? `${(home / max) * 50}%` : '0%', background: 'var(--green)', marginLeft: 'auto',
-                      transition: `width 700ms cubic-bezier(0.22,1,0.36,1) ${delay}ms` }} />
-        <div className="w-px flex-shrink-0" style={{ background: 'var(--glass-border)' }} />
-        <div className="rounded-full"
-             style={{ width: grow ? `${(away / max) * 50}%` : '0%', background: 'var(--blue)',
-                      transition: `width 700ms cubic-bezier(0.22,1,0.36,1) ${delay}ms` }} />
+      {/* two fixed halves with a CENTERED divider — bars grow outward from the
+          middle toward their own team's side, never drifting across */}
+      <div className="flex items-center h-1.5">
+        <div className="flex-1 h-full flex justify-end">
+          <div className="h-full rounded-l-full"
+               style={{ width: grow ? `${(home / max) * 100}%` : '0%', background: 'var(--green)',
+                        transition: `width 700ms cubic-bezier(0.22,1,0.36,1) ${delay}ms` }} />
+        </div>
+        <div className="w-px h-full flex-shrink-0 mx-0.5" style={{ background: 'var(--glass-border)' }} />
+        <div className="flex-1 h-full">
+          <div className="h-full rounded-r-full"
+               style={{ width: grow ? `${(away / max) * 100}%` : '0%', background: 'var(--blue)',
+                        transition: `width 700ms cubic-bezier(0.22,1,0.36,1) ${delay}ms` }} />
+        </div>
       </div>
     </div>
   );

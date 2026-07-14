@@ -41,12 +41,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ fix
       return { records: rows.length, actions, lastState, lastScore, lastMinute };
     };
 
+    const sampleKeys = Array.isArray(snapshot) && snapshot.length
+      ? Object.keys(snapshot[snapshot.length - 1] as object)
+      : [];
+    const sampleRecord = Array.isArray(snapshot) && snapshot.length
+      ? snapshot[snapshot.length - 1]
+      : null;
+
     return NextResponse.json({
       ok: true,
       fixtureId: id,
       latencyMs: Date.now() - started,
       historical: summarize(historical),
       snapshot: summarize(snapshot),
+      sampleKeys,
+      sampleRecord,
     });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });

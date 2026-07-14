@@ -6,6 +6,8 @@ const db = new Pool({ connectionString: process.env.DATABASE_URL });
 let matchStartTimes: Record<string, number> = {};
 
 export async function record(event: BozEvent): Promise<void> {
+  // a replay row without a real match id can never be played back
+  if (!event.matchId || event.matchId === 'undefined') return;
   if (event.type === 'MATCH_START') {
     matchStartTimes[event.matchId] = Date.now();
   }

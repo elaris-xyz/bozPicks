@@ -13,6 +13,8 @@ import { CountUp } from '@/components/ui/CountUp';
 import { ShareModal } from '@/components/ui/ShareModal';
 import { Flag, FlagBleed, FlagCorner, FlagWash } from '@/components/ui/Flag';
 import { TwoSidedTimeline } from '@/components/ui/TwoSidedTimeline';
+import { MomentumRecap } from '@/components/ui/MatchMomentum';
+import { IconBall } from '@/components/ui/Icons';
 import { IconChart, IconTrophy, IconSparkles, IconBolt } from '@/components/ui/Icons';
 
 // Wallet-heavy bet slip is loaded only when an outcome is picked, keeping the
@@ -169,6 +171,36 @@ export default function MatchDetailPage() {
   // LIVE is green ("on air"), not red
   const statusColor = { LIVE: 'var(--green)', HALFTIME: 'var(--amber)', SCHEDULED: '#6b7280', FINISHED: '#4b5563' }[match.status];
 
+  // goalscorers per side (broadcast-style lines under the team names)
+  const scorersFor = (team: string) => events
+    .filter(e => e.type === 'GOAL' && e.team === team)
+    .sort((a, b) => (a.matchMinute || 0) - (b.matchMinute || 0))
+    .map(e => ({
+      who: (e.player ?? '').replace(`${team} · `, '') || 'Goal',
+      min: e.matchMinute || 0,
+      tag: e.isOwnGoal ? 'OG' : e.isPenalty ? 'P' : null,
+    }));
+  const homeScorers = scorersFor(match.homeTeam);
+  const awayScorers = scorersFor(match.awayTeam);
+  const winner: 'home' | 'away' | null =
+    match.status === 'FINISHED' && match.homeScore !== match.awayScore
+      ? (match.homeScore > match.awayScore ? 'home' : 'away') : null;
+
+  const scorerLines = (list: { who: string; min: number; tag: string | null }[], side: 'home' | 'away') =>
+    list.length > 0 && (
+      <div className={`space-y-0.5 ${side === 'home' ? 'text-right' : 'text-left'}`}>
+        {list.slice(0, 4).map((g, i) => (
+          <p key={i} className={`flex items-center gap-1 text-[10px] text-gray-300 ${side === 'home' ? 'justify-end' : ''}`}
+             style={{ textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
+            <span style={{ color: side === 'home' ? 'var(--green)' : 'var(--blue)' }}><IconBall size={9} /></span>
+            <span className="font-semibold">{g.who}</span>
+            <span className="text-gray-500 font-mono">{g.min}&rsquo;{g.tag ? ` (${g.tag})` : ''}</span>
+          </p>
+        ))}
+        {list.length > 4 && <p className="text-[9px] text-gray-500">+{list.length - 4} more</p>}
+      </div>
+    );
+
   return (
     <div className="space-y-4">
       {/* ambient team-color backdrop — heavily blurred flags behind the page */}
@@ -191,7 +223,9 @@ export default function MatchDetailPage() {
           Back
         </button>
         <div className="flex items-center gap-2">
-          {match.status === 'FINISHED' && (
+          {/* Replay plays back the ingest recorder's stream — real fixtures only
+              (demo runs aren't recorded; showing a dead button reads as broken) */}
+          {match.status === 'FINISHED' && !id.startsWith('demo-') && (
             <button onClick={() => router.push(`/replay/${id}`)}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all hover:opacity-80"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)', color: '#9ca3af' }}>
@@ -246,11 +280,26 @@ export default function MatchDetailPage() {
                style={{ background: 'linear-gradient(90deg,transparent,var(--green),transparent)' }} />
         )}
 
-        <div className="relative flex items-center justify-center gap-4 md:gap-8">
+        {/* champion glow on the winning side */}
+        {winner && (
+          <div className="absolute inset-y-0 w-1/2 pointer-events-none"
+               style={{
+                 ...(winner === 'home' ? { left: 0 } : { right: 0 }),
+                 background: `radial-gradient(ellipse 80% 90% at ${winner === 'home' ? '15%' : '85%'} 50%, rgba(245,158,11,0.12), transparent 70%)`,
+               }} />
+        )}
+
+        <div className="relative flex items-start justify-center gap-4 md:gap-8">
           <div className="flex-1 flex flex-col items-end gap-2 min-w-0">
             <Flag team={match.homeTeam} size="lg" className="rounded-md" />
-            <p className="font-display font-bold text-base md:text-2xl leading-tight text-right truncate w-full"
-               style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{match.homeTeam}</p>
+            <div className="flex items-center gap-1.5 justify-end w-full">
+              {winner === 'home' && (
+                <span style={{ color: '#fcd34d', filter: 'drop-shadow(0 0 6px rgba(245,158,11,0.6))' }}><IconTrophy size={15} /></span>
+              )}
+              <p className="font-display font-bold text-base md:text-2xl leading-tight text-right truncate"
+                 style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{match.homeTeam}</p>
+            </div>
+            {scorerLines(homeScorers, 'home')}
           </div>
           <div className="text-center flex-shrink-0">
             {isLive || match.status === 'FINISHED' ? (
@@ -273,8 +322,14 @@ export default function MatchDetailPage() {
           </div>
           <div className="flex-1 flex flex-col items-start gap-2 min-w-0">
             <Flag team={match.awayTeam} size="lg" className="rounded-md" />
-            <p className="font-display font-bold text-base md:text-2xl leading-tight text-left truncate w-full"
-               style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{match.awayTeam}</p>
+            <div className="flex items-center gap-1.5 w-full">
+              <p className="font-display font-bold text-base md:text-2xl leading-tight text-left truncate"
+                 style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{match.awayTeam}</p>
+              {winner === 'away' && (
+                <span style={{ color: '#fcd34d', filter: 'drop-shadow(0 0 6px rgba(245,158,11,0.6))' }}><IconTrophy size={15} /></span>
+              )}
+            </div>
+            {scorerLines(awayScorers, 'away')}
           </div>
         </div>
 
@@ -368,6 +423,71 @@ export default function MatchDetailPage() {
              · LIVE/FINISHED: timeline (main) + stats-first side column ── */}
       {(() => {
       const isSched = match.status === 'SCHEDULED';
+
+      // full-time momentum recap — reconstructed from the recorded events
+      const momentumCard = !isSched && events.length > 3 && (
+        <MomentumRecap events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+      );
+
+      // Turning points: the biggest implied-probability swings, tied to the
+      // pitch event that caused them — only possible because we keep the full
+      // odds history alongside the event log.
+      const turningPoints = (() => {
+        if (isSched) return [];
+        const asc = [...events].sort((a, b) => (a.matchMinute || 0) - (b.matchMinute || 0));
+        const labels: Record<string, string> = {
+          GOAL: 'Goal', PENALTY: 'Penalty', RED_CARD: 'Red card', YELLOW_CARD: 'Yellow card',
+          VAR: 'VAR review', SUBSTITUTION: 'Substitution', SHOT: 'Shot', CORNER: 'Corner',
+        };
+        let prevProb: number | null = null;
+        let lastCtx: BozEvent | null = null;
+        const cands: { min: number; label: string; before: number; after: number; delta: number }[] = [];
+        for (const e of asc) {
+          if (e.type !== 'ODDS_UPDATE') {
+            if (e.type in labels) lastCtx = e;
+            continue;
+          }
+          const after = e.odds?.impliedProb?.home;
+          if (typeof after === 'number' && prevProb != null && Math.abs(after - prevProb) >= 0.03) {
+            const label = lastCtx
+              ? `${labels[lastCtx.type]}${lastCtx.player ? ` — ${lastCtx.player}` : lastCtx.team ? ` — ${lastCtx.team}` : ''}`
+              : 'Market shift';
+            cands.push({ min: e.matchMinute || lastCtx?.matchMinute || 0, label, before: prevProb, after, delta: after - prevProb });
+          }
+          if (typeof after === 'number') prevProb = after;
+        }
+        return cands.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3).sort((a, b) => a.min - b.min);
+      })();
+
+      const turningCard = turningPoints.length > 0 && (
+        <div className="glass p-5">
+          <h2 className="section-label mb-4">Turning Points</h2>
+          <div className="space-y-2.5">
+            {turningPoints.map((t, i) => {
+              const up = t.delta > 0;
+              const c = up ? 'var(--green)' : 'var(--blue)';
+              return (
+                <div key={i} className="flex items-center gap-3 rounded-xl p-3 anim-in"
+                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', animationDelay: `${i * 70}ms` }}>
+                  <span className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black font-mono"
+                        style={{ background: `${up ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)'}`, color: c, border: `1px solid ${up ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}` }}>
+                    {t.min}&rsquo;
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-gray-200 truncate">{t.label}</p>
+                    <p className="text-[10px] text-gray-500">
+                      {match.homeTeam} win {Math.round(t.before * 100)}% → <span style={{ color: c }}>{Math.round(t.after * 100)}%</span>
+                    </p>
+                  </div>
+                  <span className="flex-shrink-0 text-xs font-black tabular-nums" style={{ color: c }}>
+                    {up ? '▲' : '▼'} {Math.abs(t.delta * 100).toFixed(0)}pp
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
 
       const timelineCard = (
       <div className="glass p-5">
@@ -570,11 +690,11 @@ export default function MatchDetailPage() {
         </div>
       );
 
-      // live / finished: timeline is the main column, stats lead the side
+      // live / finished: momentum + timeline main, stats + turning points lead the side
       return (
         <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] items-start">
-          <div className="space-y-4">{timelineCard}</div>
-          <div className="space-y-4">{statsCard}{oddsMovementCard}{poolCard}{aiCard}{signalsCard}</div>
+          <div className="space-y-4">{momentumCard}{timelineCard}</div>
+          <div className="space-y-4">{statsCard}{turningCard}{oddsMovementCard}{poolCard}{aiCard}{signalsCard}</div>
         </div>
       );
       })()}

@@ -182,6 +182,110 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
   );
 }
 
+/**
+ * MOMENTUM RECAP — the same broadcast wave, reconstructed AFTER full time from
+ * the stored event log. Events drive the impulse target exactly like the live
+ * chart; a fixed 0.4' sampler eases the displayed value between them, and the
+ * latest stats snapshot supplies the possession/threat lean. Static: no cursor.
+ */
+export function MomentumRecap({ events, homeTeam, awayTeam }: {
+  events: BozEvent[]; homeTeam: string; awayTeam: string;
+}) {
+  const evs = [...events]
+    .filter(e => e.type !== 'ODDS_UPDATE')
+    .sort((a, b) => (a.matchMinute || 0) - (b.matchMinute || 0));
+
+  const pts: Pt[] = [];
+  const goals: Goal[] = [];
+  let s: MomentumState = { target: 0, m: 0 };
+  let stats: MatchStats | undefined;
+  let i = 0;
+  for (let min = 0; min <= 90; min += 0.4) {
+    while (i < evs.length && (evs[i].matchMinute || 0) <= min) {
+      const e = evs[i];
+      if (e.stats) stats = e.stats;
+      const r = addImpulse(s.target, e, homeTeam);
+      s = { ...s, target: r.target };
+      if (r.goal) goals.push({ min: e.matchMinute || min, side: r.goal });
+      i++;
+    }
+    s = tickMomentum(s, stats);
+    pts.push({ min, v: s.m });
+  }
+
+  const xFor = (min: number) => PAD_L + (Math.min(min, 90) / 90) * (W - PAD_L - PAD_R);
+  const yFor = (v: number) => BASE_Y - (Math.max(-MOM_CLAMP, Math.min(MOM_CLAMP, v)) / MOM_CLAMP) * AMP;
+  const sv = movingAverage(pts.map(p => p.v), 3);
+  const curve = pts.map((p, j) => ({ x: xFor(p.min), y: yFor(sv[j]) }));
+  const areaD = smoothArea(curve, BASE_Y);
+  const lineD = smoothLine(curve);
+  const ticks = [0, 15, 30, 45, 60, 75, 90];
+  if (evs.length < 4) return null;
+
+  return (
+    <div className="glass p-4 relative overflow-hidden">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--amber)', boxShadow: '0 0 10px rgba(245,158,11,0.6)' }} />
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-300">Match Momentum</p>
+        </div>
+        <p className="text-[10px] text-gray-500 hidden sm:block">full-time recap — from the recorded TxLINE events</p>
+      </div>
+
+      <div className="relative w-full" style={{ height: H }}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
+          <defs>
+            <linearGradient id="momRecHome" gradientUnits="userSpaceOnUse" x1="0" y1={PAD_T} x2="0" y2={BASE_Y}>
+              <stop offset="0%" stopColor="rgba(16,185,129,0.5)" /><stop offset="100%" stopColor="rgba(16,185,129,0.04)" />
+            </linearGradient>
+            <linearGradient id="momRecAway" gradientUnits="userSpaceOnUse" x1="0" y1={H - PAD_B} x2="0" y2={BASE_Y}>
+              <stop offset="0%" stopColor="rgba(59,130,246,0.5)" /><stop offset="100%" stopColor="rgba(59,130,246,0.04)" />
+            </linearGradient>
+            <clipPath id="momRecAbove"><rect x="0" y="0" width={W} height={BASE_Y} /></clipPath>
+            <clipPath id="momRecBelow"><rect x="0" y={BASE_Y} width={W} height={H - BASE_Y} /></clipPath>
+          </defs>
+
+          {ticks.map(m => (
+            <line key={m} x1={xFor(m)} y1={PAD_T - 4} x2={xFor(m)} y2={H - PAD_B + 2} stroke="rgba(255,255,255,0.05)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          ))}
+          <line x1={PAD_L} y1={BASE_Y} x2={W - PAD_R} y2={BASE_Y} stroke="rgba(255,255,255,0.2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+
+          <path d={areaD} fill="url(#momRecHome)" clipPath="url(#momRecAbove)" />
+          <path d={areaD} fill="url(#momRecAway)" clipPath="url(#momRecBelow)" />
+          <path d={lineD} fill="none" stroke="rgba(16,185,129,0.9)" strokeWidth={1.7} strokeLinejoin="round" strokeLinecap="round" clipPath="url(#momRecAbove)" vectorEffect="non-scaling-stroke" />
+          <path d={lineD} fill="none" stroke="rgba(59,130,246,0.9)" strokeWidth={1.7} strokeLinejoin="round" strokeLinecap="round" clipPath="url(#momRecBelow)" vectorEffect="non-scaling-stroke" />
+
+          {goals.map((g, j) => {
+            const x = xFor(g.min);
+            const up = g.side === 'home';
+            const yPin = up ? yFor(6.5) : yFor(-6.5);
+            const c = up ? 'var(--green)' : 'var(--blue)';
+            return (
+              <g key={j}>
+                <line x1={x} y1={BASE_Y} x2={x} y2={yPin} stroke={c} strokeWidth={1.2} vectorEffect="non-scaling-stroke" opacity={0.45} />
+                <path d={up ? `M ${x} ${yPin} l 9 3 l -9 3 z` : `M ${x} ${yPin} l 9 -3 l -9 -3 z`} fill={c} />
+              </g>
+            );
+          })}
+        </svg>
+
+        {ticks.map(m => (
+          <span key={m} className="absolute text-[9px] text-gray-500 -translate-x-1/2" style={{ left: `${(xFor(m) / W) * 100}%`, bottom: 2 }}>
+            {m === 45 ? 'HT' : `${m}'`}
+          </span>
+        ))}
+
+        <div className="absolute left-2 flex items-center gap-1" style={{ top: (BASE_Y - AMP * 0.55) - 8 }}>
+          <Flag team={homeTeam} size="xs" /><span className="text-[9px] font-black" style={{ color: 'var(--green)' }}>{shortName(homeTeam)}</span>
+        </div>
+        <div className="absolute left-2 flex items-center gap-1" style={{ top: (BASE_Y + AMP * 0.55) - 8 }}>
+          <Flag team={awayTeam} size="xs" /><span className="text-[9px] font-black" style={{ color: 'var(--blue)' }}>{shortName(awayTeam)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** centered moving average — smooths sampler jitter before drawing. */
 function movingAverage(vals: number[], radius: number): number[] {
   if (radius < 1) return vals;

@@ -252,9 +252,19 @@ export default function MatchDetailPage() {
         <ShareModal
           data={{
             headline: `${match.homeTeam} v ${match.awayTeam}`,
-            sub: 'Live on bozPicks — powered by TxLINE, settled on Solana',
-            text: `Watching ${match.homeTeam} v ${match.awayTeam} live on bozPicks — real-time World Cup data + on-chain markets:`,
+            sub: 'powered by TxLINE · settled on Solana',
+            // caption matures with the match: result once it's known
+            text: match.status === 'FINISHED'
+              ? `FT: ${match.homeTeam} ${match.homeScore}–${match.awayScore} ${match.awayTeam} — tracked live on bozPicks with TxLINE data:`
+              : isLive
+              ? `${match.homeTeam} ${match.homeScore}–${match.awayScore} ${match.awayTeam} · ${liveMinute}' LIVE — watching on bozPicks:`
+              : `${match.homeTeam} v ${match.awayTeam} is coming up — following it live on bozPicks:`,
             url: typeof window !== 'undefined' ? window.location.href : undefined,
+            match: {
+              home: match.homeTeam, away: match.awayTeam,
+              homeScore: match.homeScore, awayScore: match.awayScore,
+              status: match.status, minute: liveMinute, kickoffTime: match.kickoffTime,
+            },
           }}
           onClose={() => setShareOpen(false)}
         />

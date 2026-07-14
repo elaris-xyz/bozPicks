@@ -52,19 +52,14 @@ const moreLinks = [
   { href: '/about',       label: 'About',          icon: <InfoIcon size={18} /> },
 ];
 
-/** Neon logo mark — bolt inside a gradient rounded square */
-function LogoMark({ size = 26 }: { size?: number }) {
+/** The bozPicks GOAT — cyberpunk coin mark, neon glow to match the theme */
+export function LogoMark({ size = 26 }: { size?: number }) {
   return (
-    <span
-      className="inline-flex items-center justify-center rounded-lg flex-shrink-0"
-      style={{
-        width: size, height: size,
-        background: 'linear-gradient(135deg, rgb(var(--c-blue)), rgb(var(--c-purple)))',
-        boxShadow: '0 0 14px rgb(var(--c-blue) / 0.45)',
-      }}>
-      <svg viewBox="0 0 24 24" width={size * 0.58} height={size * 0.58} fill="#fff" aria-hidden>
-        <path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" />
-      </svg>
+    <span className="inline-flex flex-shrink-0 rounded-full transition-transform duration-200 group-hover/logo:scale-110"
+          style={{ width: size, height: size, boxShadow: '0 0 14px rgb(var(--c-purple) / 0.5)' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/bozPickLogo.png" alt="bozPicks" width={size} height={size}
+           className="rounded-full object-contain" draggable={false} />
     </span>
   );
 }

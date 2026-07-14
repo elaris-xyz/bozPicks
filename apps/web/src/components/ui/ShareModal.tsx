@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Flag, FlagWash } from './Flag';
 
 /**
  * Graphical share dialog — shows the stat you're sharing on a branded card and
  * offers real social targets (X, Telegram, WhatsApp, Facebook) + copy, instead
  * of bouncing to the OS share sheet. Portalled to body, Esc/backdrop to close.
+ * With `match` set, the card becomes a flag-themed scoreline (result shown the
+ * moment it's known); without it, the original gold stat card (Hi-Lo streaks).
  */
 
 export interface ShareData {
@@ -14,6 +17,26 @@ export interface ShareData {
   sub?: string;       // supporting line
   text: string;       // the caption used for social/copy
   url?: string;       // link to include
+  /** match context → flag-themed scoreline card instead of the gold stat card */
+  match?: {
+    home: string; away: string;
+    homeScore: number; awayScore: number;
+    status: 'SCHEDULED' | 'LIVE' | 'HALFTIME' | 'FINISHED';
+    minute?: number;
+    kickoffTime?: string;
+  };
+}
+
+/** brand row shared by both card variants */
+function BrandRow() {
+  return (
+    <div className="relative flex items-center justify-center gap-1.5 mb-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/bozPickLogo.png" alt="" width={18} height={18} className="rounded-full"
+           style={{ boxShadow: '0 0 8px rgba(167,139,250,0.5)' }} />
+      <span className="text-[11px] font-bold tracking-tight"><span style={{ color: 'var(--blue)' }}>boz</span><span className="text-white">Picks</span></span>
+    </div>
+  );
 }
 
 const PANEL_BG = 'linear-gradient(180deg, #101a30, #0a0f1e)';
@@ -59,26 +82,75 @@ export function ShareModal({ data, onClose }: { data: ShareData; onClose: () => 
         <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: 'linear-gradient(90deg,transparent,#f5c86b,transparent)' }} />
 
         <div className="flex items-center justify-between px-5 pt-5">
-          <p className="font-display font-black text-[15px]">Share your run</p>
+          <p className="font-display font-black text-[15px]">{data.match ? 'Share this match' : 'Share your run'}</p>
           <button onClick={onClose} aria-label="Close"
             className="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-colors">
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </div>
 
-        {/* the branded stat card that gets shared */}
+        {/* the branded card that gets shared */}
         <div className="px-5 pt-4">
-          <div className="relative rounded-2xl p-5 text-center overflow-hidden"
-               style={{ background: 'radial-gradient(120% 130% at 50% 0%, rgba(245,200,107,0.16), rgba(10,15,30,0.5))', border: '1px solid rgba(245,200,107,0.25)' }}>
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <span className="w-4 h-4 rounded-md flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#3b82f6,#a78bfa)' }}>
-                <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="#fff"><path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" /></svg>
-              </span>
-              <span className="text-[11px] font-bold tracking-tight"><span style={{ color: 'var(--blue)' }}>boz</span><span className="text-white">Picks</span></span>
+          {data.match ? (() => {
+            const m = data.match;
+            const isLive = m.status === 'LIVE' || m.status === 'HALFTIME';
+            const played = isLive || m.status === 'FINISHED';
+            const statusChip = m.status === 'FINISHED'
+              ? { label: 'FULL-TIME', color: '#94a3b8' }
+              : m.status === 'HALFTIME'
+              ? { label: 'HALF-TIME', color: 'var(--amber)' }
+              : isLive
+              ? { label: `LIVE · ${m.minute ?? 0}'`, color: 'var(--green)' }
+              : { label: m.kickoffTime
+                    ? new Date(m.kickoffTime).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase()
+                    : 'UPCOMING',
+                  color: 'var(--blue)' };
+            return (
+              /* flag-themed scoreline card — both teams' colours washing into
+                 each other behind a broadcast-style result */
+              <div className="relative rounded-2xl p-5 text-center overflow-hidden"
+                   style={{ background: 'rgba(10,15,30,0.6)', border: '1px solid rgba(255,255,255,0.14)' }}>
+                <FlagWash home={m.home} away={m.away} opacity={0.5} />
+                <div className="absolute inset-0 pointer-events-none"
+                     style={{ background: 'radial-gradient(ellipse 75% 110% at 50% 50%, rgba(7,11,24,0.72), rgba(7,11,24,0.25))' }} />
+                <BrandRow />
+                <div className="relative flex items-center justify-center gap-3">
+                  <div className="flex-1 flex flex-col items-end gap-1 min-w-0">
+                    <Flag team={m.home} size="md" className="rounded" />
+                    <p className="text-[11px] font-bold text-right leading-tight truncate w-full"
+                       style={{ textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>{m.home}</p>
+                  </div>
+                  {played ? (
+                    <p className="font-display font-black tabular-nums leading-none flex-shrink-0"
+                       style={{ fontSize: '2.4rem', textShadow: '0 2px 18px rgba(0,0,0,0.9)' }}>
+                      {m.homeScore}<span className="text-gray-500 mx-1.5 font-light">–</span>{m.awayScore}
+                    </p>
+                  ) : (
+                    <p className="text-xl text-gray-400 font-light flex-shrink-0 px-2">vs</p>
+                  )}
+                  <div className="flex-1 flex flex-col items-start gap-1 min-w-0">
+                    <Flag team={m.away} size="md" className="rounded" />
+                    <p className="text-[11px] font-bold text-left leading-tight truncate w-full"
+                       style={{ textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>{m.away}</p>
+                  </div>
+                </div>
+                <div className="relative flex items-center justify-center gap-1.5 mt-2.5">
+                  {isLive && <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: statusChip.color }} />}
+                  <span className="text-[10px] font-bold tracking-widest" style={{ color: statusChip.color, textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>
+                    {statusChip.label}
+                  </span>
+                </div>
+                {data.sub && <p className="relative text-[10px] text-gray-400 mt-1.5">{data.sub}</p>}
+              </div>
+            );
+          })() : (
+            <div className="relative rounded-2xl p-5 text-center overflow-hidden"
+                 style={{ background: 'radial-gradient(120% 130% at 50% 0%, rgba(245,200,107,0.16), rgba(10,15,30,0.5))', border: '1px solid rgba(245,200,107,0.25)' }}>
+              <BrandRow />
+              <p className="font-display font-black leading-none" style={{ fontSize: 'clamp(2rem,10vw,3rem)', color: '#fde68a', textShadow: '0 0 30px rgba(245,200,107,0.5)' }}>{data.headline}</p>
+              {data.sub && <p className="text-xs text-gray-400 mt-2">{data.sub}</p>}
             </div>
-            <p className="font-display font-black leading-none" style={{ fontSize: 'clamp(2rem,10vw,3rem)', color: '#fde68a', textShadow: '0 0 30px rgba(245,200,107,0.5)' }}>{data.headline}</p>
-            {data.sub && <p className="text-xs text-gray-400 mt-2">{data.sub}</p>}
-          </div>
+          )}
         </div>
 
         {/* social targets */}

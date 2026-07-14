@@ -120,7 +120,48 @@ async function start() {
   await pollSnapshots().catch(() => {});
   const snapTimer = setInterval(() => { void pollSnapshots(); }, 20_000);
 
-  const shutdown = () => { stopScores(); stopOdds(); clearInterval(snapTimer); process.exit(0); };
+  // ── Fixture-scoped scores streams (the real fix) ─────────────────────────
+  // TxLINE confirmed: the GLOBAL /api/scores/stream stays connected but sends
+  // no data for a given match — you must subscribe per fixture with
+  // ?fixtureId=. (SL1 is 60s-delayed, SL12 real-time; scores are on both.) So
+  // for every match inside its live window we open a dedicated scores stream
+  // and tear it down when the window closes, keeping open connections to a
+  // handful at most.
+  const fixtureStreams: Record<string, () => void> = {};
+  function manageFixtureStreams() {
+    const now = Date.now();
+    for (const f of fixtures) {
+      const id = String(f.FixtureId);
+      const ko = kickoffMs[id];
+      const inWindow = !!ko && now >= ko - 5 * 60_000 && now <= ko + 3 * 3600_000;
+      if (inWindow && !fixtureStreams[id]) {
+        fixtureStreams[id] = connectScoresStream(f.FixtureId, {
+          onMessage: async (scores: TxScores) => {
+            const event = scoresEventToBozEvent(scores);
+            if (!event) return;
+            await Promise.all([publish(event), record(event)]);
+            if (process.env.LOG_EVENTS === 'true') console.log(`[SCORE:${id}] ${event.type} min=${event.matchMinute}`);
+          },
+          onHeartbeat: () => { /* silent */ },
+          onError: () => { /* watchdog/backoff in sse.ts handles it */ },
+        });
+        console.log(`[boz-ingest] opened fixture-scoped scores stream for ${id}`);
+      } else if (!inWindow && fixtureStreams[id]) {
+        fixtureStreams[id]();
+        delete fixtureStreams[id];
+        console.log(`[boz-ingest] closed fixture-scoped scores stream for ${id}`);
+      }
+    }
+  }
+  manageFixtureStreams();
+  const fixtureMgrTimer = setInterval(manageFixtureStreams, 60_000);
+
+  const shutdown = () => {
+    stopScores(); stopOdds();
+    clearInterval(snapTimer); clearInterval(fixtureMgrTimer);
+    Object.values(fixtureStreams).forEach(stop => stop());
+    process.exit(0);
+  };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT',  shutdown);
 }

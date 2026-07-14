@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { BozEvent, BozEventType, OddsSnapshot, MatchStats, DangerLevel, GoalKind, ShotOutcome, VarType, VarOutcome } from '@bozpicks/shared';
 import { SCENARIOS, type ReplayScenario } from './scenarios';
+import { playerFor } from './squads';
 
 export { SCENARIOS, type ReplayScenario };
 
@@ -85,10 +86,11 @@ function buildScript(s: ReplayScenario, home: string, away: string): Act[] {
     else { sides.push('home'); h--; }
   }
   const goalMins = spread(sides.length, 14, 85);
-  let hRun = 0, aRun = 0, kicker = 7;
+  let hRun = 0, aRun = 0;
   sides.forEach((side, i) => {
     if (side === 'home') hRun++; else aRun++;
-    acts.push({ minute: goalMins[i], kind: 'GOAL', side, player: `${side === 'home' ? home : away} · #${kicker++}`, goalKind: i % 2 ? 'HEAD' : 'SHOT' });
+    const team = side === 'home' ? home : away;
+    acts.push({ minute: goalMins[i], kind: 'GOAL', side, player: playerFor(team, 'scorer', goalMins[i] + i), goalKind: i % 2 ? 'HEAD' : 'SHOT' });
     acts.push({ minute: goalMins[i] + 0.4, kind: 'ODDS', odds: oddsForDiff(hRun - aRun) });
   });
 
@@ -97,10 +99,10 @@ function buildScript(s: ReplayScenario, home: string, away: string): Act[] {
   spread(s.cornersAway, 9, 86).forEach(m => acts.push({ minute: m + 0.2, kind: 'CORNER', side: 'away' }));
 
   // cards
-  spread(s.yellowHome, 15, 80).forEach((m, i) => acts.push({ minute: m, kind: 'YELLOW_CARD', side: 'home', player: `${home} · #${4 + i}` }));
-  spread(s.yellowAway, 18, 82).forEach((m, i) => acts.push({ minute: m, kind: 'YELLOW_CARD', side: 'away', player: `${away} · #${4 + i}` }));
+  spread(s.yellowHome, 15, 80).forEach((m, i) => acts.push({ minute: m, kind: 'YELLOW_CARD', side: 'home', player: playerFor(home, 'card', m + i * 7) }));
+  spread(s.yellowAway, 18, 82).forEach((m, i) => acts.push({ minute: m, kind: 'YELLOW_CARD', side: 'away', player: playerFor(away, 'card', m + i * 5) }));
   if (s.redAway > 0) {
-    acts.push({ minute: 67, kind: 'RED_CARD', side: 'away', player: `${away} · #11` });
+    acts.push({ minute: 67, kind: 'RED_CARD', side: 'away', player: playerFor(away, 'card', 91) });
     acts.push({ minute: 67.5, kind: 'ODDS', odds: oddsForDiff((s.homeGoals - s.awayGoals) + 1) });
   }
 
@@ -109,19 +111,21 @@ function buildScript(s: ReplayScenario, home: string, away: string): Act[] {
   // the score but make the feed + pundit feel like a live broadcast.
   const leader: 'home' | 'away' = s.homeGoals >= s.awayGoals ? 'home' : 'away';
   const trailer: 'home' | 'away' = leader === 'home' ? 'away' : 'home';
-  acts.push({ minute: 12, kind: 'SHOT', side: leader,  player: `${leader === 'home' ? home : away} · #10`, shotOutcome: 'OnTarget' });
+  const leaderTeam = leader === 'home' ? home : away;
+  const trailerTeam = trailer === 'home' ? home : away;
+  acts.push({ minute: 12, kind: 'SHOT', side: leader,  player: playerFor(leaderTeam, 'scorer', 12), shotOutcome: 'OnTarget' });
   acts.push({ minute: 28, kind: 'FOUL', side: trailer });
   acts.push({ minute: 33, kind: 'OFFSIDE', side: leader });
-  acts.push({ minute: 52, kind: 'SHOT', side: trailer, player: `${trailer === 'home' ? home : away} · #7`, shotOutcome: 'OffTarget' });
+  acts.push({ minute: 52, kind: 'SHOT', side: trailer, player: playerFor(trailerTeam, 'scorer', 52), shotOutcome: 'OffTarget' });
   // a VAR check on the first goal — stands, so the score is unaffected
   if (s.homeGoals + s.awayGoals > 0) {
     acts.push({ minute: 63, kind: 'VAR', side: leader, varType: 'Goal', varOutcome: 'Stands' });
   }
-  acts.push({ minute: 74, kind: 'SHOT', side: leader,  player: `${leader === 'home' ? home : away} · #11`, shotOutcome: 'Blocked' });
+  acts.push({ minute: 74, kind: 'SHOT', side: leader,  player: playerFor(leaderTeam, 'scorer', 74), shotOutcome: 'Blocked' });
 
   // a substitution + kickoff odds
   acts.push({ minute: 2, kind: 'ODDS', odds: oddsForDiff(0) });
-  acts.push({ minute: 58, kind: 'SUBSTITUTION', side: 'home', playerIn: `${home} · #19`, playerOut: `${home} · #9` });
+  acts.push({ minute: 58, kind: 'SUBSTITUTION', side: 'home', playerIn: playerFor(home, 'subIn', 58), playerOut: playerFor(home, 'subOut', 33) });
   acts.push({ minute: 45, kind: 'HALFTIME' });
   acts.push({ minute: 90, kind: 'MATCH_END' });
 

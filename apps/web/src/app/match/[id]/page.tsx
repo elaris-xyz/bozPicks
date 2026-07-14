@@ -176,11 +176,16 @@ export default function MatchDetailPage() {
   const scorersFor = (team: string) => events
     .filter(e => e.type === 'GOAL' && e.team === team)
     .sort((a, b) => (a.matchMinute || 0) - (b.matchMinute || 0))
-    .map(e => ({
-      who: (e.player ?? '').replace(`${team} · `, '') || 'Goal',
-      min: e.matchMinute || 0,
-      tag: e.isOwnGoal ? 'OG' : e.isPenalty ? 'P' : null,
-    }));
+    .map(e => {
+      // player is "Mbappé · #10" (named squad) or "France · #7" (fallback);
+      // show the name part, but never just the team name
+      const name = (e.player ?? '').split(' · ')[0].trim();
+      return {
+        who: name && name !== team ? name : 'Goal',
+        min: e.matchMinute || 0,
+        tag: e.isOwnGoal ? 'OG' : e.isPenalty ? 'P' : null,
+      };
+    });
   const homeScorers = scorersFor(match.homeTeam);
   const awayScorers = scorersFor(match.awayTeam);
   const winner: 'home' | 'away' | null =

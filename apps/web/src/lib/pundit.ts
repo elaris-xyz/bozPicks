@@ -9,23 +9,42 @@ import type { BozEvent } from '@bozpicks/shared';
 
 const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 
+/** "Mbappé · #10" → "Mbappé"; "France · #7" fallback → "" (no real name). */
+function scorerName(e: BozEvent): string {
+  const raw = (e.player ?? '').split(' · ')[0].trim();
+  if (!raw || raw === e.team) return '';
+  return raw;
+}
+
 export function punditLine(e: BozEvent, home?: string, away?: string): string | null {
   const min = e.matchMinute;
   const team = e.team ?? 'The side';
   const sc = e.score ? `${e.score.home}–${e.score.away}` : '';
+  const who = scorerName(e);
 
   switch (e.type) {
     case 'GOAL':
-      return pick([
-        `And there it is — ${team} find the net at ${min}'! It's ${sc}, and you can feel the momentum swinging their way.`,
-        `Oh, what a moment — ${team} strike! ${sc} at ${min}', and the whole complexion of this match has just changed.`,
-        `${team} break through at ${min}'! ${sc} now — the market's reacting fast, and their price is tumbling.`,
-      ]);
+      return who
+        ? pick([
+            `${who} scores for ${team} at ${min}'! It's ${sc}, and you can feel the momentum swinging their way.`,
+            `Oh, what a finish from ${who}! ${sc} at ${min}', and the whole complexion of this match has just changed.`,
+            `${who} breaks through at ${min}' — ${sc} now for ${team}, and the market's reacting fast, their price tumbling.`,
+          ])
+        : pick([
+            `And there it is — ${team} find the net at ${min}'! It's ${sc}, and you can feel the momentum swinging their way.`,
+            `Oh, what a moment — ${team} strike! ${sc} at ${min}', and the whole complexion of this match has just changed.`,
+            `${team} break through at ${min}'! ${sc} now — the market's reacting fast, and their price is tumbling.`,
+          ]);
     case 'RED_CARD':
-      return pick([
-        `Red card — ${team} are down to ten at ${min}'! A mountain to climb from here, and the odds know it.`,
-        `Off he goes — ${team} lose a man at ${min}'. That changes everything; their opponents are firm favourites now.`,
-      ]);
+      return who
+        ? pick([
+            `Red card for ${who}! ${team} down to ten at ${min}' — a mountain to climb from here, and the odds know it.`,
+            `Off goes ${who} — ${team} lose a man at ${min}'. That changes everything; their opponents are firm favourites now.`,
+          ])
+        : pick([
+            `Red card — ${team} are down to ten at ${min}'! A mountain to climb from here, and the odds know it.`,
+            `Off he goes — ${team} lose a man at ${min}'. That changes everything; their opponents are firm favourites now.`,
+          ]);
     case 'YELLOW_CARD':
       return `Yellow for ${team} at ${min}' — tread carefully, a second booking changes everything.`;
     case 'CORNER':
@@ -90,13 +109,14 @@ export const PUNDIT_ALWAYS = new Set(['GOAL', 'RED_CARD', 'VAR', 'HALFTIME', 'MA
 export function spokenFor(e: BozEvent, _home?: string, _away?: string): { text: string; priority: 'high' | 'low' } | null {
   const team = e.team ?? 'them';
   const score = e.score ? `${e.score.home}, ${e.score.away}` : '';
+  const who = scorerName(e);
   switch (e.type) {
     case 'GOAL':
-      return { text: `Goal! ${team}.${score ? ` It's ${score}.` : ''}`, priority: 'high' };
+      return { text: who ? `Goal! ${who}, ${team}.${score ? ` It's ${score}.` : ''}` : `Goal! ${team}.${score ? ` It's ${score}.` : ''}`, priority: 'high' };
     case 'PENALTY':
       return { text: `Penalty, ${team}!`, priority: 'high' };
     case 'RED_CARD':
-      return { text: `Red card! ${team} down to ten.`, priority: 'high' };
+      return { text: who ? `Red card! ${who} sent off.` : `Red card! ${team} down to ten.`, priority: 'high' };
     case 'VAR':
       return { text: `V.A.R. check.`, priority: 'high' };
     case 'MATCH_START':

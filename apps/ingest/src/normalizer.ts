@@ -107,7 +107,27 @@ export function buildStats(s: TxScores): MatchStats {
   };
 }
 
-// ─── SoccerData event classification ─────────────────────────────────────────
+// ─── Real TxLINE scores shape (PascalCase, from REST snapshot AND SSE) ────────
+// The live/REST scores payload is PascalCase (FixtureId, Action, Score, Stats,
+// Clock…), NOT the camelCase our old normalizer assumed — which is why real
+// score data never ingested. This reads the real shape.
+interface RawSide { Total?: { Goals?: number; YellowCards?: number; RedCards?: number; Corners?: number } }
+interface RawScore {
+  FixtureId?: number;
+  Participant1IsHome?: boolean;
+  Action?: string;
+  StatusId?: number;
+  GameState?: string;
+  Clock?: { Seconds?: number; Running?: boolean };
+  Score?: { Participant1?: RawSide; Participant2?: RawSide };
+  Stats?: Record<string, number>;
+  Data?: { PlayerId?: number; PlayerInId?: number; PlayerOutId?: number; GoalType?: string; Outcome?: string; FreeKickType?: string; Type?: string; Penalty?: boolean };
+  Possession?: number;
+  Participant?: number;   // which side (1|2) this specific event belongs to
+  Ts?: number;
+  Seq?: number;
+  Id?: string | number;
+}
 
 function goalKind(gt: string | undefined): GoalKind | undefined {
   if (!gt) return undefined;
@@ -119,60 +139,97 @@ function goalKind(gt: string | undefined): GoalKind | undefined {
   return 'OTHER';
 }
 
-function classify(scores: TxScores, d: SoccerData | undefined): BozEventType | null {
-  if (scores.gameState === 'HT') return 'HALFTIME';
-  // `game_finalised` is the authoritative final record (accounts for ET/pens);
-  // TxLINE says settle off it, not an arbitrary 90' / gameState=F record.
-  if (scores.action === 'game_finalised') return 'MATCH_END';
-  if (scores.gameState === 'F' || scores.gameState === 'FET') return 'MATCH_END';
-  if (scores.action === 'MatchStarted') return 'MATCH_START';
-  if (d?.Goal) return 'GOAL';
-  if (d?.RedCard) return 'RED_CARD';
-  if (d?.YellowCard) return 'YELLOW_CARD';
-  if (scores.action === 'var' || scores.action === 'var_end' || d?.VAR) return 'VAR';
-  if (d?.Penalty) return 'PENALTY';
-  if (d?.PlayerInId || d?.PlayerOutId) return 'SUBSTITUTION';
-  if (d?.Corner) return 'CORNER';
-  // `shot` / `free_kick` actions carry Data.Outcome / FreeKickType. A free_kick
-  // is an OFFSIDE when FreeKickType is Offside, otherwise a FOUL (TxLINE has no
-  // separate foul signal).
-  if (scores.action === 'shot') return 'SHOT';
-  if (scores.action === 'free_kick') return d?.FreeKickType === 'Offside' ? 'OFFSIDE' : 'FOUL';
+const SHOT_OUTCOMES = new Set(['OnTarget', 'OffTarget', 'Woodwork', 'Blocked']);
+
+/** Classify from the snake_case Action + status. */
+function classifyReal(action: string, r: RawScore): BozEventType | null {
+  const a = action.toLowerCase();
+  const gs = (r.GameState ?? '').toLowerCase();
+  if (a === 'game_finalised' || r.StatusId === 100) return 'MATCH_END';
+  if (a.includes('half_time') || a === 'ht' || gs === 'ht' || gs === 'halftime') return 'HALFTIME';
+  if (a === 'kick_off' || a === 'match_started' || a === 'game_started') return 'MATCH_START';
+  if (a === 'goal') return 'GOAL';
+  if (a === 'penalty') return 'PENALTY';
+  if (a === 'red_card' || a === 'second_yellow' || a === 'second_yellow_card') return 'RED_CARD';
+  if (a === 'yellow_card') return 'YELLOW_CARD';
+  if (a === 'var' || a === 'var_end') return 'VAR';
+  if (a === 'substitution' || a === 'sub') return 'SUBSTITUTION';
+  if (a === 'corner') return 'CORNER';
+  if (a === 'shot') return 'SHOT';
+  if (a === 'offside') return 'OFFSIDE';
+  if (a === 'free_kick') return r.Data?.FreeKickType === 'Offside' ? 'OFFSIDE' : 'FOUL';
   return 'SCORE_UPDATE';
 }
 
-const SHOT_OUTCOMES = new Set(['OnTarget', 'OffTarget', 'Woodwork', 'Blocked']);
+const n = (v: number | undefined): number => (typeof v === 'number' ? v : 0);
 
-// ─── TxScores → BozEvent ────────────────────────────────────────────────────
+// ─── TxScores → BozEvent (real PascalCase shape) ─────────────────────────────
 
-export function scoresEventToBozEvent(scores: TxScores): BozEvent | null {
-  if (!scores.fixtureId) return null;          // skip events without match ref
-  if (scores.gameState === 'NS') return null;  // skip pre-match updates
+export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; away: string }): BozEvent | null {
+  const r = scores as unknown as RawScore;
+  const id = r.FixtureId;
+  if (!id) return null;
 
-  const d = scores.data ?? scores.dataSoccer;
-  const type = classify(scores, d);
+  const action = r.Action ?? '';
+  const clockSec = n(r.Clock?.Seconds);
+  const finalised = action.toLowerCase() === 'game_finalised' || r.StatusId === 100;
+  // skip pre-match noise (lineups/odds/comments before the clock runs)
+  if (!finalised && clockSec <= 0 && !['kick_off', 'match_started', 'game_started'].includes(action.toLowerCase())) {
+    return null;
+  }
+
+  const type = classifyReal(action, r);
   if (!type) return null;
 
-  const stats = buildStats(scores);
-  const s1 = readSoccerStats(scores, 1);
-  const s2 = readSoccerStats(scores, 2);
-  const home = scores.participant1IsHome ? s1.goals : s2.goals;
-  const away = scores.participant1IsHome ? s2.goals : s1.goals;
+  const isHome1 = r.Participant1IsHome !== false;
 
-  const minute = d?.Minutes ?? (stats.clockSeconds != null ? Math.floor(stats.clockSeconds / 60) : 0);
+  // totals: prefer the numeric Stats map (period 0 = Total), fall back to Score
+  const S = r.Stats ?? {};
+  const sc = r.Score ?? {};
+  const g1 = S['1'] ?? n(sc.Participant1?.Total?.Goals);
+  const g2 = S['2'] ?? n(sc.Participant2?.Total?.Goals);
+  const y1 = S['3'] ?? n(sc.Participant1?.Total?.YellowCards);
+  const y2 = S['4'] ?? n(sc.Participant2?.Total?.YellowCards);
+  const r1 = S['5'] ?? n(sc.Participant1?.Total?.RedCards);
+  const r2 = S['6'] ?? n(sc.Participant2?.Total?.RedCards);
+  const c1 = S['7'] ?? n(sc.Participant1?.Total?.Corners);
+  const c2 = S['8'] ?? n(sc.Participant2?.Total?.Corners);
 
+  const home = isHome1 ? g1 : g2;
+  const away = isHome1 ? g2 : g1;
+  const minute = Math.min(120, Math.floor(clockSec / 60));
+
+  const stats: MatchStats = {
+    cornersHome: isHome1 ? c1 : c2, cornersAway: isHome1 ? c2 : c1,
+    yellowHome: isHome1 ? y1 : y2,  yellowAway: isHome1 ? y2 : y1,
+    redHome: isHome1 ? r1 : r2,     redAway: isHome1 ? r2 : r1,
+    possession: typeof r.Possession === 'number' ? (isHome1 ? r.Possession : 100 - r.Possession) : undefined,
+    danger: { home: 'SAFE', away: 'SAFE' },
+    clockSeconds: clockSec,
+  };
+
+  // which team this specific event belongs to (Participant 1|2 → name)
+  let team: string | undefined;
+  if (names && r.Participant) {
+    team = r.Participant === 1 ? (isHome1 ? names.home : names.away)
+         : r.Participant === 2 ? (isHome1 ? names.away : names.home)
+         : undefined;
+  }
+
+  const d = r.Data;
   return {
-    id: scores.id ?? randomUUID(),
-    matchId: String(scores.fixtureId),
+    id: String(r.Id ?? randomUUID()),
+    matchId: String(id),
     type,
-    timestamp: safeTs(scores.ts),
+    timestamp: safeTs(r.Ts),
     matchMinute: minute,
     score: { home, away },
-    seq: scores.seq,
+    seq: r.Seq,
+    team,
     goalKind: type === 'GOAL' ? goalKind(d?.GoalType) : undefined,
     isPenalty: d?.Penalty || undefined,
     isOwnGoal: type === 'GOAL' && goalKind(d?.GoalType) === 'OWN_GOAL' ? true : undefined,
-    isVAR: type === 'VAR' || d?.VAR || undefined,
+    isVAR: type === 'VAR' || undefined,
     shotOutcome: type === 'SHOT' && d?.Outcome && SHOT_OUTCOMES.has(d.Outcome) ? (d.Outcome as BozEvent['shotOutcome']) : undefined,
     varType: type === 'VAR' ? (d?.Type as BozEvent['varType']) : undefined,
     varOutcome: type === 'VAR' && (d?.Outcome === 'Stands' || d?.Outcome === 'Overturned') ? (d.Outcome as BozEvent['varOutcome']) : undefined,

@@ -45,10 +45,20 @@ async function start() {
   await redis.set('boz:fixtures', JSON.stringify(fixtures), 'EX', 3600);
   console.log(`[boz-ingest] ${fixtures.length} fixtures synced to DB`);
 
+  // team-name lookup per fixture — lets the normalizer attribute an event
+  // (Participant 1|2) to the right side by name
+  const fixtureNames: Record<string, { home: string; away: string }> = {};
+  for (const f of fixtures) {
+    fixtureNames[String(f.FixtureId)] = {
+      home: f.Participant1IsHome ? f.Participant1 : f.Participant2,
+      away: f.Participant1IsHome ? f.Participant2 : f.Participant1,
+    };
+  }
+
   // ── Scores SSE (global — all fixtures) ──────────────────────────────────
   const stopScores = connectScoresStream(undefined, {
     onMessage: async (scores: TxScores) => {
-      const event = scoresEventToBozEvent(scores);
+      const event = scoresEventToBozEvent(scores, fixtureNames[String((scores as unknown as { FixtureId?: number }).FixtureId)]);
       if (!event) return;
       await Promise.all([publish(event), record(event)]);
       if (process.env.LOG_EVENTS === 'true') {
@@ -93,8 +103,9 @@ async function start() {
     for (const f of fixtures) {
       const id = String(f.FixtureId);
       const ko = kickoffMs[id];
-      // in-play window: kicked off, within ~3h, and we haven't recorded a final
-      if (!ko || now < ko - 60_000 || now > ko + 3 * 3600_000) continue;
+      // window: kicked off, within 12h (so a recently-finished match backfills
+      // once), and we haven't already recorded a final
+      if (!ko || now < ko - 60_000 || now > ko + 12 * 3600_000) continue;
       const { rows } = await db.query(`SELECT status FROM boz_matches WHERE id=$1`, [id]).catch(() => ({ rows: [] }));
       if (rows[0]?.status === 'FINISHED') continue;
       try {
@@ -102,10 +113,12 @@ async function start() {
         if (!Array.isArray(snaps) || snaps.length === 0) continue;
         const seen = lastSeqByFixture[id] ?? 0;
         let maxSeq = seen;
+        // records are PascalCase — read Seq
         for (const s of snaps) {
-          if ((s.seq ?? 0) <= seen) continue;
-          maxSeq = Math.max(maxSeq, s.seq ?? 0);
-          const event = scoresEventToBozEvent(s);
+          const seq = (s as unknown as { Seq?: number }).Seq ?? 0;
+          if (seq <= seen) continue;
+          maxSeq = Math.max(maxSeq, seq);
+          const event = scoresEventToBozEvent(s, fixtureNames[id]);
           if (event) await Promise.all([publish(event), record(event)]);
         }
         lastSeqByFixture[id] = maxSeq;
@@ -137,7 +150,7 @@ async function start() {
       if (inWindow && !fixtureStreams[id]) {
         fixtureStreams[id] = connectScoresStream(f.FixtureId, {
           onMessage: async (scores: TxScores) => {
-            const event = scoresEventToBozEvent(scores);
+            const event = scoresEventToBozEvent(scores, fixtureNames[id]);
             if (!event) return;
             await Promise.all([publish(event), record(event)]);
             if (process.env.LOG_EVENTS === 'true') console.log(`[SCORE:${id}] ${event.type} min=${event.matchMinute}`);

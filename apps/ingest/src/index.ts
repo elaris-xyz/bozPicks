@@ -77,8 +77,52 @@ async function start() {
 
   console.log('[boz-ingest] connected to TxLINE scores + odds streams');
 
-  process.on('SIGTERM', () => { stopScores(); stopOdds(); process.exit(0); });
-  process.on('SIGINT',  () => { stopScores(); stopOdds(); process.exit(0); });
+  // ── REST snapshot poller (belt-and-suspenders for the SSE stream) ────────
+  // The global /api/scores/stream can sit connected-but-silent (heartbeats,
+  // no data) even while a match is genuinely in play — seen both here and in
+  // the TxLINE community chat. So we ALSO poll the per-fixture scores snapshot
+  // over plain REST (the auth path we know works — it loaded the fixtures) for
+  // any match whose kickoff has passed and isn't finished, and feed the new
+  // records through the same normalizer/publisher. Dedupe by highest seq.
+  const lastSeqByFixture: Record<string, number> = {};
+  const kickoffMs: Record<string, number> = {};
+  for (const f of fixtures) kickoffMs[String(f.FixtureId)] = new Date(f.StartTime).getTime();
+
+  async function pollSnapshots() {
+    const now = Date.now();
+    for (const f of fixtures) {
+      const id = String(f.FixtureId);
+      const ko = kickoffMs[id];
+      // in-play window: kicked off, within ~3h, and we haven't recorded a final
+      if (!ko || now < ko - 60_000 || now > ko + 3 * 3600_000) continue;
+      const { rows } = await db.query(`SELECT status FROM boz_matches WHERE id=$1`, [id]).catch(() => ({ rows: [] }));
+      if (rows[0]?.status === 'FINISHED') continue;
+      try {
+        const snaps = await txlineRest.scoresSnapshot(f.FixtureId);
+        if (!Array.isArray(snaps) || snaps.length === 0) continue;
+        const seen = lastSeqByFixture[id] ?? 0;
+        let maxSeq = seen;
+        for (const s of snaps) {
+          if ((s.seq ?? 0) <= seen) continue;
+          maxSeq = Math.max(maxSeq, s.seq ?? 0);
+          const event = scoresEventToBozEvent(s);
+          if (event) await Promise.all([publish(event), record(event)]);
+        }
+        lastSeqByFixture[id] = maxSeq;
+        if (maxSeq > seen && process.env.LOG_EVENTS === 'true') {
+          console.log(`[SNAPSHOT] ${id} caught up to seq=${maxSeq}`);
+        }
+      } catch (e) {
+        console.error(`[boz-ingest] snapshot poll ${id}:`, (e as Error).message);
+      }
+    }
+  }
+  await pollSnapshots().catch(() => {});
+  const snapTimer = setInterval(() => { void pollSnapshots(); }, 20_000);
+
+  const shutdown = () => { stopScores(); stopOdds(); clearInterval(snapTimer); process.exit(0); };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT',  shutdown);
 }
 
 start().catch((err) => {

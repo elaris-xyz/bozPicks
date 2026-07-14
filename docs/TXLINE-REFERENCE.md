@@ -318,3 +318,35 @@ than depending on a live devnet match at judging time.
   count as redistribution — keep replays API-driven (we do), never commit raw
   captured feeds.
 - Silent 401s on the API token happen — re-mint the token (we cache + refresh).
+
+### 10.8 Live scores integration — the two things that actually blocked us (Jul 14–15)
+Confirmed by TxLINE support + our own diagnostics on the finished France v Spain
+fixture (id 18237038):
+
+1. **Use fixture-scoped streams, not the global one.** `GET /api/scores/stream`
+   (no fixtureId) stays connected with heartbeats but sends NO data for a match.
+   You must subscribe per fixture: `GET /api/scores/stream?fixtureId=<id>`. Our
+   ingest now opens a dedicated scores stream per in-play fixture (window
+   [ko−5m, ko+3h]) plus a REST `scores/snapshot/<id>` poller as backup.
+2. **The scores payload is PascalCase** (`FixtureId`, `Action`, `Score`,
+   `Stats`, `Clock`, `Data.PlayerId`, `Participant`, `Seq`) — NOT the camelCase
+   our normalizer originally assumed. That's why real score records silently
+   produced zero events for weeks (odds always worked because `oddsToSnapshot`
+   already read PascalCase). Real shape, verified from a live record:
+   - `Action` is snake_case: `goal`, `yellow_card`, `red_card`, `corner`,
+     `shot`, `free_kick`, `var`/`var_end`, `substitution`, `game_finalised`.
+   - `Stats` is the numeric legend map at period 0: `"1"/"2"`=P1/P2 goals,
+     `"3"/"4"`=yellow, `"5"/"6"`=red, `"7"/"8"`=corners (period-prefixed
+     variants `1001…7008` too). Cleanest source of totals.
+   - `Score.ParticipantN.Total.{Goals,YellowCards,RedCards,Corners}` — fallback.
+   - `Clock.Seconds` → minute; `Participant` (1|2) → which side the event is for
+     (map via `Participant1IsHome` to home/away).
+   - `Data.PlayerId` is a numeric id (no name inline; would need lineups to
+     resolve). `GameState` in the REST snapshot is unreliable (showed
+     "scheduled" mid-match) — gate live/finished on `Action`/`StatusId`/`Clock`.
+3. **Service levels:** free-tier **SL1 = 60-second delayed**, **SL12 =
+   real-time**. Scores are on both. So live shows ~60s behind on SL1 (fine).
+4. **Proven end-to-end (Jul 15):** the snapshot poller backfilled France v Spain
+   into real events (goal 60' Spain, cards, VAR, 0–2) through the rewritten
+   PascalCase normalizer — the whole real-data path works. `/api/txline/scores/
+   <fixtureId>` is a diagnostic route that dumps historical+snapshot shape.

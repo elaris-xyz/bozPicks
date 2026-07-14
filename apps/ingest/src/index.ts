@@ -111,6 +111,9 @@ async function start() {
       try {
         const snaps = await txlineRest.scoresSnapshot(f.FixtureId);
         if (!Array.isArray(snaps) || snaps.length === 0) continue;
+        // process in Seq order so the final (game_finalised) record lands last
+        // and the match settles to FINISHED, not a mid-match tick
+        snaps.sort((x, y) => ((x as unknown as { Seq?: number }).Seq ?? 0) - ((y as unknown as { Seq?: number }).Seq ?? 0));
         const seen = lastSeqByFixture[id] ?? 0;
         let maxSeq = seen;
         // records are PascalCase — read Seq

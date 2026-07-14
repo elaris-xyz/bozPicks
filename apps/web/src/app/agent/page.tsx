@@ -10,6 +10,7 @@ import { AgentArena } from '@/components/ui/AgentArena';
 import { AgentHero } from '@/components/ui/AgentHero';
 import { AgentBanner } from '@/components/ui/AgentBanner';
 import { AgentPipeline } from '@/components/ui/AgentPipeline';
+import { AgentMomentum } from '@/components/ui/AgentMomentum';
 
 interface AgentStats {
   totalSignals: number;
@@ -102,6 +103,9 @@ export default function AgentPage() {
 
       {/* ── Signature visual — the autonomous detection loop ── */}
       <AgentPipeline />
+
+      {/* ── Signal context: pitch pressure with the detector's calls on top ── */}
+      <AgentMomentum />
 
       {/* ── Agent-vs-Agent Arena ── */}
       <div className="space-y-3">

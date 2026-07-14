@@ -16,15 +16,15 @@ import { Flag } from './Flag';
  * pin; a cursor marks "now". The series is empty until a match is live.
  */
 
-const W = 1000, H = 200;               // viewBox — H matches the rendered px height
-const PAD_L = 8, PAD_R = 10, PAD_T = 16, PAD_B = 22;
-const BASE_Y = PAD_T + (H - PAD_T - PAD_B) / 2;
-const AMP = (H - PAD_T - PAD_B) / 2 - 6;
+export const W = 1000, H = 200;        // viewBox — H matches the rendered px height
+export const PAD_L = 8, PAD_R = 10, PAD_T = 16, PAD_B = 22;
+export const BASE_Y = PAD_T + (H - PAD_T - PAD_B) / 2;
+export const AMP = (H - PAD_T - PAD_B) / 2 - 6;
 const MAX_POINTS = 380;
 const TICK_MS = 350;
 
-interface Pt { min: number; v: number }
-interface Goal { min: number; side: 'home' | 'away' }
+export interface Pt { min: number; v: number }
+export interface Goal { min: number; side: 'home' | 'away' }
 
 export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: string; away?: string } = {}) {
   const live = useLiveMatch();
@@ -186,9 +186,9 @@ export function MatchMomentum({ home: homeProp, away: awayProp }: { home?: strin
  * chart; a fixed 0.4' sampler eases the displayed value between them, and the
  * latest stats snapshot supplies the possession/threat lean. Static: no cursor.
  */
-export function MomentumRecap({ events, homeTeam, awayTeam }: {
-  events: BozEvent[]; homeTeam: string; awayTeam: string;
-}) {
+/** Re-run the live impulse/ease model over a stored event log — the shared
+    core of the full-time recap and the agent-page signal chart. */
+export function simulateMomentum(events: BozEvent[], homeTeam: string, upTo = 90): { pts: Pt[]; goals: Goal[] } {
   const evs = [...events]
     .filter(e => e.type !== 'ODDS_UPDATE')
     .sort((a, b) => (a.matchMinute || 0) - (b.matchMinute || 0));
@@ -198,7 +198,7 @@ export function MomentumRecap({ events, homeTeam, awayTeam }: {
   let s: MomentumState = { target: 0, m: 0 };
   let stats: MatchStats | undefined;
   let i = 0;
-  for (let min = 0; min <= 90; min += 0.4) {
+  for (let min = 0; min <= upTo; min += 0.4) {
     while (i < evs.length && (evs[i].matchMinute || 0) <= min) {
       const e = evs[i];
       if (e.stats) stats = e.stats;
@@ -210,6 +210,14 @@ export function MomentumRecap({ events, homeTeam, awayTeam }: {
     s = tickMomentum(s, stats);
     pts.push({ min, v: s.m });
   }
+  return { pts, goals };
+}
+
+export function MomentumRecap({ events, homeTeam, awayTeam }: {
+  events: BozEvent[]; homeTeam: string; awayTeam: string;
+}) {
+  const evs = events.filter(e => e.type !== 'ODDS_UPDATE');
+  const { pts, goals } = simulateMomentum(events, homeTeam);
 
   const xFor = (min: number) => PAD_L + (Math.min(min, 90) / 90) * (W - PAD_L - PAD_R);
   const yFor = (v: number) => BASE_Y - (Math.max(-MOM_CLAMP, Math.min(MOM_CLAMP, v)) / MOM_CLAMP) * AMP;
@@ -283,7 +291,7 @@ export function MomentumRecap({ events, homeTeam, awayTeam }: {
 }
 
 /** centered moving average — smooths sampler jitter before drawing. */
-function movingAverage(vals: number[], radius: number): number[] {
+export function movingAverage(vals: number[], radius: number): number[] {
   if (radius < 1) return vals;
   return vals.map((_, i) => {
     let sum = 0, n = 0;
@@ -293,7 +301,7 @@ function movingAverage(vals: number[], radius: number): number[] {
 }
 
 /** Catmull-Rom → cubic-Bézier smooth open line (for the stroke). */
-function smoothLine(pts: { x: number; y: number }[]): string {
+export function smoothLine(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return '';
   let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -309,14 +317,14 @@ function smoothLine(pts: { x: number; y: number }[]): string {
 }
 
 /** the same smooth curve, closed down to the baseline (for the fill). */
-function smoothArea(pts: { x: number; y: number }[], baseY: number): string {
+export function smoothArea(pts: { x: number; y: number }[], baseY: number): string {
   if (pts.length < 2) return '';
   const line = smoothLine(pts);
   const last = pts[pts.length - 1];
   return `M ${pts[0].x.toFixed(1)} ${baseY} L ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} ${line.slice(line.indexOf('C'))} L ${last.x.toFixed(1)} ${baseY} Z`;
 }
 
-function shortName(t?: string): string {
+export function shortName(t?: string): string {
   if (!t) return '';
   return t.length > 3 ? t.slice(0, 3).toUpperCase() : t.toUpperCase();
 }

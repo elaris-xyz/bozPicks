@@ -523,8 +523,11 @@ export default function MatchDetailPage() {
       );
 
       const timelineCard = (
-      <div className="glass p-5">
-        <div className="flex items-center justify-between mb-5">
+      /* flex-1 + min-h-0: the card stretches to whatever height the side column
+         sets, and the timeline scrolls INSIDE it — both columns always end on
+         the same line */
+      <div className="glass p-5 flex-1 flex flex-col min-h-0">
+        <div className="flex items-center justify-between mb-5 flex-shrink-0">
           <h2 className="section-label">Timeline</h2>
           {events.length > 0 && <span className="text-[10px] text-gray-600">{events.length} events</span>}
         </div>
@@ -538,9 +541,7 @@ export default function MatchDetailPage() {
             <p className="text-xs text-gray-600">No events yet</p>
           </div>
         ) : (
-          /* capped + inner scroll: keeps the left column the same height as the
-             side column instead of one long tail */
-          <div className="max-h-[860px] overflow-y-auto rail-scroll pr-1.5">
+          <div className="flex-1 min-h-[360px] max-h-[70vh] lg:max-h-none overflow-y-auto rail-scroll pr-1.5">
             <TwoSidedTimeline events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
           </div>
         )}
@@ -722,10 +723,13 @@ export default function MatchDetailPage() {
         </div>
       );
 
-      // live / finished: momentum + timeline main, stats + turning points lead the side
+      // live / finished: momentum + timeline main, stats + turning points lead
+      // the side. items-stretch + flex column: the RIGHT column's natural height
+      // sets the row, and the timeline card stretches (scrolling inside) so both
+      // columns always end on exactly the same line.
       return (
-        <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] items-start">
-          <div className="space-y-4">{momentumCard}{timelineCard}</div>
+        <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] items-stretch">
+          <div className="flex flex-col gap-4 min-h-0">{momentumCard}{timelineCard}</div>
           <div className="space-y-4">{statsCard}{turningCard}{oddsMovementCard}{poolCard}{aiCard}{signalsCard}</div>
         </div>
       );

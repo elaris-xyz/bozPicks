@@ -167,6 +167,16 @@ function classifyReal(action: string, r: RawScore): BozEventType | null {
 
 const n = (v: number | undefined): number => (typeof v === 'number' ? v : 0);
 
+// A 'goal' record's OWN Score/Stats snapshot is frequently stale — TxLINE
+// emits the goal record before the stat totals it carries are incremented, so
+// reading it naively shows the PRE-goal score next to a "GOAL" event (visibly
+// wrong on the live scoreboard for the few seconds until the next tick
+// corrects it). Track each fixture's last-confirmed score and force a GOAL
+// record to reflect at least +1 for the scoring side — guarded so a
+// redelivered/duplicate copy of the exact same record can't double-count.
+const lastScore = new Map<string, { home: number; away: number }>();
+const goalBumped = new Set<string>();
+
 // ─── TxScores → BozEvent (real PascalCase shape) ─────────────────────────────
 
 export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; away: string }): BozEvent | null {
@@ -199,8 +209,39 @@ export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; 
   const c1 = S['7'] ?? n(sc.Participant1?.Total?.Corners);
   const c2 = S['8'] ?? n(sc.Participant2?.Total?.Corners);
 
-  const home = isHome1 ? g1 : g2;
-  const away = isHome1 ? g2 : g1;
+  let home = isHome1 ? g1 : g2;
+  let away = isHome1 ? g2 : g1;
+
+  if (type === 'GOAL') {
+    const d0 = r.Data;
+    const ownGoal = goalKind(d0?.GoalType) === 'OWN_GOAL';
+    // side crediting the goal: Participant 1|2 mapped through isHome1, the
+    // same mapping already used below for `team` — independent of whether
+    // team names were passed in
+    const scoringSide: 'home' | 'away' | undefined =
+      r.Participant === 1 ? (isHome1 ? 'home' : 'away')
+      : r.Participant === 2 ? (isHome1 ? 'away' : 'home')
+      : undefined;
+    // own goals are rarer and Participant's meaning for them is unconfirmed —
+    // skip the forced bump rather than risk crediting the wrong side; the
+    // monotonic clamp below still protects against a regression.
+    if (scoringSide && !ownGoal) {
+      const goalKey = `${id}:${r.Id ?? r.Seq ?? `${action}-${clockSec}`}`;
+      if (!goalBumped.has(goalKey)) {
+        goalBumped.add(goalKey);
+        const prev = lastScore.get(String(id)) ?? { home: 0, away: 0 };
+        if (scoringSide === 'home') home = Math.max(home, prev.home + 1);
+        else away = Math.max(away, prev.away + 1);
+      }
+    }
+  }
+  // never let a live score regress below the last confirmed value for this
+  // fixture (an out-of-order or incomplete record must not roll it back)
+  const prevScore = lastScore.get(String(id)) ?? { home: 0, away: 0 };
+  home = Math.max(home, prevScore.home);
+  away = Math.max(away, prevScore.away);
+  lastScore.set(String(id), { home, away });
+
   // the game_finalised record carries Clock.Seconds=0 — don't stamp full-time /
   // late events at 0'; floor them to 90' (or ET if the clock says so)
   let minute = Math.min(130, Math.floor(clockSec / 60));

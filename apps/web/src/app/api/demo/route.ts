@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { generateMatchReplay, SCENARIOS, type ReplayScenario } from '@/lib/replay';
 import { buildMarketsForMatch, rowToMarket } from '@/lib/markets';
 import { settleMarketRow } from '@/lib/settle';
+import { moveVault } from '@/lib/vault';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -28,6 +29,25 @@ async function purgeDemoMatches() {
       `boz:match:${row.id}:lastEvent`, `boz:match:${row.id}:stats`,
     );
   }
+  // Stakes are debited from the vault the moment they're placed — so before
+  // deleting a purged run's ACTIVE predictions, refund the human ones. Without
+  // this, re-running the demo mid-match silently ate the player's stakes
+  // (debited, then the row that could ever pay them out was deleted).
+  try {
+    const { rows: act } = await db.query(
+      `SELECT p.id, p.wallet_address, p.amount_usdc, COALESCE(mk.label, 'Match Result pool') AS label
+       FROM boz_predictions p LEFT JOIN boz_markets mk ON mk.id = p.market_id
+       WHERE p.match_id LIKE 'demo-%' AND p.status='ACTIVE'`
+    );
+    for (const p of act) {
+      const w = String(p.wallet_address);
+      if (w === 'demo-wallet' || w.startsWith('bot.')) continue;
+      await moveVault({
+        wallet: w, delta: Number(p.amount_usdc), kind: 'REFUND',
+        ref: `${p.label} — match replaced before settling`, requireExisting: true,
+      }).catch(() => {});
+    }
+  } catch { /* best-effort refunds */ }
   await db.query(`DELETE FROM boz_events      WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_markets     WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_predictions WHERE match_id LIKE 'demo-%'`).catch(() => {});

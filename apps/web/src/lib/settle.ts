@@ -74,20 +74,26 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
   // bad credit can't abort the rest or the settle itself.
   const winningPool = m.pools[winningOutcome] ?? 0;
   try {
+    // payout_amount IS NULL = "no settle pass has graded-and-paid this row
+    // yet". Selecting on that (not just ACTIVE) heals rows another writer
+    // flipped without paying — the keeper's legacy 1X2 grader used to blanket
+    // WON/LOST every prediction of the match, which made this loop skip the
+    // vault credit entirely (the "won total never moves" bug).
     const { rows: preds } = await db.query(
-      `SELECT id, outcome, amount_usdc, wallet_address FROM boz_predictions WHERE market_id=$1 AND status='ACTIVE'`,
+      `SELECT id, outcome, amount_usdc, wallet_address FROM boz_predictions
+       WHERE market_id=$1 AND (status='ACTIVE' OR payout_amount IS NULL)`,
       [m.id]
     );
     for (const p of preds) {
       const won = p.outcome === winningOutcome;
       const payout = won ? payoutFor(Number(p.amount_usdc), winningPool, m.totalPool, m.feeBps) : 0;
-      // Idempotent + race-safe: only THIS pass may grade the prediction, and
-      // only the pass that actually flips ACTIVE→WON credits the vault. If a
-      // second settle pass (demo + sweep + auto-heal can overlap) reaches here,
-      // the row is no longer ACTIVE, rowCount is 0, and we skip the credit — no
-      // more triple-paid winnings inflating the balance.
+      // Idempotent + race-safe: this UPDATE always sets payout_amount, and only
+      // rows whose payout_amount is still NULL can match — so even when settle
+      // passes overlap (demo + sweep + auto-heal), each row is paid at most
+      // once; the losing pass sees rowCount 0 and skips the credit.
       const upd = await db.query(
-        `UPDATE boz_predictions SET status=$1, payout_amount=$2 WHERE id=$3 AND status='ACTIVE'`,
+        `UPDATE boz_predictions SET status=$1, payout_amount=$2
+         WHERE id=$3 AND (status='ACTIVE' OR payout_amount IS NULL)`,
         [won ? 'WON' : 'LOST', payout, p.id]
       ).catch(() => ({ rowCount: 0 }));
       if (!upd || upd.rowCount === 0) continue; // already graded by another pass

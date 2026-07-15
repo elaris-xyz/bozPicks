@@ -164,11 +164,14 @@ async function settleMatch(matchId: string): Promise<void> {
     [outcomeLabel(outcome), txSig ?? null, matchId]
   );
 
-  // Update predictions
+  // Update predictions — ONLY the legacy 1X2 pool bets (market_id IS NULL).
+  // Prop-market predictions are graded AND paid by the web's settleMarketRow;
+  // blanket-flipping them here marks rows WON/LOST before the payer sees them
+  // (it only pays rows it grades itself), so winners never get credited.
   await db.query(
     `UPDATE boz_predictions
      SET status = CASE WHEN outcome = $1 THEN 'WON' ELSE 'LOST' END
-     WHERE match_id = $2`,
+     WHERE match_id = $2 AND market_id IS NULL AND status = 'ACTIVE'`,
     [outcomeLabel(outcome), matchId]
   );
 

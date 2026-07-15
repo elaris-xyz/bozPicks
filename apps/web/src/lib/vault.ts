@@ -15,7 +15,8 @@ export interface VaultState {
   balance: number;    // micro
   deposited: number;  // micro, lifetime
   won: number;        // micro, lifetime
-  staked: number;     // micro, lifetime — so a viewer can check
+  staked: number;     // micro, lifetime NET of refunds (a refunded stake never
+                       // consumed money) — so a viewer can always check
                        // deposited - staked + won - withdrawn == balance
   withdrawn: number;  // micro, lifetime
 }
@@ -71,7 +72,8 @@ export async function resetVault(wallet: string): Promise<void> {
   await db.query(`DELETE FROM boz_vault_ledger WHERE wallet_address=$1`, [wallet]).catch(() => {});
   await db.query(`DELETE FROM boz_predictions WHERE wallet_address=$1 AND status='ACTIVE'`, [wallet]).catch(() => {});
   await db.query(
-    `UPDATE boz_vault SET balance_micro=0, deposited_micro=0, won_micro=0, updated_at=NOW() WHERE wallet_address=$1`,
+    `UPDATE boz_vault SET balance_micro=0, deposited_micro=0, won_micro=0,
+       staked_micro=0, withdrawn_micro=0, updated_at=NOW() WHERE wallet_address=$1`,
     [wallet]
   ).catch(() => {});
 }
@@ -107,7 +109,7 @@ export async function reconcileVault(wallet: string): Promise<number> {
        COALESCE(SUM(amount_micro), 0)                                 AS balance,
        COALESCE(SUM(amount_micro) FILTER (WHERE kind='DEPOSIT'), 0)   AS deposited,
        COALESCE(SUM(amount_micro) FILTER (WHERE kind='WIN'), 0)       AS won,
-       COALESCE(-SUM(amount_micro) FILTER (WHERE kind='STAKE'), 0)    AS staked,
+       COALESCE(-SUM(amount_micro) FILTER (WHERE kind IN ('STAKE','REFUND')), 0) AS staked,
        COALESCE(-SUM(amount_micro) FILTER (WHERE kind='WITHDRAW'), 0) AS withdrawn
      FROM boz_vault_ledger WHERE wallet_address=$1`,
     [wallet]
@@ -160,7 +162,10 @@ export async function moveVault(opts: {
 
     const depBump   = kind === 'DEPOSIT'  ? delta : 0;
     const wonBump   = kind === 'WIN'      ? delta : 0;
-    const stakeBump = kind === 'STAKE'    ? -delta : 0; // delta is negative; store positive lifetime total
+    // STAKE (delta<0) grows the lifetime staked total; REFUND (delta>0) shrinks
+    // it back — "staked" is NET, so the on-screen equation
+    // deposited − staked + won − withdrawn = balance holds through refunds too.
+    const stakeBump = kind === 'STAKE' || kind === 'REFUND' ? -delta : 0;
     const wdBump    = kind === 'WITHDRAW' ? -delta : 0;
     await client.query(
       `INSERT INTO boz_vault (wallet_address, balance_micro, deposited_micro, won_micro, staked_micro, withdrawn_micro, updated_at)

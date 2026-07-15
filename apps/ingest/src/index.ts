@@ -144,6 +144,7 @@ async function start() {
   // and tear it down when the window closes, keeping open connections to a
   // handful at most.
   const fixtureStreams: Record<string, () => void> = {};
+  const fixtureOddsStreams: Record<string, () => void> = {};
   function manageFixtureStreams() {
     const now = Date.now();
     for (const f of fixtures) {
@@ -167,6 +168,26 @@ async function start() {
         delete fixtureStreams[id];
         console.log(`[boz-ingest] closed fixture-scoped scores stream for ${id}`);
       }
+      // odds have the same global-stream-goes-silent behaviour as scores — and
+      // without in-play ODDS_UPDATEs the agent arena / sharp detector sit idle
+      // during a real match. Same per-fixture subscription, same live window.
+      if (inWindow && !fixtureOddsStreams[id]) {
+        fixtureOddsStreams[id] = connectOddsStream(f.FixtureId, {
+          onMessage: async (odds: TxOddsPayload) => {
+            const event = oddsEventToBozEvent(odds);
+            if (!event) return;
+            await Promise.all([publish(event), record(event)]);
+            if (process.env.LOG_EVENTS === 'true') console.log(`[ODDS:${id}] in-play tick`);
+          },
+          onHeartbeat: () => { /* silent */ },
+          onError: () => { /* watchdog/backoff in sse.ts handles it */ },
+        });
+        console.log(`[boz-ingest] opened fixture-scoped odds stream for ${id}`);
+      } else if (!inWindow && fixtureOddsStreams[id]) {
+        fixtureOddsStreams[id]();
+        delete fixtureOddsStreams[id];
+        console.log(`[boz-ingest] closed fixture-scoped odds stream for ${id}`);
+      }
     }
   }
   manageFixtureStreams();
@@ -176,6 +197,7 @@ async function start() {
     stopScores(); stopOdds();
     clearInterval(snapTimer); clearInterval(fixtureMgrTimer);
     Object.values(fixtureStreams).forEach(stop => stop());
+    Object.values(fixtureOddsStreams).forEach(stop => stop());
     process.exit(0);
   };
   process.on('SIGTERM', shutdown);

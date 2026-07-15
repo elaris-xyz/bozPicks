@@ -107,3 +107,59 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
   } catch { /* best-effort payouts */ }
   return settled;
 }
+
+/**
+ * Rebuild a match's final stats straight from the DB (score + event history) —
+ * works even when Redis (which normally caches a replay's final stats) is
+ * unavailable. Used by the settle-sweep and by /api/markets to settle a real
+ * fixture's markets once the match is FINISHED.
+ */
+export async function finalStatsFromDb(matchId: string): Promise<FinalStats | null> {
+  const { rows: mrows } = await db.query(
+    `SELECT home_team, away_team, home_score, away_score FROM boz_matches WHERE id=$1`,
+    [matchId]
+  );
+  if (!mrows[0]) return null;
+  const homeScore = Number(mrows[0].home_score ?? 0);
+  const awayScore = Number(mrows[0].away_score ?? 0);
+
+  const { rows: evs } = await db.query(
+    `SELECT type, match_minute, payload FROM boz_events WHERE match_id=$1
+     ORDER BY (payload->>'seq')::bigint ASC NULLS LAST, match_minute ASC, created_at ASC`,
+    [matchId]
+  );
+  // COUNTING events undercounts real matches whenever the ingest has gaps (a
+  // corners market must not settle at 1 when TxLINE's cumulative total says 8).
+  // Every record carries cumulative totals in payload.stats — take the max
+  // ever seen and never settle below it. First scorer likewise comes from the
+  // first RUNNING-SCORE increment, which survives a missed/misclassified goal
+  // record (e.g. penalty_outcome).
+  let cCorners = 0, cCards = 0, nCorners = 0, nCards = 0;
+  let firstScorer: 'HOME' | 'AWAY' | 'NONE' = 'NONE';
+  let prevH = 0, prevA = 0;
+  for (const e of evs) {
+    if (e.type === 'CORNER') nCorners++;
+    else if (e.type === 'YELLOW_CARD' || e.type === 'RED_CARD') nCards++;
+    const st = e.payload?.stats as { cornersHome?: number; cornersAway?: number; yellowHome?: number; yellowAway?: number; redHome?: number; redAway?: number } | undefined;
+    if (st) {
+      cCorners = Math.max(cCorners, (st.cornersHome ?? 0) + (st.cornersAway ?? 0));
+      cCards = Math.max(cCards, (st.yellowHome ?? 0) + (st.yellowAway ?? 0) + (st.redHome ?? 0) + (st.redAway ?? 0));
+    }
+    const sc = e.payload?.score as { home?: number; away?: number } | undefined;
+    if (sc) {
+      const h = sc.home ?? 0, a = sc.away ?? 0;
+      if (firstScorer === 'NONE' && (h > prevH || a > prevA)) {
+        firstScorer = h > prevH ? 'HOME' : 'AWAY';
+      }
+      prevH = Math.max(prevH, h); prevA = Math.max(prevA, a);
+    }
+  }
+  return {
+    homeScore, awayScore,
+    totalGoals: homeScore + awayScore,
+    totalCorners: Math.max(cCorners, nCorners),
+    totalCards: Math.max(cCards, nCards),
+    btts: homeScore > 0 && awayScore > 0,
+    firstScorer,
+  };
+}

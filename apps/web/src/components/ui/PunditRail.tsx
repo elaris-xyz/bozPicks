@@ -43,6 +43,8 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
   const [pvoice, setPvoice] = useState('daniel');
   const [voiceOpen, setVoiceOpen] = useState(false);
   const lastOdds = useRef(0);
+  const lastReading = useRef(0);
+  const seeded = useRef(false);
   const ttsRef = useRef(tts);
   ttsRef.current = tts;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -72,13 +74,38 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
-      if (msg.catchup) return; // history replay, not a live moment
+      if (msg.catchup) {
+        // history replay, not a live moment — but seed ONE opening read from it
+        // so the booth speaks the moment you arrive mid-match instead of
+        // sitting silent until the next live record (real matches can go
+        // minutes between events). Catchup replays oldest→newest, so keep
+        // replacing the seed while it's the only line — it converges to the
+        // freshest reading in history.
+        if (!e.stats) return;
+        const opener = punditLine({ ...e, type: 'SCORE_UPDATE' }, home, away);
+        if (!opener) return;
+        seeded.current = true;
+        lastReading.current = Date.now();
+        setLines(prev => (prev.some(l => !l.id.endsWith('-seed'))
+          ? prev
+          : [{ id: `${e.id}-seed`, text: opener, kind: 'SCORE_UPDATE' }]));
+        return;
+      }
 
       const ex = exciteRef.current; // 0 calm · 1 live · 2 hyped
+      // a REAL fixture plays at 1× — minutes between moments, so every
+      // classified event deserves a line. Only fast demo replays (events
+      // seconds apart) need the random thinning so the booth isn't a wall.
+      const isDemo = e.matchId.startsWith('demo-');
       if (e.type === 'ODDS_UPDATE') {
         if (Date.now() - lastOdds.current < (ex >= 2 ? 8000 : 12000)) return;  // throttle ticks
         lastOdds.current = Date.now();
-      } else if (!PUNDIT_ALWAYS.has(e.type)) {
+      } else if (e.type === 'SCORE_UPDATE') {
+        // the real feed's routine stat ticks (possession/danger) — one
+        // momentum read every ~20s keeps the booth talking between moments
+        if (Date.now() - lastReading.current < 20_000) return;
+        lastReading.current = Date.now();
+      } else if (!PUNDIT_ALWAYS.has(e.type) && isDemo) {
         // routine chatter (corners/shots/yellows): let more through the higher
         // the energy so the booth never goes quiet — calm 25% · live 55% · hyped 90%
         const keep = ex >= 2 ? 0.9 : ex === 1 ? 0.55 : 0.25;

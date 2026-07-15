@@ -35,6 +35,11 @@ export function punditLine(e: BozEvent, home?: string, away?: string): string | 
             `Oh, what a moment — ${team} strike! ${sc} at ${min}', and the whole complexion of this match has just changed.`,
             `${team} break through at ${min}'! ${sc} now — the market's reacting fast, and their price is tumbling.`,
           ]);
+    case 'PENALTY':
+      return pick([
+        `Penalty to ${team} at ${min}'! The whole ground holds its breath — and the market with it.`,
+        `It's a penalty for ${team} (${min}')! Taker against keeper, everything on the line.`,
+      ]);
     case 'RED_CARD':
       return who
         ? pick([
@@ -78,6 +83,41 @@ export function punditLine(e: BozEvent, home?: string, away?: string): string | 
       if (!ip) return null;
       const fav = ip.home > ip.away ? (home ?? 'the home side') : (away ?? 'the away side');
       return `Odds tick at ${min}': the market now leans ${fav}. Sharp money on the move.`;
+    }
+    case 'SCORE_UPDATE': {
+      // routine stat tick — the real feed's heartbeat. Read the run of play
+      // (danger, then possession, then corners) so the booth stays alive
+      // between big moments; the caller throttles how often these land.
+      const st = e.stats;
+      if (!st) return null;
+      const h = home ?? 'the home side';
+      const a = away ?? 'the away side';
+      if (st.danger?.home === 'HIGH_DANGER')
+        return pick([
+          `${min}' — ${h} pouring forward, this is a big chance brewing…`,
+          `Danger! ${h} are right on top of the box at ${min}'.`,
+        ]);
+      if (st.danger?.away === 'HIGH_DANGER')
+        return pick([
+          `${min}' — ${a} pouring forward, this is a big chance brewing…`,
+          `Danger! ${a} are right on top of the box at ${min}'.`,
+        ]);
+      if (typeof st.possession === 'number') {
+        const p = Math.round(st.possession);
+        const leader = p >= 50 ? h : a;
+        const share = p >= 50 ? p : 100 - p;
+        if (share >= 58) return pick([
+          `${min}' — ${leader} bossing it: ${share}% of the ball and patiently probing.`,
+          `${leader} control the tempo at ${min}' — ${share}% possession, the pressure is building.`,
+        ]);
+        return pick([
+          `${min}' — a proper contest: possession ${p}–${100 - p}${sc ? `, still ${sc}` : ''}.`,
+          `Even game at ${min}' — neither side letting the other settle${sc ? ` (${sc})` : ''}.`,
+        ]);
+      }
+      const ct = (st.cornersHome ?? 0) + (st.cornersAway ?? 0);
+      if (ct > 0) return `${min}' — ${ct} corner${ct > 1 ? 's' : ''} so far; set-piece backers are watching closely.`;
+      return null;
     }
     default:
       return null;

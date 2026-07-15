@@ -79,8 +79,11 @@ export function LiveEventFeed() {
   const { recentEvents } = useSSEContext();
   const liveMatch = useLiveMatchContext();
   // seed from the provider's ring buffer — navigating away and back keeps the
-  // feed populated instead of restarting empty mid-match
-  const [events, setEvents] = useState<BozEvent[]>(() => recentEvents());
+  // feed populated instead of restarting empty mid-match.
+  // SCORE_UPDATE is the normalizer's catch-all for routine stat ticks (the real
+  // feed emits dozens per minute) — they carry nothing a viewer can read, so
+  // they never become cards; every card's footer already shows the live score.
+  const [events, setEvents] = useState<BozEvent[]>(() => recentEvents().filter(e => e.type !== 'SCORE_UPDATE'));
   const [connected, setConnected] = useState(false);
   const [meta, setMeta] = useState<Record<string, Meta>>({});
   const [finished, setFinished] = useState<Set<string>>(new Set());
@@ -118,6 +121,7 @@ export function LiveEventFeed() {
       }
       if (msg.type === 'event' && msg.data) {
         const e = msg.data as BozEvent;
+        if (e.type === 'SCORE_UPDATE') return; // routine stat tick — not a feed moment
         if (e.type === 'MATCH_START') { activeMatch.current = e.matchId; loadMeta.current(); }
         if (e.type === 'MATCH_END') setFinished(f => new Set(f).add(e.matchId));
         setEvents(prev => {

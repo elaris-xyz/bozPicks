@@ -40,6 +40,10 @@ export function HiLoGame() {
   // synchronous mirrors so the SSE callback can detect a record break reliably
   const streakRef = useRef(0);
   const bestRef = useRef(0);
+  // the id of the match we're reading — events from other fixtures (the real
+  // feed carries every match) must not resolve a guess
+  const liveIdRef = useRef<string | null>(null);
+  liveIdRef.current = live?.id ?? null;
 
   useEffect(() => {
     const b = Number(localStorage.getItem(BEST_KEY) || 0);
@@ -56,6 +60,7 @@ export function HiLoGame() {
     onMessage: (msg: SSEMessage) => {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
+      if (liveIdRef.current && e.matchId !== liveIdRef.current) return;
       const stats = e.stats as MatchStats | undefined;
       const next = hiloReading(stats);
       if (next == null) return;
@@ -66,6 +71,12 @@ export function HiLoGame() {
         const win = p.guess === 'HIGHER' ? next > p.value : next < p.value;
         // ties don't count — keep the guess alive against the next reading
         if (next === p.value) { setCurrent(next); return; }
+        // resolve EXACTLY once: the real feed delivers events in bursts (a
+        // snapshot poll publishes many records back-to-back), and React hasn't
+        // re-rendered between them — clearing only via setPending left the ref
+        // stale, so ONE guess was scored again by every event in the burst
+        // (the "+10 per correct answer" bug). Clear the ref synchronously.
+        pendingRef.current = null;
         setLast({ value: next, guess: p.guess, result: win ? 'WIN' : 'LOSE' });
         setRounds(r => r + 1);
         setFlash(win ? 'win' : 'lose');

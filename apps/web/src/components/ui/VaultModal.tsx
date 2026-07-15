@@ -25,7 +25,7 @@ const KIND_META: Record<LedgerEntry['kind'], { label: string; color: string; sig
 };
 
 export function VaultModal() {
-  const { modal, close, balance, deposited, won, ledger, busy, deposit, withdraw } = useVault();
+  const { modal, close, balance, deposited, won, ledger, busy, deposit, withdraw, reset } = useVault();
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState(25);
   const [flash, setFlash] = useState<'deposit' | 'withdraw' | null>(null);
@@ -209,6 +209,15 @@ export function VaultModal() {
               })}
             </div>
           )}
+
+          {/* clean-slate reset — for a fresh demo recording */}
+          <button
+            onClick={() => { if (confirm('Wipe this vault to zero for a clean demo? (devnet game money)')) void reset(); }}
+            disabled={busy}
+            className="w-full mt-3 h-8 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 hover:brightness-125"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: '#6b7280' }}>
+            Reset vault (demo)
+          </button>
         </div>
       </div>
     </div>,

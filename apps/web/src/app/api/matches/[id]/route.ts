@@ -37,15 +37,19 @@ export async function GET(
   let state: MatchState | null = null;
 
   if (Object.keys(redisState).length > 0) {
+    // Redis holds the LIVE fields (score/status/minute); team names + kickoff
+    // are authoritative in Postgres (the publisher's state hash never stored
+    // them, which left real-match headers nameless + flagless).
+    const db0 = dbMatch.rows[0];
     state = {
       id,
-      homeTeam: redisState.homeTeam ?? '',
-      awayTeam: redisState.awayTeam ?? '',
-      homeScore: Number(redisState.homeScore ?? 0),
-      awayScore: Number(redisState.awayScore ?? 0),
-      status: (redisState.status as MatchState['status']) ?? 'SCHEDULED',
-      currentMinute: Number(redisState.currentMinute ?? 0),
-      kickoffTime: redisState.kickoffTime ?? '',
+      homeTeam: redisState.homeTeam || db0?.home_team || '',
+      awayTeam: redisState.awayTeam || db0?.away_team || '',
+      homeScore: Number(redisState.homeScore ?? db0?.home_score ?? 0),
+      awayScore: Number(redisState.awayScore ?? db0?.away_score ?? 0),
+      status: (redisState.status as MatchState['status']) ?? db0?.status ?? 'SCHEDULED',
+      currentMinute: Number(redisState.currentMinute ?? db0?.current_minute ?? 0),
+      kickoffTime: redisState.kickoffTime || db0?.kickoff_time || '',
       lastUpdated: new Date().toISOString(),
     };
   } else if (dbMatch.rows[0]) {

@@ -57,6 +57,21 @@ export class InsufficientFunds extends Error {
 }
 
 /**
+ * Wipe a vault back to zero — clears the ledger and resets the balance. Devnet
+ * game money only; used to start a clean recording (deposit → stake → win →
+ * cash out) where every number obviously lines up. Also clears the wallet's
+ * ACTIVE predictions so no stale stakes linger.
+ */
+export async function resetVault(wallet: string): Promise<void> {
+  await db.query(`DELETE FROM boz_vault_ledger WHERE wallet_address=$1`, [wallet]).catch(() => {});
+  await db.query(`DELETE FROM boz_predictions WHERE wallet_address=$1 AND status='ACTIVE'`, [wallet]).catch(() => {});
+  await db.query(
+    `UPDATE boz_vault SET balance_micro=0, deposited_micro=0, won_micro=0, updated_at=NOW() WHERE wallet_address=$1`,
+    [wallet]
+  ).catch(() => {});
+}
+
+/**
  * Recompute a vault from the LEDGER — the durable source of truth. (boz_predictions
  * can't be trusted for this: demo matches get purged, taking their prediction
  * rows with them, but the vault ledger persists.) Every movement is a signed

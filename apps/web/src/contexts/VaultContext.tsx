@@ -34,6 +34,8 @@ interface VaultValue {
   refresh: () => void;
   deposit: (amountUsdc: number) => Promise<boolean>;
   withdraw: (amountUsdc: number) => Promise<boolean>;
+  /** wipe the vault to zero — clean slate for demo recording */
+  reset: () => Promise<void>;
   /** open the vault modal (optionally straight to deposit/withdraw) */
   open: (mode?: ModalMode) => void;
   close: () => void;
@@ -43,7 +45,7 @@ interface VaultValue {
 const VaultContext = createContext<VaultValue>({
   connected: false, balance: 0, deposited: 0, won: 0, ledger: [], busy: false,
   refresh: () => {}, deposit: async () => false, withdraw: async () => false,
-  open: () => {}, close: () => {}, modal: null,
+  reset: async () => {}, open: () => {}, close: () => {}, modal: null,
 });
 
 export function VaultProvider({ children }: { children: ReactNode }) {
@@ -130,13 +132,26 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     finally { setBusy(false); }
   }, [wallet, signAnchor, refresh]);
 
+  const reset = useCallback(async () => {
+    if (!wallet) return;
+    setBusy(true);
+    try {
+      await fetch('/api/vault/reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet }),
+      });
+      refresh();
+    } catch { /* ignore */ }
+    finally { setBusy(false); }
+  }, [wallet, refresh]);
+
   const open = useCallback((mode: ModalMode = null) => setModal(mode ?? 'menu'), []);
   const close = useCallback(() => setModal(null), []);
 
   return (
     <VaultContext.Provider value={{
       connected, balance, deposited, won, ledger, busy,
-      refresh, deposit, withdraw, open, close, modal,
+      refresh, deposit, withdraw, reset, open, close, modal,
     }}>
       {children}
     </VaultContext.Provider>

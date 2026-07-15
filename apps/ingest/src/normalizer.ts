@@ -197,7 +197,12 @@ export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; 
 
   const home = isHome1 ? g1 : g2;
   const away = isHome1 ? g2 : g1;
-  const minute = Math.min(120, Math.floor(clockSec / 60));
+  // the game_finalised record carries Clock.Seconds=0 — don't stamp full-time /
+  // late events at 0'; floor them to 90' (or ET if the clock says so)
+  let minute = Math.min(130, Math.floor(clockSec / 60));
+  if ((type === 'MATCH_END' || type === 'HALFTIME') && minute === 0) {
+    minute = type === 'HALFTIME' ? 45 : 90;
+  }
 
   const stats: MatchStats = {
     cornersHome: isHome1 ? c1 : c2, cornersAway: isHome1 ? c2 : c1,

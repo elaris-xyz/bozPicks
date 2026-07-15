@@ -24,8 +24,17 @@ const KIND_META: Record<LedgerEntry['kind'], { label: string; color: string; sig
   WITHDRAW: { label: 'Cash out', color: '#a78bfa', sign: '' },
 };
 
+/** `HH:MM · D Mon` — compact, always shows an absolute time (never "3h ago",
+    which goes stale the instant a judge pauses the video). */
+function stamp(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `${time} · ${date}`;
+}
+
 export function VaultModal() {
-  const { modal, close, balance, deposited, won, ledger, busy, deposit, withdraw, reset } = useVault();
+  const { modal, close, balance, deposited, won, staked, withdrawn, ledger, busy, deposit, withdraw, reset } = useVault();
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState(25);
   const [flash, setFlash] = useState<'deposit' | 'withdraw' | null>(null);
@@ -118,9 +127,17 @@ export function VaultModal() {
             <p className={`font-display text-3xl font-black tabular-nums mt-1 ${flash ? 'boz-vault-pop' : ''}`} style={{ color: '#f8fafc' }}>
               {bal} <span className="text-sm font-bold text-gray-500">USDC</span>
             </p>
-            <div className="flex gap-4 mt-2 text-[10px] text-gray-500">
-              <span>Deposited <strong className="text-gray-300 tabular-nums">{usdcToDisplay(deposited)}</strong></span>
-              <span>Won <strong className="tabular-nums" style={{ color: 'var(--green)' }}>{usdcToDisplay(won)}</strong></span>
+
+            {/* the four numbers that MAKE the balance, spelled out as a literal
+                equation — so it visibly checks out instead of asking for trust */}
+            <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 mt-3 text-[11px] font-mono tabular-nums">
+              <span className="text-gray-300">{usdcToDisplay(deposited)}</span>
+              <span className="text-gray-600">deposited</span>
+              {staked > 0 && (<><span className="text-gray-600">−</span><span className="text-gray-300">{usdcToDisplay(staked)}</span><span className="text-gray-600">staked</span></>)}
+              {won > 0 && (<><span className="text-gray-600">+</span><span style={{ color: 'var(--green)' }}>{usdcToDisplay(won)}</span><span className="text-gray-600">won</span></>)}
+              {withdrawn > 0 && (<><span className="text-gray-600">−</span><span className="text-gray-300">{usdcToDisplay(withdrawn)}</span><span className="text-gray-600">cashed out</span></>)}
+              <span className="text-gray-600">=</span>
+              <span className="font-bold text-gray-100">{bal} USDC</span>
             </div>
           </div>
         </div>
@@ -195,15 +212,23 @@ export function VaultModal() {
                 return (
                   <div key={e.id} className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg"
                        style={{ background: 'rgba(255,255,255,0.02)' }}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: meta.color }} />
-                      <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
-                      {e.ref && <span className="text-[10px] text-gray-600 truncate">· {e.ref}</span>}
+                    <div className="flex flex-col min-w-0 gap-0.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: meta.color }} />
+                        <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+                        {e.ref && <span className="text-[10px] text-gray-600 truncate">· {e.ref}</span>}
+                      </div>
+                      {/* WHEN this happened — without it, a viewer can't tell
+                          which of many similar rows a given number came from */}
+                      <span className="text-[9px] text-gray-600 pl-3.5">{stamp(e.at)}</span>
                     </div>
-                    <span className="text-xs font-bold tabular-nums flex-shrink-0"
-                          style={{ color: credit ? 'var(--green)' : '#e2e8f0' }}>
-                      {credit ? '+' : '−'}{usdcToDisplay(Math.abs(e.amount))}
-                    </span>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <span className="text-xs font-bold tabular-nums"
+                            style={{ color: credit ? 'var(--green)' : '#e2e8f0' }}>
+                        {credit ? '+' : '−'}{usdcToDisplay(Math.abs(e.amount))}
+                      </span>
+                      <span className="text-[9px] text-gray-600 tabular-nums">bal {usdcToDisplay(e.balanceAfter)}</span>
+                    </div>
                   </div>
                 );
               })}

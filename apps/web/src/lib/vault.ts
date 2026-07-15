@@ -13,8 +13,11 @@ export type LedgerKind = 'DEPOSIT' | 'STAKE' | 'WIN' | 'REFUND' | 'WITHDRAW';
 
 export interface VaultState {
   balance: number;    // micro
-  deposited: number;  // micro
-  won: number;        // micro
+  deposited: number;  // micro, lifetime
+  won: number;        // micro, lifetime
+  staked: number;     // micro, lifetime — so a viewer can check
+                       // deposited - staked + won - withdrawn == balance
+  withdrawn: number;  // micro, lifetime
 }
 export interface LedgerEntry {
   id: string;
@@ -28,14 +31,16 @@ export interface LedgerEntry {
 
 export async function getVault(wallet: string): Promise<VaultState> {
   const { rows } = await db.query(
-    `SELECT balance_micro, deposited_micro, won_micro FROM boz_vault WHERE wallet_address=$1`,
+    `SELECT balance_micro, deposited_micro, won_micro, staked_micro, withdrawn_micro FROM boz_vault WHERE wallet_address=$1`,
     [wallet]
   );
-  if (rows.length === 0) return { balance: 0, deposited: 0, won: 0 };
+  if (rows.length === 0) return { balance: 0, deposited: 0, won: 0, staked: 0, withdrawn: 0 };
   return {
     balance: Number(rows[0].balance_micro),
     deposited: Number(rows[0].deposited_micro),
     won: Number(rows[0].won_micro),
+    staked: Number(rows[0].staked_micro),
+    withdrawn: Number(rows[0].withdrawn_micro),
   };
 }
 
@@ -93,23 +98,30 @@ export async function reconcileVault(wallet: string): Promise<number> {
     [wallet]
   ).catch(() => {});
 
-  // 2) balance = sum of every remaining signed movement
+  // 2) balance = sum of every remaining signed movement; every lifetime
+  // counter (including staked/withdrawn, so the on-screen reconciliation
+  // deposited - staked + won - withdrawn == balance always holds exactly)
+  // is likewise recomputed from the ledger, the durable source of truth.
   const { rows } = await db.query(
     `SELECT
-       COALESCE(SUM(amount_micro), 0)                                AS balance,
-       COALESCE(SUM(amount_micro) FILTER (WHERE kind='DEPOSIT'), 0)  AS deposited,
-       COALESCE(SUM(amount_micro) FILTER (WHERE kind='WIN'), 0)      AS won
+       COALESCE(SUM(amount_micro), 0)                                 AS balance,
+       COALESCE(SUM(amount_micro) FILTER (WHERE kind='DEPOSIT'), 0)   AS deposited,
+       COALESCE(SUM(amount_micro) FILTER (WHERE kind='WIN'), 0)       AS won,
+       COALESCE(-SUM(amount_micro) FILTER (WHERE kind='STAKE'), 0)    AS staked,
+       COALESCE(-SUM(amount_micro) FILTER (WHERE kind='WITHDRAW'), 0) AS withdrawn
      FROM boz_vault_ledger WHERE wallet_address=$1`,
     [wallet]
   );
   const balance = Number(rows[0].balance);
   const deposited = Number(rows[0].deposited);
   const won = Number(rows[0].won);
+  const staked = Number(rows[0].staked);
+  const withdrawn = Number(rows[0].withdrawn);
 
   await db.query(
-    `UPDATE boz_vault SET balance_micro=$2, deposited_micro=$3, won_micro=$4, updated_at=NOW()
+    `UPDATE boz_vault SET balance_micro=$2, deposited_micro=$3, won_micro=$4, staked_micro=$5, withdrawn_micro=$6, updated_at=NOW()
      WHERE wallet_address=$1`,
-    [wallet, balance, deposited, won]
+    [wallet, balance, deposited, won, staked, withdrawn]
   ).catch(() => {});
   return balance;
 }
@@ -146,17 +158,21 @@ export async function moveVault(opts: {
     const after = before + delta;
     if (after < 0) { await client.query('ROLLBACK'); throw new InsufficientFunds(before); }
 
-    const depBump = kind === 'DEPOSIT' ? delta : 0;
-    const wonBump = kind === 'WIN' ? delta : 0;
+    const depBump   = kind === 'DEPOSIT'  ? delta : 0;
+    const wonBump   = kind === 'WIN'      ? delta : 0;
+    const stakeBump = kind === 'STAKE'    ? -delta : 0; // delta is negative; store positive lifetime total
+    const wdBump    = kind === 'WITHDRAW' ? -delta : 0;
     await client.query(
-      `INSERT INTO boz_vault (wallet_address, balance_micro, deposited_micro, won_micro, updated_at)
-       VALUES ($1,$2,$3,$4,NOW())
+      `INSERT INTO boz_vault (wallet_address, balance_micro, deposited_micro, won_micro, staked_micro, withdrawn_micro, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW())
        ON CONFLICT (wallet_address) DO UPDATE SET
          balance_micro   = $2,
          deposited_micro = boz_vault.deposited_micro + $3,
          won_micro       = boz_vault.won_micro + $4,
+         staked_micro    = boz_vault.staked_micro + $5,
+         withdrawn_micro = boz_vault.withdrawn_micro + $6,
          updated_at = NOW()`,
-      [wallet, after, depBump, wonBump]
+      [wallet, after, depBump, wonBump, stakeBump, wdBump]
     );
     await client.query(
       `INSERT INTO boz_vault_ledger (id, wallet_address, kind, amount_micro, balance_after, ref, tx_sig)

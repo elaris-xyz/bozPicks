@@ -487,19 +487,30 @@ export function MarketsPanel() {
                       <span className="text-[11px] text-gray-300 truncate">{m.label}</span>
                       <span className="text-[10px] text-gray-600 flex-shrink-0">· you picked <span style={{ color: outcomeColor(b.outcome) }} className="font-bold">{b.outcome}</span> · {src}</span>
                     </div>
-                    <span className="text-[11px] font-black tabular-nums flex-shrink-0" style={{ color: won ? 'var(--green)' : 'var(--red)' }}>
-                      {delta >= 0 ? '+' : '−'}{usdcToDisplay(Math.abs(delta))}
-                    </span>
+                    <div className="flex items-baseline gap-1.5 flex-shrink-0">
+                      {/* stake → gross payout, spelled out — so the net delta
+                          isn't the only number on screen (that's what made the
+                          previous "+3.67" per line impossible to verify against
+                          "staked $30 total") */}
+                      <span className="text-[10px] text-gray-600 tabular-nums">
+                        {usdcToDisplay(b.stake)} {won ? `→ ${usdcToDisplay(ret)}` : '→ 0'}
+                      </span>
+                      <span className="text-[11px] font-black tabular-nums" style={{ color: won ? 'var(--green)' : 'var(--red)' }}>
+                        ({delta >= 0 ? '+' : '−'}{usdcToDisplay(Math.abs(delta))})
+                      </span>
+                    </div>
                   </div>
                 );
               })}
               <div className="flex items-center justify-between pt-1.5 px-1">
-                <span className="text-[11px] font-bold text-gray-400">Net to your vault</span>
+                <span className="text-[11px] font-bold text-gray-400">
+                  Staked {usdcToDisplay(staked)} → returned {usdcToDisplay(returned)}
+                </span>
                 <span className="text-[13px] font-black tabular-nums" style={{ color: net >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                  {net >= 0 ? '+' : '−'}{usdcToDisplay(Math.abs(net))} USDC
+                  net {net >= 0 ? '+' : '−'}{usdcToDisplay(Math.abs(net))} USDC
                 </span>
               </div>
-              <p className="text-[10px] text-gray-600 pt-0.5">Winnings were credited to your game vault · full history in the vault ledger & My Predictions.</p>
+              <p className="text-[10px] text-gray-600 pt-0.5">Stakes were already debited when placed; winnings were credited to your game vault at settlement — full history in the vault ledger & My Predictions.</p>
             </div>
           )}
         </div>

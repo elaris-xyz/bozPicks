@@ -29,6 +29,8 @@ interface VaultValue {
   balance: number;   // micro
   deposited: number;
   won: number;
+  staked: number;
+  withdrawn: number;
   ledger: LedgerEntry[];
   busy: boolean;
   refresh: () => void;
@@ -43,7 +45,7 @@ interface VaultValue {
 }
 
 const VaultContext = createContext<VaultValue>({
-  connected: false, balance: 0, deposited: 0, won: 0, ledger: [], busy: false,
+  connected: false, balance: 0, deposited: 0, won: 0, staked: 0, withdrawn: 0, ledger: [], busy: false,
   refresh: () => {}, deposit: async () => false, withdraw: async () => false,
   reset: async () => {}, open: () => {}, close: () => {}, modal: null,
 });
@@ -54,19 +56,23 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [balance, setBalance] = useState(0);
   const [deposited, setDeposited] = useState(0);
   const [won, setWon] = useState(0);
+  const [staked, setStaked] = useState(0);
+  const [withdrawn, setWithdrawn] = useState(0);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<ModalMode | 'menu' | null>(null);
   const wallet = publicKey?.toBase58() ?? null;
 
   const refresh = useCallback(() => {
-    if (!wallet) { setBalance(0); setDeposited(0); setWon(0); setLedger([]); return; }
+    if (!wallet) { setBalance(0); setDeposited(0); setWon(0); setStaked(0); setWithdrawn(0); setLedger([]); return; }
     fetch(`/api/vault?wallet=${wallet}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => {
         if (typeof d.balance === 'number') setBalance(d.balance);
         if (typeof d.deposited === 'number') setDeposited(d.deposited);
         if (typeof d.won === 'number') setWon(d.won);
+        if (typeof d.staked === 'number') setStaked(d.staked);
+        if (typeof d.withdrawn === 'number') setWithdrawn(d.withdrawn);
         if (Array.isArray(d.ledger)) setLedger(d.ledger);
       })
       .catch(() => {});
@@ -150,7 +156,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   return (
     <VaultContext.Provider value={{
-      connected, balance, deposited, won, ledger, busy,
+      connected, balance, deposited, won, staked, withdrawn, ledger, busy,
       refresh, deposit, withdraw, reset, open, close, modal,
     }}>
       {children}

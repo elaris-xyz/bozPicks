@@ -10,7 +10,7 @@ type Stats = {
   yellow: Pair; red: Pair; offsides: Pair; fouls: Pair; subs: Pair;
 };
 
-function calcStats(events: BozEvent[], homeTeam: string): Stats {
+function calcStats(events: BozEvent[], homeTeam: string, score?: { home: number; away: number }): Stats {
   const s: Stats = {
     goals: [0, 0], shots: [0, 0], onTarget: [0, 0], corners: [0, 0],
     yellow: [0, 0], red: [0, 0], offsides: [0, 0], fouls: [0, 0], subs: [0, 0],
@@ -30,10 +30,46 @@ function calcStats(events: BozEvent[], homeTeam: string): Stats {
     if (e.type === 'FOUL')         add(s.fouls, isHome);
     if (e.type === 'SUBSTITUTION') add(s.subs, isHome);
   }
+
+  // Counting events undercounts real matches whenever the ingest has gaps —
+  // but every TxLINE record also carries CUMULATIVE totals (event.stats and
+  // the running score). Those are authoritative: take the max ever seen per
+  // counter and never show less than it. Demo events carry the same fields,
+  // so both paths agree when the feed is complete.
+  const cum = { goals: [0, 0] as Pair, corners: [0, 0] as Pair, yellow: [0, 0] as Pair, red: [0, 0] as Pair };
+  for (const e of events) {
+    if (e.score) {
+      cum.goals[0] = Math.max(cum.goals[0], e.score.home);
+      cum.goals[1] = Math.max(cum.goals[1], e.score.away);
+    }
+    const st = e.stats;
+    if (st) {
+      cum.corners[0] = Math.max(cum.corners[0], st.cornersHome ?? 0);
+      cum.corners[1] = Math.max(cum.corners[1], st.cornersAway ?? 0);
+      cum.yellow[0]  = Math.max(cum.yellow[0],  st.yellowHome ?? 0);
+      cum.yellow[1]  = Math.max(cum.yellow[1],  st.yellowAway ?? 0);
+      cum.red[0]     = Math.max(cum.red[0],     st.redHome ?? 0);
+      cum.red[1]     = Math.max(cum.red[1],     st.redAway ?? 0);
+    }
+  }
+  if (score) {
+    cum.goals[0] = Math.max(cum.goals[0], score.home);
+    cum.goals[1] = Math.max(cum.goals[1], score.away);
+  }
+  const lift = (counted: Pair, cumulative: Pair): Pair =>
+    [Math.max(counted[0], cumulative[0]), Math.max(counted[1], cumulative[1])];
+  s.goals   = lift(s.goals,   cum.goals);
+  s.corners = lift(s.corners, cum.corners);
+  s.yellow  = lift(s.yellow,  cum.yellow);
+  s.red     = lift(s.red,     cum.red);
   return s;
 }
 
-type Props = { events: BozEvent[]; homeTeam: string; awayTeam: string };
+type Props = {
+  events: BozEvent[]; homeTeam: string; awayTeam: string;
+  /** authoritative header score — floors the Goals row when events are sparse */
+  score?: { home: number; away: number };
+};
 
 function StatRow({ label, pair, icon, iconColor, grow, delay }: {
   label: string; pair: Pair; icon: React.ReactNode; iconColor: string;
@@ -70,13 +106,13 @@ function StatRow({ label, pair, icon, iconColor, grow, delay }: {
   );
 }
 
-export function MatchStats({ events, homeTeam, awayTeam }: Props) {
+export function MatchStats({ events, homeTeam, awayTeam, score }: Props) {
   // bars sweep in from the centre on first paint
   const [grow, setGrow] = useState(false);
   useEffect(() => { const t = requestAnimationFrame(() => setGrow(true)); return () => cancelAnimationFrame(t); }, []);
 
   if (events.length === 0) return null;
-  const s = calcStats(events, homeTeam);
+  const s = calcStats(events, homeTeam, score);
 
   const rows: { label: string; pair: Pair; icon: React.ReactNode; color: string }[] = [
     { label: 'Goals',     pair: s.goals,    icon: <IconBall size={11} />,    color: 'var(--green)' },

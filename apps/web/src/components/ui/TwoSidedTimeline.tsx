@@ -74,10 +74,19 @@ export function TwoSidedTimeline({
 }: {
   events: BozEvent[]; homeTeam: string; awayTeam: string;
 }) {
+  // Chronological order, whatever mix arrives (initial fetch is ASC but SSE
+  // prepends): TxLINE Seq is authoritative when present; minute is the fallback.
+  const ordered = [...events].sort((a, b) => {
+    if (a.seq != null && b.seq != null) return a.seq - b.seq;
+    if (a.seq != null) return -1;
+    if (b.seq != null) return 1;
+    return (a.matchMinute || 0) - (b.matchMinute || 0);
+  });
+
   // Precompute odds direction by tracking the running home price.
   // Odds shortening (price ↓) = home more likely → green ▲.
   let prevHome: number | null = null;
-  const rows = events.map(e => {
+  const rows = ordered.map(e => {
     let oddsUp: boolean | null = null; // probability direction (▲ = home favoured)
     if (e.type === 'ODDS_UPDATE' && e.odds) {
       if (prevHome !== null && e.odds.homeWin !== prevHome) oddsUp = e.odds.homeWin < prevHome;
@@ -116,6 +125,9 @@ export function TwoSidedTimeline({
           // ── Neutral divider: full width ──
           if (isNeutral(e.type)) {
             const n = NEUTRAL[e.type];
+            // rows recorded from a clock-less record (game_finalised) carry 0'
+            const shownMin = e.matchMinute ||
+              (e.type === 'MATCH_END' ? 90 : e.type === 'HALFTIME' ? 45 : 0);
             return (
               <div key={e.id ?? idx} className="relative flex items-center gap-3 py-1.5">
                 <div className="flex-1 h-px" style={{ background: 'var(--glass-border)' }} />
@@ -123,7 +135,7 @@ export function TwoSidedTimeline({
                       style={{ background: 'var(--bg-deep)', color: n.color, border: `1px solid ${n.color}44` }}>
                   <span style={{ color: n.color }}>{n.icon}</span>
                   {n.label}
-                  <span className="font-mono text-gray-600">{e.matchMinute}'</span>
+                  <span className="font-mono text-gray-600">{shownMin}'</span>
                 </span>
                 <div className="flex-1 h-px" style={{ background: 'var(--glass-border)' }} />
               </div>

@@ -150,6 +150,10 @@ function classifyReal(action: string, r: RawScore): BozEventType | null {
   if (a === 'kick_off' || a === 'match_started' || a === 'game_started') return 'MATCH_START';
   if (a === 'goal') return 'GOAL';
   if (a === 'penalty') return 'PENALTY';
+  // a converted penalty arrives as penalty_outcome{Outcome:'Scored'} — that IS
+  // the goal record (there is no separate 'goal' for it); missed/saved ones
+  // are just score noise
+  if (a === 'penalty_outcome') return r.Data?.Outcome === 'Scored' ? 'GOAL' : 'SCORE_UPDATE';
   if (a === 'red_card' || a === 'second_yellow' || a === 'second_yellow_card') return 'RED_CARD';
   if (a === 'yellow_card') return 'YELLOW_CARD';
   if (a === 'var' || a === 'var_end') return 'VAR';
@@ -222,6 +226,7 @@ export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; 
   }
 
   const d = r.Data;
+  const isPenaltyGoal = type === 'GOAL' && action.toLowerCase() === 'penalty_outcome';
   return {
     id: String(r.Id ?? randomUUID()),
     matchId: String(id),
@@ -231,8 +236,8 @@ export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; 
     score: { home, away },
     seq: r.Seq,
     team,
-    goalKind: type === 'GOAL' ? goalKind(d?.GoalType) : undefined,
-    isPenalty: d?.Penalty || undefined,
+    goalKind: type === 'GOAL' ? (isPenaltyGoal ? 'PENALTY' : goalKind(d?.GoalType)) : undefined,
+    isPenalty: isPenaltyGoal || d?.Penalty || undefined,
     isOwnGoal: type === 'GOAL' && goalKind(d?.GoalType) === 'OWN_GOAL' ? true : undefined,
     isVAR: type === 'VAR' || undefined,
     shotOutcome: type === 'SHOT' && d?.Outcome && SHOT_OUTCOMES.has(d.Outcome) ? (d.Outcome as BozEvent['shotOutcome']) : undefined,

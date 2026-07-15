@@ -15,7 +15,11 @@ export async function GET(
   const [redisState, eventsResult, dbMatch, latestOddsRaw] = await Promise.all([
     redis.hgetall(`boz:match:${id}:state`),
     db.query<{ payload: BozEvent }>(
-      `SELECT payload FROM boz_events WHERE match_id = $1 ORDER BY match_minute ASC`,
+      // TxLINE Seq is the authoritative order (demo events carry one too);
+      // match_minute alone mis-sorts records whose Clock is absent (e.g. the
+      // game_finalised row lands at 0' and used to open the timeline)
+      `SELECT payload FROM boz_events WHERE match_id = $1
+       ORDER BY (payload->>'seq')::bigint ASC NULLS LAST, match_minute ASC, created_at ASC`,
       [id]
     ),
     db.query(
@@ -36,7 +40,8 @@ export async function GET(
   // Build state from Redis or Postgres fallback
   let state: MatchState | null = null;
 
-  if (Object.keys(redisState).length > 0) {
+  const dbFinished = dbMatch.rows[0]?.status === 'FINISHED';
+  if (Object.keys(redisState).length > 0 && !dbFinished) {
     // Redis holds the LIVE fields (score/status/minute); team names + kickoff
     // are authoritative in Postgres (the publisher's state hash never stored
     // them, which left real-match headers nameless + flagless).

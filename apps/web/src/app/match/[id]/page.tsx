@@ -123,6 +123,10 @@ export default function MatchDetailPage() {
         const e = msg.data as BozEvent;
         if (e.matchId !== id) return;
         setEvents(prev => prev.some(x => x.id === e.id) ? prev : [e, ...prev].slice(0, 100));
+        // History replay must never touch the header: the initial API fetch
+        // already holds the freshest state, and an old catchup event (e.g. a
+        // 19' penalty at 0–0) used to roll a finished match's score backwards.
+        if (msg.catchup) return;
         if (e.score) {
           const { home, away } = e.score;
           if (home !== prevScore.current.home || away !== prevScore.current.away) {
@@ -684,7 +688,8 @@ export default function MatchDetailPage() {
       );
 
       const statsCard = events.length > 0 && (
-        <MatchStats events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+        <MatchStats events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam}
+                    score={{ home: match.homeScore, away: match.awayScore }} />
       );
 
       const signalsCard = signals.length > 0 && (

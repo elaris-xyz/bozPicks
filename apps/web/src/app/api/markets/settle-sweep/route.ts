@@ -24,19 +24,38 @@ async function finalStatsFromDb(matchId: string): Promise<FinalStats | null> {
   const awayScore = Number(mrows[0].away_score ?? 0);
 
   const { rows: evs } = await db.query(
-    `SELECT type, match_minute, payload FROM boz_events WHERE match_id=$1 ORDER BY match_minute ASC, created_at ASC`,
+    `SELECT type, match_minute, payload FROM boz_events WHERE match_id=$1
+     ORDER BY (payload->>'seq')::bigint ASC NULLS LAST, match_minute ASC, created_at ASC`,
     [matchId]
   );
-  let totalCorners = 0, totalCards = 0;
+  // COUNTING events undercounts real matches whenever the ingest has gaps (a
+  // corners market must not settle at 1 when TxLINE's cumulative total says 8).
+  // Every record carries cumulative totals in payload.stats — take the max
+  // ever seen and never settle below it. First scorer likewise comes from the
+  // first RUNNING-SCORE increment, which survives a missed/misclassified goal
+  // record (e.g. penalty_outcome).
+  let cCorners = 0, cCards = 0, nCorners = 0, nCards = 0;
   let firstScorer: 'HOME' | 'AWAY' | 'NONE' = 'NONE';
+  let prevH = 0, prevA = 0;
   for (const e of evs) {
-    if (e.type === 'CORNER') totalCorners++;
-    else if (e.type === 'YELLOW_CARD' || e.type === 'RED_CARD') totalCards++;
-    else if (e.type === 'GOAL' && firstScorer === 'NONE') {
-      const team = (e.payload?.team as string) ?? '';
-      firstScorer = team && team === home ? 'HOME' : team ? 'AWAY' : 'NONE';
+    if (e.type === 'CORNER') nCorners++;
+    else if (e.type === 'YELLOW_CARD' || e.type === 'RED_CARD') nCards++;
+    const st = e.payload?.stats as { cornersHome?: number; cornersAway?: number; yellowHome?: number; yellowAway?: number; redHome?: number; redAway?: number } | undefined;
+    if (st) {
+      cCorners = Math.max(cCorners, (st.cornersHome ?? 0) + (st.cornersAway ?? 0));
+      cCards = Math.max(cCards, (st.yellowHome ?? 0) + (st.yellowAway ?? 0) + (st.redHome ?? 0) + (st.redAway ?? 0));
+    }
+    const sc = e.payload?.score as { home?: number; away?: number } | undefined;
+    if (sc) {
+      const h = sc.home ?? 0, a = sc.away ?? 0;
+      if (firstScorer === 'NONE' && (h > prevH || a > prevA)) {
+        firstScorer = h > prevH ? 'HOME' : 'AWAY';
+      }
+      prevH = Math.max(prevH, h); prevA = Math.max(prevA, a);
     }
   }
+  const totalCorners = Math.max(cCorners, nCorners);
+  const totalCards = Math.max(cCards, nCards);
   return {
     homeScore, awayScore,
     totalGoals: homeScore + awayScore,

@@ -5,7 +5,7 @@
 carries an on-chain Merkle proof receipt, so no one has to trust an oracle.
 
 ## Links
-- Live app: `https://<deploy>/markets`
+- Live app: https://boz-picks.vercel.app/markets
 - Repo: https://github.com/elaris-xyz/bozPicks
 - Demo video: `<loom/youtube link>`
 - On-chain program (devnet): `GxH4pi5NY8qKd9vNuYqYT6UWW7jTsjaCFFy233KFTNYh`

@@ -5,9 +5,9 @@ opposite theses in a head-to-head **Arena**, plus a sharp-move detector with
 accuracy and closing-line-value tracking.
 
 ## Links
-- Live app: `https://<deploy>/agent`
+- Live app: https://boz-picks.vercel.app/agent
 - Repo: https://github.com/elaris-xyz/bozPicks
-- Live stats API: `https://<deploy>/api/agents/stats`
+- Live stats API: https://boz-picks.vercel.app/api/agents/stats
 - Demo video: `<loom/youtube link>`
 
 ## Core idea

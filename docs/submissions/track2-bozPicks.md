@@ -5,7 +5,7 @@ TxLINE data — headlined by **Hi-Lo**, a replayable stat-reading game, alongsid
 live win-probability and momentum dashboard.
 
 ## Links
-- Live app: `https://<deploy>/` (games at `/play`)
+- Live app: https://boz-picks.vercel.app/ (games at https://boz-picks.vercel.app/play)
 - Repo: https://github.com/elaris-xyz/bozPicks
 - Demo video: `<loom/youtube link>`
 

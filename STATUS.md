@@ -3,7 +3,7 @@
 > فایل زنده‌ی وضعیت. PLAN.md = استراتژی بزرگ · این فایل = «resume here».
 > **قانون:** آخر هر session این فایل رو آپدیت کن (۲ دقیقه). تاریخ رو عوض کن.
 
-**آخرین آپدیت:** 2026-07-13 شب (✅ DEPLOY کامل شد — Vercel + Railway ×۳، تست سرتاسری پاس)
+**آخرین آپدیت:** 2026-07-15 عصر (✅ باگ بزرگ vault accounting فیکس و deploy شد — `d7b1149`)
 
 ---
 
@@ -33,6 +33,19 @@
 - **تست سرتاسری پاس شد**: دمو روی prod → agent روی Railway از Redis مشترک شنید → سیگنال ۸۹→۹۲ در DB مشترک → `/api/agents/stats` زنده. TTS هم روی prod سبز (audio/wav).
 - نکات Railway که خوردیم (برای آینده): تشخیص Rust به‌خاطر Cargo.toml → فیکس `RAILPACK_PACKAGES=node@20 pnpm` + `railpack.json`؛ Watch Paths جلوی auto-deploy رو می‌گرفت → خالی شد؛ `REDIS_URL` باید URL خالص `rediss://` باشه نه دستور CLI؛ «Redeploy» همون کامیت قبلی رو می‌سازه، کامیت جدید فقط با push.
 - **Vercel Security Checkpoint** ممکنه برای درخواست‌های API ای 403 بده (bot challenge) — اگه داورها گزارش کردن، Attack Challenge Mode رو در Vercel چک کن.
+
+## ✅ Jul 14–15 — فیکس‌های حین آماده‌سازی ضبط
+
+- **Scores مسابقات واقعی**: normalizer فیلدها رو PascalCase می‌خونه (نه camelCase)، پردازش fixture-scoped به ترتیب Seq تا FINISHED؛ اسم/پرچم تیم‌های واقعی در هدر match.
+- **سه اسکریپت ضبط ویدیو** صحنه‌به‌صحنه با نریشن: `docs/DEMO-SCRIPT-track{1,2,3}-*.md`.
+- **باگ بزرگ vault («won ثابت می‌موند، balance فقط کم می‌شد») ریشه‌کن شد** (`d7b1149`):
+  keeper ریلوی همه‌ی prediction های match رو بدون پرداخت WON/LOST می‌کرد و settleMarketRow
+  دیگه credit نمی‌داد → keeper فقط pool bets قدیمی (market_id IS NULL) رو grade می‌کنه؛
+  settle مسیر heal داره (`payout_amount IS NULL` = هنوز پرداخت‌نشده، دقیقاً یک‌بار پرداخت)؛
+  reset حالا هر ۵ شمارنده رو صفر می‌کنه؛ purge دمو stake های فعال رو REFUND می‌کنه و
+  REFUND از staked کم می‌کنه → معادله‌ی `deposited − staked + won − withdrawn = balance`
+  همه‌جا دقیق می‌مونه. تست e2e لوکال + prod health سبز؛ keeper ریلوی با کامیت جدید Online.
+- لینک‌های `<deploy>` در `docs/submissions/*.md` با `boz-picks.vercel.app` پر شد.
 
 ## 🔴 کار بعدی — دو شرط اجباری باقی‌مانده
 

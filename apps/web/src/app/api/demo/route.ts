@@ -52,6 +52,10 @@ async function purgeDemoMatches() {
   await db.query(`DELETE FROM boz_markets     WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_predictions WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_pools       WHERE match_id LIKE 'demo-%'`).catch(() => {});
+  // agent signals from a demo run are never useful once the run is replaced —
+  // left uncleaned, they piled up forever (every test run added more,
+  // permanently stuck unverified) and inflated the /agent stats with noise
+  await db.query(`DELETE FROM boz_signals     WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_matches     WHERE id       LIKE 'demo-%'`).catch(() => {});
 }
 

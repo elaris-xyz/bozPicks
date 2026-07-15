@@ -64,6 +64,21 @@ function oddsForDiff(diff: number): OddsSnapshot {
   return makeOdds(8.00, 4.80, 1.30);
 }
 
+/** A small deterministic (non-random, so replays stay reproducible) per-minute
+ *  wobble on top of the bucketed odds — enough for the live win-prob gauge and
+ *  the agent Arena's equity curves to visibly move between the big scripted
+ *  swings (goals, the red card), not enough to itself read as a sharp move
+ *  (the detector's default threshold is 10%). */
+function driftOdds(diff: number, minute: number): OddsSnapshot {
+  const base = oddsForDiff(diff);
+  const wobble = 1 + (((minute * 53) % 9) - 4) / 100; // ±4%
+  return makeOdds(
+    Math.max(1.05, Math.round(base.homeWin * wobble * 100) / 100),
+    base.draw,
+    Math.max(1.05, Math.round(base.awayWin / wobble * 100) / 100),
+  );
+}
+
 /** Spread `n` evenly across [lo, hi]. */
 function spread(n: number, lo: number, hi: number): number[] {
   if (n <= 0) return [];
@@ -128,6 +143,17 @@ function buildScript(s: ReplayScenario, home: string, away: string): Act[] {
   acts.push({ minute: 58, kind: 'SUBSTITUTION', side: 'home', playerIn: playerFor(home, 'subIn', 58), playerOut: playerFor(home, 'subOut', 33) });
   acts.push({ minute: 45, kind: 'HALFTIME' });
   acts.push({ minute: 90, kind: 'MATCH_END' });
+
+  // periodic small odds ticks between the scripted moves — otherwise the
+  // market (and anything reacting to it: win-prob gauge, agent Arena) sits
+  // completely dead for whatever stretch has no goal/card, which is most of
+  // a short demo clip. Diff-at-minute reads the same goal schedule above.
+  const driftMinutes = [6, 11, 16, 21, 27, 33, 39, 51, 56, 61, 70, 76, 82, 87];
+  for (const m of driftMinutes) {
+    let diffAt = 0;
+    sides.forEach((side, i) => { if (goalMins[i] <= m) diffAt += side === 'home' ? 1 : -1; });
+    acts.push({ minute: m, kind: 'ODDS', odds: driftOdds(diffAt, m) });
+  }
 
   return acts.sort((x, y) => x.minute - y.minute);
 }

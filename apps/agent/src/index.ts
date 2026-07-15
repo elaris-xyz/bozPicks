@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import type { BozEvent, OddsSnapshot } from '@bozpicks/shared';
-import { detectSharpMove } from './detector';
+import { detectSharpMove, DEFAULT_THRESHOLD, DEFAULT_WINDOW_MS } from './detector';
 import { saveSignal, verifySignals } from './tracker';
 import { Arena } from './arena';
 import { txlineRest } from '@bozpicks/txline-client';
@@ -12,8 +12,26 @@ const arena = new Arena(redis);
 const startTime = Date.now();
 let signalCount = 0;
 
+// Live-tunable detector config — the /agent page's sliders write here (via
+// /api/agents/config) so a judge can actually move the knob and see it take
+// effect within a few seconds, no redeploy. Falls back to the env defaults.
+const CONFIG_KEY = 'boz:agent:config';
+let liveThreshold = DEFAULT_THRESHOLD;
+let liveWindowMs = DEFAULT_WINDOW_MS;
+async function pollConfig(): Promise<void> {
+  try {
+    const raw = await redis.get(CONFIG_KEY);
+    if (!raw) return;
+    const cfg = JSON.parse(raw) as { threshold?: number; windowMs?: number };
+    if (typeof cfg.threshold === 'number' && cfg.threshold > 0 && cfg.threshold <= 1) liveThreshold = cfg.threshold;
+    if (typeof cfg.windowMs === 'number' && cfg.windowMs >= 30_000 && cfg.windowMs <= 600_000) liveWindowMs = cfg.windowMs;
+  } catch { /* keep last known-good config */ }
+}
+
 console.log('[boz-agent] starting event-driven sharp move detector + arena...');
 void arena.init();
+void pollConfig();
+setInterval(() => { void pollConfig(); }, 5_000);
 
 sub.psubscribe('boz:events:*', (err) => {
   if (err) { console.error('[boz-agent] subscribe error:', err); process.exit(1); }
@@ -32,7 +50,7 @@ sub.on('pmessage', async (_pattern: string, channel: string, message: string) =>
   }
 
   if (event.type === 'MATCH_END') {
-    await handleMatchEnd(matchId);
+    await handleMatchEnd(matchId, event.score);
   }
 });
 
@@ -50,7 +68,7 @@ async function handleOddsUpdate(matchId: string, event: BozEvent): Promise<void>
     ? `${lastEvent.type} min ${lastEvent.matchMinute}${lastEvent.team ? ` (${lastEvent.team})` : ''}`
     : 'Odds shift detected';
 
-  const signal = detectSharpMove(matchId, current, history, context, lastEvent?.id);
+  const signal = detectSharpMove(matchId, current, history, context, lastEvent?.id, liveThreshold, liveWindowMs);
   if (!signal) return;
 
   signalCount++;
@@ -62,12 +80,24 @@ async function handleOddsUpdate(matchId: string, event: BozEvent): Promise<void>
   await redis.publish('boz:signals', JSON.stringify(signal));
 }
 
-async function handleMatchEnd(matchId: string): Promise<void> {
+async function handleMatchEnd(matchId: string, finalScore?: { home: number; away: number }): Promise<void> {
   try {
-    const score = await txlineRest.score(matchId);
+    let homeScore: number, awayScore: number;
+    if (matchId.startsWith('demo-')) {
+      // demo matches aren't real TxLINE fixtures — the REST score lookup
+      // below 404s for them every time, which silently skipped
+      // verifySignals for every demo signal forever (outcome_verified stuck
+      // false, accuracy permanently "—"). The MATCH_END event already
+      // carries the final score from our own replay engine — use it.
+      if (!finalScore) return;
+      homeScore = finalScore.home; awayScore = finalScore.away;
+    } else {
+      const score = await txlineRest.score(matchId);
+      homeScore = score.homeScore; awayScore = score.awayScore;
+    }
     const winner =
-      score.homeScore > score.awayScore ? 'HOME' :
-      score.awayScore > score.homeScore ? 'AWAY' : 'DRAW';
+      homeScore > awayScore ? 'HOME' :
+      awayScore > homeScore ? 'AWAY' : 'DRAW';
     await verifySignals(matchId, winner);
     console.log(`[boz-agent] signals verified for match ${matchId} — winner: ${winner}`);
   } catch (err) {

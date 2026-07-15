@@ -36,14 +36,37 @@ export default function AgentPage() {
   const [threshold, setThreshold] = useState(10);
   const [windowMin, setWindowMin] = useState(2);
   const [configOpen, setConfigOpen] = useState(false);
+  const [configSaved, setConfigSaved] = useState(false);
   const [signalsExpanded, setSignalsExpanded] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // load config from localStorage
+  // load the LIVE config the headless agent (Railway) is actually running —
+  // not a local guess, so the sliders start where the agent really is
   useEffect(() => {
-    setThreshold(parseFloat(localStorage.getItem('agent_threshold') ?? '10'));
-    setWindowMin(parseInt(localStorage.getItem('agent_window') ?? '2'));
+    fetch('/api/agents/config')
+      .then(r => r.json())
+      .then(cfg => {
+        if (typeof cfg.threshold === 'number') setThreshold(Math.round(cfg.threshold * 100));
+        if (typeof cfg.windowMs === 'number') setWindowMin(Math.round(cfg.windowMs / 60_000));
+      })
+      .catch(() => {});
   }, []);
+
+  // push a slider change to the agent (debounced so a drag doesn't spam
+  // requests) — the headless process picks it up within ~5s, no restart
+  const pushConfig = (nextThreshold: number, nextWindowMin: number) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch('/api/agents/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threshold: nextThreshold / 100, windowMs: nextWindowMin * 60_000 }),
+      })
+        .then(r => r.ok && setConfigSaved(true))
+        .then(() => setTimeout(() => setConfigSaved(false), 2000))
+        .catch(() => {});
+    }, 400);
+  };
 
   // fetch signals + stats, poll every 15s
   const refresh = () => {
@@ -142,7 +165,7 @@ export default function AgentPage() {
                 <span className="font-bold" style={{ color: 'var(--purple)' }}>{threshold}%</span>
               </div>
               <input type="range" min={3} max={30} step={1} value={threshold}
-                onChange={e => { const v = Number(e.target.value); setThreshold(v); localStorage.setItem('agent_threshold', String(v)); }}
+                onChange={e => { const v = Number(e.target.value); setThreshold(v); pushConfig(v, windowMin); }}
                 className="w-full" style={{ accentColor: 'var(--purple)' }} />
               <div className="flex justify-between text-[9px] text-gray-700 mt-1">
                 <span>3% — sensitive</span><span>30% — conservative</span>
@@ -154,7 +177,7 @@ export default function AgentPage() {
                 <span className="font-bold" style={{ color: 'var(--purple)' }}>{windowMin} min</span>
               </div>
               <input type="range" min={1} max={10} step={1} value={windowMin}
-                onChange={e => { const v = Number(e.target.value); setWindowMin(v); localStorage.setItem('agent_window', String(v)); }}
+                onChange={e => { const v = Number(e.target.value); setWindowMin(v); pushConfig(threshold, v); }}
                 className="w-full" style={{ accentColor: 'var(--purple)' }} />
               <div className="flex justify-between text-[9px] text-gray-700 mt-1">
                 <span>1 min — fast</span><span>10 min — broad</span>
@@ -162,9 +185,13 @@ export default function AgentPage() {
             </div>
             <p className="flex items-center gap-1.5 text-[10px] text-gray-700">
               <svg viewBox="0 0 24 24" className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3 2 20h20L12 3z" /><path d="M12 10v4M12 17.5v.01" />
+                {configSaved
+                  ? <path d="M4 12l5 5L20 6" strokeLinecap="round" strokeLinejoin="round" />
+                  : <><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></>}
               </svg>
-              UI preview only — restart agent with updated env vars to apply server-side.
+              {configSaved
+                ? <span style={{ color: 'var(--green)' }}>Saved — the live agent applies this within ~5s.</span>
+                : 'Live control — changes reach the running agent, no restart needed.'}
             </p>
           </div>
         )}

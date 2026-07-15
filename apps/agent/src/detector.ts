@@ -1,17 +1,19 @@
 import type { OddsSnapshot, AgentSignal, Outcome, Confidence } from '@bozpicks/shared';
 import { randomUUID } from 'crypto';
 
-const SHARP_MOVE_THRESHOLD = parseFloat(process.env.SHARP_THRESHOLD ?? '0.10');
-const WINDOW_MS = parseInt(process.env.SHARP_WINDOW_MS ?? '120000', 10);
+export const DEFAULT_THRESHOLD = parseFloat(process.env.SHARP_THRESHOLD ?? '0.10');
+export const DEFAULT_WINDOW_MS = parseInt(process.env.SHARP_WINDOW_MS ?? '120000', 10);
 
 export function detectSharpMove(
   matchId: string,
   currentOdds: OddsSnapshot,
   oddsHistory: OddsSnapshot[],
   context: string,
-  correlatedEventId?: string
+  correlatedEventId?: string,
+  threshold: number = DEFAULT_THRESHOLD,
+  windowMs: number = DEFAULT_WINDOW_MS,
 ): AgentSignal | null {
-  const windowStart = Date.now() - WINDOW_MS;
+  const windowStart = Date.now() - windowMs;
   const recent = oddsHistory.filter(
     (o) => new Date(o.timestamp).getTime() > windowStart
   );
@@ -33,7 +35,7 @@ export function detectSharpMove(
 
     const delta = (after - before) / before;
 
-    if (Math.abs(delta) >= SHARP_MOVE_THRESHOLD) {
+    if (Math.abs(delta) >= threshold) {
       const confidence: Confidence =
         Math.abs(delta) >= 0.20 ? 'HIGH' :
         Math.abs(delta) >= 0.15 ? 'MEDIUM' : 'LOW';

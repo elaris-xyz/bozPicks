@@ -241,6 +241,33 @@ export const txlineRest = {
   scoresHistorical: (fixtureId: number) =>
     txFetch<TxScores[]>(`/api/scores/historical/${fixtureId}`),
 
+  /**
+   * The COMPLETE match history. `/api/scores/snapshot` only returns the most
+   * recent ~40 records (missing earlier goals); `/api/scores/updates/{id}` is
+   * an SSE stream that, for a finished fixture, replays every record (~900+)
+   * then closes. We read it to the end and parse the `data:` lines — this is
+   * the only endpoint that yields a full, complete timeline for a real match.
+   */
+  scoresUpdatesFull: async (fixtureId: number): Promise<TxScores[]> => {
+    // finished fixtures replay + close, but guard against a stream that stays
+    // open (an in-play fixture would never end) so the caller can't hang
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 30_000);
+    let text: string;
+    try {
+      const res = await fetch(`${TXLINE_BASE}/api/scores/updates/${fixtureId}`, { headers: await authHeaders(), signal: ctl.signal });
+      if (!res.ok) throw new Error(`TxLINE scores/updates ${fixtureId} → ${res.status}`);
+      text = await res.text();
+    } finally { clearTimeout(t); }
+    const recs: TxScores[] = [];
+    for (const line of text.split('\n')) {
+      const m = line.match(/^data:\s*(.+)$/);
+      if (!m) continue;
+      try { recs.push(JSON.parse(m[1]) as TxScores); } catch { /* skip non-JSON heartbeats */ }
+    }
+    return recs;
+  },
+
   /** Convenience: get final home/away score for a match after it ends */
   score: async (matchId: string): Promise<{ homeScore: number; awayScore: number }> => {
     const snapshots = await txFetch<TxScores[]>(`/api/scores/snapshot/${matchId}`);

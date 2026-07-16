@@ -37,17 +37,21 @@ async function backfillFixture(fixtureId: string): Promise<void> {
     if (rows[0]) names = { home: rows[0].home_team, away: rows[0].away_team };
   }
 
-  // full history (or snapshot fallback) — snapshot carries the lineup records
+  // THE COMPLETE match history via the SSE updates endpoint (~900+ records) —
+  // snapshot only returns the last ~40, which misses earlier goals (England's
+  // 54' + Argentina's 84' were absent, leaving a timeline with one goal for a
+  // 1-2 result). The lineup records live in the snapshot, so fetch both and
+  // build the player map from whichever has them.
   let records: TxScores[] = [];
-  try { records = await txlineRest.scoresHistorical(Number(fixtureId)); } catch { /* fall back */ }
-  if (!Array.isArray(records) || records.length === 0) {
-    records = await txlineRest.scoresSnapshot(Number(fixtureId));
+  try { records = await txlineRest.scoresUpdatesFull(Number(fixtureId)); } catch { /* fall back below */ }
+  const snap = await txlineRest.scoresSnapshot(Number(fixtureId)).catch(() => [] as TxScores[]);
+  if (!Array.isArray(records) || records.length < (Array.isArray(snap) ? snap.length : 0)) {
+    records = Array.isArray(snap) ? snap : [];
   }
-  if (!Array.isArray(records) || records.length === 0) {
-    console.warn(`[backfill] ${fixtureId}: no records`); return;
-  }
+  if (records.length === 0) { console.warn(`[backfill] ${fixtureId}: no records`); return; }
 
-  const players = buildPlayerMap(records);
+  // lineups arrive in the snapshot; the updates stream may also carry them
+  const players = buildPlayerMap([...(Array.isArray(snap) ? snap : []), ...records]);
   console.log(`[backfill] ${fixtureId}: ${records.length} records · ${players.size} player ids mapped`);
 
   // normalize in Seq order so the timeline + score progression are monotonic
@@ -58,11 +62,31 @@ async function backfillFixture(fixtureId: string): Promise<void> {
     .map(r => scoresEventToBozEvent(r, names, players))
     .filter((e): e is NonNullable<typeof e> => !!e);
 
-  // Drop the routine SCORE_UPDATE ticks (possession/danger heartbeats — the
-  // snapshot has a run of them clustered at the end, which padded the replay
-  // with a dozen identical 96' frames). Keep only meaningful moments so the
-  // timeline reads clean and the replay doesn't stall on the last minute.
-  const meaningful = raw.filter(e => e.type !== 'SCORE_UPDATE');
+  // TxLINE emits several records per real goal (pre-increment lag, the
+  // increment, then a duplicate) — the full history has 9 "goal" records for 3
+  // actual goals. Collapse them: keep one GOAL per time the total score
+  // actually advances, preferring the copy that carries a resolved player name.
+  const goalDeduped: typeof raw = [];
+  let lastGoalTotal = 0; // pre-match; a lag record showing 0-0 must not emit
+  for (const e of raw) {
+    if (e.type !== 'GOAL') { goalDeduped.push(e); continue; }
+    const total = (e.score?.home ?? 0) + (e.score?.away ?? 0);
+    const prev = goalDeduped[goalDeduped.length - 1];
+    if (total > lastGoalTotal) {
+      goalDeduped.push(e); lastGoalTotal = total;
+    } else if (prev?.type === 'GOAL' && total === lastGoalTotal && total > 0) {
+      // same goal, another copy — upgrade to the one with a real player name
+      const hasName = (x?: { player?: string }) => !!x?.player && !x.player.startsWith('Player #');
+      if (hasName(e) && !hasName(prev)) goalDeduped[goalDeduped.length - 1] = e;
+    }
+  }
+
+  // Keep only meaningful moments — drop routine possession/danger ticks
+  // (SCORE_UPDATE) and low-signal chatter, so the timeline reads like the demo:
+  // goals, cards, subs, penalties, VAR, corners, shots, offsides, kickoff/HT/FT.
+  const KEEP = new Set(['GOAL', 'PENALTY', 'YELLOW_CARD', 'RED_CARD', 'SUBSTITUTION',
+    'VAR', 'CORNER', 'SHOT', 'OFFSIDE', 'MATCH_START', 'HALFTIME', 'MATCH_END']);
+  const meaningful = goalDeduped.filter(e => KEEP.has(e.type));
 
   // Anchor the timeline at kick-off: the snapshot rarely includes a 1st-half
   // kickoff record, so the earliest event is often mid-match (a 19' penalty).
@@ -84,35 +108,64 @@ async function backfillFixture(fixtureId: string): Promise<void> {
     } as NonNullable<typeof first>);
   }
 
-  let named = 0;
-  for (const e of events) if (e.player && !e.player.startsWith('Player #') && !e.player.includes('?')) named++;
-  console.log(`[backfill] ${fixtureId}: ${events.length} events (${raw.length - meaningful.length} routine ticks dropped) · ${named} named`);
+  // de-dupe by event id (the full history can carry repeated record Ids; a
+  // batched INSERT ... ON CONFLICT can't touch the same id twice) — keep the
+  // last occurrence, which has the most up-to-date payload
+  const byId = new Map<string, (typeof events)[number]>();
+  for (const e of events) byId.set(String((e as unknown as { id: string }).id), e);
+  const deduped = [...byId.values()];
 
-  // replace the fixture's stored events with the clean named set
+  // Clamp every event's score to the FINAL — in soccer the score only ever
+  // increases, so the final is the max, and any in-play value above it is
+  // TxLINE noise (the few records right after a VAR overturn transiently show
+  // the disallowed goal, e.g. France v Spain seq 641-644 flash 0-3 before
+  // settling to 0-2). This guarantees no event ever shows a score above the
+  // real result.
+  const end = deduped.find(e => e.type === 'MATCH_END');
+  const finalH = end?.score?.home ?? Math.max(0, ...deduped.map(e => e.score?.home ?? 0));
+  const finalA = end?.score?.away ?? Math.max(0, ...deduped.map(e => e.score?.away ?? 0));
+  for (const e of deduped) {
+    if (e.score) e.score = { home: Math.min(e.score.home, finalH), away: Math.min(e.score.away, finalA) };
+  }
+
+  let named = 0;
+  for (const e of deduped) if (e.player && !e.player.startsWith('Player #') && !e.player.includes('?')) named++;
+  console.log(`[backfill] ${fixtureId}: ${deduped.length} events (${raw.length - meaningful.length} routine ticks dropped) · ${named} named`);
+
+  // Play back in Seq order (= the order we normalized in), NOT by matchMinute:
+  // a late-Seq finalisation record or a clock glitch can carry a high minute
+  // with an early/low running score, so minute-based delays would replay the
+  // score out of order. Seq order keeps the score progression correct.
+  const span = 90_000;
+  const denom = Math.max(1, deduped.length - 1);
+
+  // Batched multi-row inserts — per-event round-trips to Neon (2 × N queries)
+  // were slow enough to time the backfill out; one INSERT per table is ~50×
+  // fewer round-trips.
+  const evCols: unknown[] = [], evPlace: string[] = [];
+  const rpCols: unknown[] = [], rpPlace: string[] = [];
+  deduped.forEach((e, i) => {
+    const delayMs = Math.round((i / denom) * span);
+    const j = e as unknown as { id: string; type: string; matchMinute: number; timestamp: string };
+    const b = evCols.length;
+    evPlace.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6})`);
+    evCols.push(j.id, fixtureId, j.type, j.matchMinute, j.timestamp, JSON.stringify(e));
+    const c = rpCols.length;
+    rpPlace.push(`($${c + 1},$${c + 2},NOW(),$${c + 3},$${c + 4})`);
+    rpCols.push(j.id, fixtureId, delayMs, JSON.stringify(e));
+  });
+
   await db.query('BEGIN');
   try {
     await db.query(`DELETE FROM boz_events        WHERE match_id=$1`, [fixtureId]);
     await db.query(`DELETE FROM boz_replay_events WHERE match_id=$1`, [fixtureId]);
-    // Play back in Seq order (= the order we normalized in), NOT by matchMinute:
-    // a late-Seq finalisation record or a clock glitch can carry a high minute
-    // with an early/low running score, so minute-based delays would replay the
-    // score out of order (final event showing 0-0). Seq order keeps the score
-    // progression monotonic and correct.
-    const span = 90_000; // synthetic playback span for replay timing
-    const denom = Math.max(1, events.length - 1);
-    for (let i = 0; i < events.length; i++) {
-      const e = events[i];
-      const delayMs = Math.round((i / denom) * span);
+    if (evPlace.length) {
       await db.query(
-        `INSERT INTO boz_events (id, match_id, type, match_minute, timestamp, payload)
-         VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload, match_minute=EXCLUDED.match_minute`,
-        [e.id, fixtureId, e.type, e.matchMinute, e.timestamp, JSON.stringify(e)]
-      );
+        `INSERT INTO boz_events (id, match_id, type, match_minute, timestamp, payload) VALUES ${evPlace.join(',')}
+         ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload, match_minute=EXCLUDED.match_minute`, evCols);
       await db.query(
-        `INSERT INTO boz_replay_events (id, match_id, recorded_at, delay_ms, payload)
-         VALUES ($1,$2,NOW(),$3,$4) ON CONFLICT (id) DO UPDATE SET delay_ms=EXCLUDED.delay_ms, payload=EXCLUDED.payload`,
-        [e.id, fixtureId, delayMs, JSON.stringify(e)]
-      );
+        `INSERT INTO boz_replay_events (id, match_id, recorded_at, delay_ms, payload) VALUES ${rpPlace.join(',')}
+         ON CONFLICT (id) DO UPDATE SET delay_ms=EXCLUDED.delay_ms, payload=EXCLUDED.payload`, rpCols);
     }
     await db.query('COMMIT');
     console.log(`[backfill] ${fixtureId}: DONE ✓`);

@@ -3,12 +3,20 @@
 **Target length:** ≤ 5 minutes · **Page:** `https://boz-picks.vercel.app/play`
 **Recommended run:** Command Bridge → scenario **Goal fest 3–3** · speed **4×**
 
+> **Real match vs. demo:** on an actual live World Cup fixture, everything on
+> this page — score, Hi-Lo, the pundit, win probability — comes from the real
+> TxLINE feed automatically, no Command Bridge involved, and the pundit opens
+> with a live momentum read the moment you land on the page instead of sitting
+> silent. If nothing is live when you record, the Command Bridge replay below
+> is the fallback and is what these cues assume.
+
 ---
 
 ## Pre-flight (before you hit record)
 1. Open `https://boz-picks.vercel.app/play` in a clean, full-screen browser.
 2. Connect a wallet (Solflare — Phantom's devnet RPC is flaky) and, from the
-   balance chip → vault modal, hit **Reset vault (demo)**, then **Deposit 100**.
+   balance chip → **Game Vault**, hit **Reset vault (demo)**, then
+   **Deposit 100**.
 3. Turn the pundit **voice ON** and set **energy to high** so it narrates.
 4. Do NOT press Run twice mid-recording — one run per video.
 
@@ -42,7 +50,8 @@ Choose scenario **Goal fest 3–3**, speed **4×**, press **Run**.
 
 ## Scene 4 — Hi-Lo, the original game (1:40–2:30)
 **DO:** In the centre column, play one round of **Hi-Lo** — click **Higher** or
-**Lower** before the next possession reading, show the streak tick up.
+**Lower** before the next possession reading, show the streak tick up by
+exactly one per correct call.
 **SAY:**
 > "This is our headline original experience: Hi-Lo. Before each TxLINE update you
 > guess whether the next stat — here, possession — swings higher or lower. Build
@@ -57,8 +66,11 @@ Choose scenario **Goal fest 3–3**, speed **4×**, press **Run**.
 > "Every big moment, Claude writes a broadcaster line and a neural voice reads
 > it — 'Mbappé scores for France!' — naming the actual player from TxLINE's
 > player-level data. You can pick the commentator's voice and dial the energy up
-> or down. Goals barge in, chatter never clips over them. This is the
-> 'bonus-points TTS' the brief asked for, done properly."
+> or down. Goals barge in, chatter never clips over them. On a real fixture the
+> booth stays on the whole match — not just the highlights — reading momentum
+> off the live possession and danger state between the big moments, the way a
+> real broadcast does. This is the 'bonus-points TTS' the brief asked for, done
+> properly."
 
 ## Scene 6 — Win Probability + Live Feed (3:15–3:45)
 **DO:** Point to **Win Probability** swinging on a goal, then scroll the
@@ -66,7 +78,8 @@ Choose scenario **Goal fest 3–3**, speed **4×**, press **Run**.
 **SAY:**
 > "Win Probability comes straight from the consensus implied odds — it swings the
 > instant the market reacts. And the Live Feed is broadcast-grade: goals with
-> scorer, cards, corners, VAR reviews — every event coloured and timestamped."
+> scorer, cards, corners, VAR reviews — every event coloured and timestamped,
+> with no noise from routine stat ticks cluttering the rail."
 
 ## Scene 7 — The match page + the money rail (3:45–4:30)
 **DO:** Let the match reach full time, click the finished match card → the
@@ -78,8 +91,10 @@ chip** in the nav.
 > goalscorers, the winner highlighted, a momentum recap, and Turning Points that
 > tie the biggest probability swings to the event that caused them. And this is
 > the monetization path — a vault: deposit devnet SOL once, then stake instantly
-> with no wallet pop-ups, and cash out anytime. A real freemium rail, live on
-> Solana today."
+> with no wallet pop-ups, and cash out anytime. Notice how clearly it breaks
+> down what you put in, what's staked, what you've won, and what's still
+> waiting on a result — a real freemium rail, live on Solana today, that you
+> never have to take on faith."
 
 ## Scene 8 — Share + close (4:30–5:00)
 **DO:** Click **Share** → show the flag-themed scoreline card.
@@ -87,6 +102,24 @@ chip** in the nav.
 > "And you share a match with a flag-themed card that shows the result the moment
 > it's known. That's bozPicks: real TxLINE data turned into things fans *do* —
 > playable, real-time, original, and monetizable. Thanks for watching."
+
+---
+
+## What's new since the last pass (context for you, not to read aloud)
+- **The pundit talks the whole match now, not just the highlights.** The old
+  gating (only ~25–90% of routine events made it to screen, randomly) was
+  built for a fast demo replay; on a real fixture at real pace it made the
+  booth read as dead for minutes at a time. It now speaks on every classified
+  event at real speed, plus a throttled momentum read every ~20s built from
+  possession/danger/corners, and opens with a live read pulled from history
+  the moment you load the page — the booth is never silent when you arrive.
+- **Hi-Lo's streak counter is exact now.** A burst of events arriving close
+  together used to score one correct guess multiple times (a streak could
+  jump by 10 instead of 1); it's a single, race-safe resolution per guess now.
+- **The vault card was redesigned** around the exact question a viewer asks:
+  "where did my balance go?" A new amber chip calls out money currently
+  sitting in open bets — not lost, just waiting — right where the old design
+  used to just show a smaller number with no explanation.
 
 ---
 

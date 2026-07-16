@@ -100,7 +100,7 @@ export function VaultModal() {
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4"
          style={{ background: 'rgba(3,6,16,0.72)', backdropFilter: 'blur(6px)' }}
          onClick={close}>
-      <div className="relative w-full max-w-md rounded-2xl overflow-hidden anim-in"
+      <div className="relative w-full max-w-md rounded-2xl anim-in max-h-[92vh] overflow-y-auto overflow-x-hidden overscroll-contain rail-scroll"
            style={{ background: PANEL_BG, border: '1px solid rgba(99,140,255,0.3)', boxShadow: '0 24px 70px rgba(0,0,0,0.65)' }}
            onClick={e => e.stopPropagation()}>
         <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: 'linear-gradient(90deg,transparent,#3b82f6,#a78bfa,transparent)' }} />
@@ -263,7 +263,25 @@ export function VaultModal() {
                           happened — without a timestamp, a viewer can't tell
                           which of many similar rows a given number came from */}
                       {detail && <span className="text-[10px] text-gray-500 truncate pl-3.5">{detail}</span>}
-                      <span className="text-[9px] text-gray-600 pl-3.5">{stamp(e.at)}</span>
+                      <span className="flex items-center gap-1.5 pl-3.5">
+                        <span className="text-[9px] text-gray-600">{stamp(e.at)}</span>
+                        {/* deposit/cash-out are anchored by a real signed devnet
+                            tx (a memo instruction) — link straight to it so
+                            "one signature" is independently checkable, not a
+                            claim you have to take on faith */}
+                        {e.txSig && (
+                          <a href={`https://explorer.solana.com/tx/${e.txSig}?cluster=devnet`}
+                             target="_blank" rel="noopener noreferrer"
+                             onClick={ev => ev.stopPropagation()}
+                             className="flex items-center gap-0.5 text-[9px] font-semibold hover:brightness-125 transition-all"
+                             style={{ color: '#93c5fd' }}>
+                            <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />
+                            </svg>
+                            devnet tx
+                          </a>
+                        )}
+                      </span>
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0">
                       <span className="text-xs font-bold tabular-nums"

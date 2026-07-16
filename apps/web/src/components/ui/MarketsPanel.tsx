@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSSE } from '@/hooks/useSSE';
 import type { SSEMessage, PropMarket } from '@bozpicks/shared';
@@ -17,10 +18,6 @@ import { fireToast } from './Toast';
  * Resolution receipt — the TxLINE stat value, Merkle root/proof, and validate_stat
  * tx that settled it, so the outcome needs no trusted oracle.
  */
-
-function short(s: string, n = 6) {
-  return s.length > n * 2 ? `${s.slice(0, n)}…${s.slice(-n)}` : s;
-}
 
 /** Icon + accent per market kind — gives each card an instant identity. */
 const KIND: Record<string, { color: string; icon: ReactNode }> = {
@@ -40,8 +37,7 @@ const outcomeColor = (o: string) =>
 const outcomeRgb = (o: string) =>
   /HOME|OVER|YES/.test(o) ? '16,185,129' : /AWAY|UNDER|NO/.test(o) ? '59,130,246' : '148,163,184';
 
-function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
-  const [open, setOpen] = useState(false);
+function Receipt({ m, stamp, onOpen }: { m: PropMarket; stamp?: boolean; onOpen: (m: PropMarket) => void }) {
   const r = m.receipt;
   if (!r) return null;
   const onchain = r.source === 'TXLINE_ONCHAIN';
@@ -50,7 +46,7 @@ function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
 
   return (
     <div className="mt-3 rounded-xl overflow-hidden" style={{ border: `1px solid rgba(${rgb},0.3)`, background: `rgba(${rgb},0.05)` }}>
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left">
+      <button onClick={() => onOpen(m)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:brightness-110 transition-all">
         {/* seal — stamps in when the market settles */}
         <span className={`relative w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${stamp ? 'boz-stampin' : ''}`}
               style={{ background: `rgba(${rgb},0.14)`, border: `1px solid rgba(${rgb},0.5)`, color: c }}>
@@ -64,31 +60,144 @@ function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
         </div>
         <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex-shrink-0"
               style={{ color: c, border: `1px solid ${c}`, background: 'rgba(6,12,20,0.6)' }}>{onchain ? 'Verified' : 'Simulated'}</span>
-        <svg className={`w-3.5 h-3.5 text-gray-500 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
-      {open && (
-        <div className="px-3 pb-3 pt-0.5 anim-in" style={{ borderTop: `1px solid rgba(${rgb},0.15)` }}>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] text-gray-400 font-mono mt-2">
-            <dt className="text-gray-600">fixture</dt><dd className="truncate">{r.fixtureId}</dd>
-            {r.txlineStatKeys?.length > 0 && (
-              <><dt className="text-gray-600">stat keys</dt><dd title="Real TxLINE Stats keys proved via validateStatV2">{r.txlineStatKeys.join(', ')}</dd></>
-            )}
-            <dt className="text-gray-600">record</dt><dd>{short(r.txlineRecordId, 8)}</dd>
-            <dt className="text-gray-600">root</dt><dd className="truncate" title={r.merkleRoot}>{short(r.merkleRoot, 8)}</dd>
-            <dt className="text-gray-600">validate_stat</dt><dd className="truncate" title={r.validateTx} style={{ color: onchain ? 'var(--blue)' : '#94a3b8' }}>{short(r.validateTx, 8)}</dd>
-          </dl>
-          {!onchain && (
-            <p className="text-[9px] text-gray-600 mt-2 leading-snug">
-              Fixture is upcoming — proof simulated. The keeper runs the real TxLINE Merkle proof + <span className="font-mono">validate_stat</span> CPI the moment TxLINE publishes the final stat.
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-function MarketCard({ m, onBet, betting, pendingOutcome, mine }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; pendingOutcome?: string | null; mine?: string }) {
+/**
+ * The full Verifiable Resolution receipt, centre-stage. Opened from a
+ * market's Receipt button OR from an Order Flow settle entry's "…" — same
+ * modal either way, so there's one place a judge learns to read a proof.
+ * Every field the inline version truncated is shown in full here, plus a
+ * plain-language line under each one explaining what it actually proves.
+ */
+function ReceiptModal({ m, onClose }: { m: PropMarket; onClose: () => void }) {
+  const r = m.receipt;
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+  if (!r) return null;
+  const onchain = r.source === 'TXLINE_ONCHAIN';
+  const rgb = onchain ? '16,185,129' : '245,158,11';
+  const c = onchain ? 'var(--green)' : 'var(--amber)';
+
+  const Row = ({ label, value, explain, mono = true }: { label: string; value: string; explain: string; mono?: boolean }) => (
+    <div className="py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">{label}</p>
+      <p className={`text-[13px] text-gray-100 break-all mt-0.5 ${mono ? 'font-mono' : ''}`}>{value}</p>
+      <p className="text-[10px] text-gray-500 mt-1 leading-snug">{explain}</p>
+    </div>
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-[320] flex items-center justify-center p-4"
+         style={{ background: 'rgba(3,6,16,0.78)', backdropFilter: 'blur(8px)' }}
+         onClick={onClose}>
+      <div className="relative w-full max-w-lg rounded-2xl overflow-hidden anim-in max-h-[88vh] flex flex-col"
+           style={{ background: 'linear-gradient(180deg, #0e1626, #080c18)', border: `1px solid rgba(${rgb},0.35)`, boxShadow: `0 24px 70px rgba(0,0,0,0.65), 0 0 60px rgba(${rgb},0.08)` }}
+           onClick={e => e.stopPropagation()}>
+        <div className="absolute top-0 inset-x-0 h-[2px]" style={{ background: `linear-gradient(90deg,transparent,rgba(${rgb},0.9),transparent)` }} />
+
+        <div className="flex items-center gap-3 px-5 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <span className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: `rgba(${rgb},0.14)`, border: `1px solid rgba(${rgb},0.5)`, color: c }}>
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-black" style={{ color: c }}>{onchain ? 'On-Chain Verified' : 'Verifiable Resolution'}</p>
+            <p className="text-[11px] text-gray-500 truncate">{m.label}</p>
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full flex-shrink-0"
+                style={{ color: c, border: `1px solid ${c}`, background: 'rgba(6,12,20,0.6)' }}>{onchain ? 'Verified' : 'Simulated'}</span>
+          <button onClick={onClose} aria-label="Close"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-colors flex-shrink-0">
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-2 overflow-y-auto rail-scroll flex-1 min-h-0">
+          <div className="rounded-xl px-3 py-2.5 mb-1 mt-1" style={{ background: `rgba(${rgb},0.08)`, border: `1px solid rgba(${rgb},0.25)` }}>
+            <p className="text-[11px] text-gray-300 leading-relaxed">
+              The winning outcome was decided by ONE number from TxLINE's own data — not by us. Every field below lets you
+              check that for yourself, from the raw stat to the on-chain call that confirmed it.
+            </p>
+          </div>
+
+          <Row label="Resolving stat" value={`${r.statKey} = ${r.statValue}`}
+               explain="The exact TxLINE field and value that decided the winning outcome for this market." />
+
+          {r.txlineStatKeys?.length > 0 && (
+            <Row label="TxLINE stat keys" value={r.txlineStatKeys.join(', ')} mono
+                 explain="The numeric Stats-map keys TxLINE assigns these fields (e.g. goals, corners) — proved on-chain via validateStatV2, not a code we made up." />
+          )}
+
+          <Row label="Fixture" value={r.fixtureId}
+               explain="The TxLINE fixture ID this market settled against." />
+
+          <Row label="TxLINE record" value={r.txlineRecordId}
+               explain="The specific TxLINE event record the resolving stat was read from." />
+
+          <Row label="Merkle root" value={r.merkleRoot}
+               explain="A single hash that commits to the resolving stat. If the stat value were different, this root would be different — that's what makes it checkable." />
+
+          <div className="py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Merkle proof path ({r.merkleProof.length} node{r.merkleProof.length === 1 ? '' : 's'})</p>
+            <div className="mt-1 space-y-1">
+              {r.merkleProof.map((node, i) => (
+                <p key={i} className="text-[12px] text-gray-200 font-mono break-all">{i + 1}. {node}</p>
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+              The sibling hashes you re-combine with the resolving stat to rebuild the root above — the actual proof of inclusion.
+            </p>
+          </div>
+
+          <div className="py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">validate_stat</p>
+            {onchain ? (
+              <a href={`https://explorer.solana.com/tx/${r.validateTx}?cluster=devnet`} target="_blank" rel="noopener noreferrer"
+                 className="flex items-center gap-1.5 text-[13px] font-mono break-all mt-0.5 hover:brightness-125 transition-all" style={{ color: 'var(--blue)' }}>
+                {r.validateTx}
+                <svg viewBox="0 0 24 24" className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />
+                </svg>
+              </a>
+            ) : (
+              <p className="text-[13px] text-gray-100 font-mono break-all mt-0.5">{r.validateTx}</p>
+            )}
+            <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+              {onchain
+                ? 'The Solana devnet transaction where our program CPI\'d into TxLINE\'s validate_stat, checked this proof on-chain, and released the payout — tap to open it on Explorer.'
+                : 'A locally-derived stand-in for the on-chain call, used because this fixture is a replay, not a live TxLINE result. The keeper runs the real CPI the moment a genuine fixture finishes.'}
+            </p>
+          </div>
+
+          <div className="py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Verified at</p>
+            <p className="text-[13px] text-gray-100 mt-0.5">{new Date(r.verifiedAt).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: 'numeric', month: 'short', year: 'numeric' })}</p>
+          </div>
+
+          {!onchain && (
+            <p className="text-[10px] text-gray-600 pb-3 leading-snug">
+              This fixture is upcoming or replayed, so the proof above is SIMULATED — internally consistent, but not backed by a
+              real TxLINE Merkle proof or on-chain CPI. On a genuine finished fixture, the keeper runs the real proof fetch +{' '}
+              <span className="font-mono">validate_stat</span> CPI and this badge turns green.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function MarketCard({ m, onBet, betting, pendingOutcome, mine, onOpenReceipt }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; pendingOutcome?: string | null; mine?: string; onOpenReceipt: (m: PropMarket) => void }) {
   const settled = m.status === 'SETTLED';
   const k = KIND[m.kind] ?? KIND.MATCH_WINNER;
   const busy = betting === m.id;
@@ -197,12 +306,25 @@ function MarketCard({ m, onBet, betting, pendingOutcome, mine }: { m: PropMarket
                       style={{ background: `radial-gradient(ellipse 70% 55% at 50% 42%, rgba(${rgb},0.12), transparent 70%)` }} />
               )}
               {picked && (
-                /* premium gold chip — was plain blue and easy to miss;
-                   inside the button bounds since the card clips overflow */
+                /* pre-settlement: neutral gold "YOU" (a pick, not a verdict yet).
+                   Once settled, the badge itself tells you whether it hit —
+                   green WON / red LOST — instead of relying on the outcome
+                   box's own green fill, which reads as "this was right" even
+                   when it's simply the market's winning side, not your pick. */
                 <span className="boz-youpin absolute top-1 right-1 z-10 flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#3a1e02', boxShadow: '0 0 10px rgba(245,158,11,0.7), 0 0 0 1px rgba(255,255,255,0.5) inset' }}>
-                  <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="currentColor"><path d="M12 2.5l2.6 5.9 6.4.6-4.8 4.3 1.4 6.3L12 16.6l-5.6 3 1.4-6.3-4.8-4.3 6.4-.6z" /></svg>
-                  YOU
+                      style={!settled
+                        ? { background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#3a1e02', boxShadow: '0 0 10px rgba(245,158,11,0.7), 0 0 0 1px rgba(255,255,255,0.5) inset' }
+                        : win
+                        ? { background: 'linear-gradient(135deg,#86efac,#16a34a)', color: '#022c14', boxShadow: '0 0 10px rgba(34,197,94,0.75), 0 0 0 1px rgba(255,255,255,0.5) inset' }
+                        : { background: 'linear-gradient(135deg,#fca5a5,#dc2626)', color: '#450a0a', boxShadow: '0 0 10px rgba(239,68,68,0.75), 0 0 0 1px rgba(255,255,255,0.5) inset' }}>
+                  {!settled ? (
+                    <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="currentColor"><path d="M12 2.5l2.6 5.9 6.4.6-4.8 4.3 1.4 6.3L12 16.6l-5.6 3 1.4-6.3-4.8-4.3 6.4-.6z" /></svg>
+                  ) : win ? (
+                    <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                  )}
+                  {!settled ? 'YOU' : win ? 'WON' : 'LOST'}
                 </span>
               )}
               <p className="relative text-[11px] font-bold uppercase tracking-wide" style={{ color: win ? 'var(--green)' : '#e2e8f0' }}>{o}</p>
@@ -221,7 +343,7 @@ function MarketCard({ m, onBet, betting, pendingOutcome, mine }: { m: PropMarket
         })}
       </div>
 
-      {settled ? <Receipt m={m} stamp={justSettled} /> : mine ? (
+      {settled ? <Receipt m={m} stamp={justSettled} onOpen={onOpenReceipt} /> : mine ? (
         /* staked from the game vault — instant, no per-bet signing */
         <div className="relative flex items-center justify-center gap-1.5 mt-3 text-[10px] font-bold" style={{ color: '#a78bfa' }}>
           <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -239,12 +361,12 @@ function MarketCard({ m, onBet, betting, pendingOutcome, mine }: { m: PropMarket
   );
 }
 
-type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number };
+type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number; marketId?: string };
 
 /** Live order flow — stakes trickling into pools + settlements as they resolve.
     h-full + an internal scroll makes the rail exactly as tall as the 6-card
     grid beside it (items-stretch on the parent), never taller or shorter. */
-function ActivityFeed({ items }: { items: Activity[] }) {
+function ActivityFeed({ items, getMarket, onOpenReceipt }: { items: Activity[]; getMarket: (id: string) => PropMarket | undefined; onOpenReceipt: (m: PropMarket) => void }) {
   return (
     <div className="glass p-4 h-full flex flex-col">
       <div className="flex items-center gap-2 mb-3 flex-shrink-0">
@@ -262,6 +384,7 @@ function ActivityFeed({ items }: { items: Activity[] }) {
               const onchain = a.source === 'TXLINE_ONCHAIN';
               const c = onchain ? 'var(--green)' : 'var(--amber)';
               const crgb = onchain ? '16,185,129' : '245,158,11';
+              const mkt = a.marketId ? getMarket(a.marketId) : undefined;
               return (
                 <div key={a.id} className="anim-in relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 overflow-hidden"
                      style={{ background: `linear-gradient(90deg, rgba(${crgb},0.1), rgba(${crgb},0.02))`, border: `1px solid rgba(${crgb},0.3)` }}>
@@ -271,6 +394,17 @@ function ActivityFeed({ items }: { items: Activity[] }) {
                   </span>
                   <span className="text-[11px] text-gray-300 truncate flex-1 min-w-0">{a.label} → <span className="font-bold" style={{ color: oc }}>{a.outcome}</span></span>
                   <span className="text-[8px] font-black uppercase px-1 py-0.5 rounded flex-shrink-0" style={{ color: c, border: `1px solid ${c}` }}>{onchain ? '✓' : 'sim'}</span>
+                  {/* opens the SAME full-detail receipt modal as the market card's
+                      "Verifiable resolution" button — bigger hit target and a
+                      visibly-brighter icon than a plain "…" so it doesn't read
+                      as decorative */}
+                  {mkt && (
+                    <button onClick={() => onOpenReceipt(mkt)} title="View full receipt" aria-label="View full receipt"
+                      className="relative flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-all hover:scale-110"
+                      style={{ background: `rgba(${crgb},0.16)`, color: c, border: `1px solid rgba(${crgb},0.4)` }}>
+                      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+                    </button>
+                  )}
                 </div>
               );
             }
@@ -306,6 +440,7 @@ export function MarketsPanel() {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [receiptFor, setReceiptFor] = useState<PropMarket | null>(null);
   const prevSettled = useRef(0);
   const marketsMap = useRef<Record<string, PropMarket>>({}); // last-seen market per id, for diffing
 
@@ -363,7 +498,7 @@ export function MarketsPanel() {
       } else {
         const prevM = prevMap[m.id];
         if (m.status === 'SETTLED' && prevM && prevM.status !== 'SETTLED' && m.winningOutcome) {
-          const entry: Activity = { id: `${m.id}-settle`, kind: 'settle', label: m.label, outcome: m.winningOutcome, source: m.receipt?.source, ts: Date.now() };
+          const entry: Activity = { id: `${m.id}-settle`, kind: 'settle', label: m.label, outcome: m.winningOutcome, source: m.receipt?.source, ts: Date.now(), marketId: m.id };
           setActivity(a => [entry, ...a].slice(0, 24));
         } else if (prevM && m.totalPool > prevM.totalPool) {
           let o = '', d = 0;
@@ -558,10 +693,10 @@ export function MarketsPanel() {
           items-stretch lets the rail match the exact height of the card grid. */}
       <div className={`grid gap-4 items-stretch ${activity.length > 0 ? 'lg:grid-cols-[1fr_296px]' : ''}`}>
         {/* keyed on matchId so a new match remounts the board → cinematic drop-in */}
-        <div key={matchId ?? 'board'} className={`grid gap-3 sm:grid-cols-2 min-w-0 content-start ${activity.length === 0 ? 'xl:grid-cols-3' : ''}`}>
+        <div key={matchId ?? 'board'} className={`grid gap-3 sm:grid-cols-2 min-w-0 content-start items-start ${activity.length === 0 ? 'xl:grid-cols-3' : ''}`}>
           {markets.map((m, i) => (
             <div key={m.id} className="boz-card-in" style={{ animationDelay: `${i * 80}ms` }}>
-              <MarketCard m={m} onBet={bet} betting={betting} pendingOutcome={betting === m.id ? pendingOutcome : null} mine={userBets[m.id]?.outcome} />
+              <MarketCard m={m} onBet={bet} betting={betting} pendingOutcome={betting === m.id ? pendingOutcome : null} mine={userBets[m.id]?.outcome} onOpenReceipt={setReceiptFor} />
             </div>
           ))}
         </div>
@@ -572,12 +707,13 @@ export function MarketsPanel() {
              exactly (it scrolls internally instead of overshooting). */
           <aside className="boz-card-in relative min-h-[16rem] lg:min-h-0" style={{ animationDelay: `${Math.min(markets.length, 6) * 80 + 120}ms` }}>
             <div className="lg:absolute lg:inset-0">
-              <ActivityFeed items={activity} />
+              <ActivityFeed items={activity} getMarket={id => marketsMap.current[id] ?? markets.find(m => m.id === id)} onOpenReceipt={setReceiptFor} />
             </div>
           </aside>
         )}
       </div>
       {walletOpen && <WalletModal onClose={() => setWalletOpen(false)} />}
+      {receiptFor && <ReceiptModal m={receiptFor} onClose={() => setReceiptFor(null)} />}
     </div>
   );
 }

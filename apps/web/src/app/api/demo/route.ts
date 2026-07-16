@@ -12,6 +12,11 @@ export const maxDuration = 60;
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+// one running replay at a time — the value is the owning matchId, so an
+// in-flight loop can tell (see runReplay) whether IT is still the current
+// run or has been superseded/purged and should stop publishing
+const LOCK = 'boz:demo:lock';
+
 /** Named paper-trading bots — their stakes fill the pools AND the leaderboard. */
 const DEMO_BOTS = [
   'bot.striker9', 'bot.tikitaka', 'bot.catenaccio', 'bot.parkedbus',
@@ -76,8 +81,7 @@ export async function POST(req: NextRequest) {
   const competition = (p.get('competition') || 'FIFA World Cup').slice(0, 60);
   const id = `demo-${Date.now()}`;
 
-  // one running replay at a time — lock TTL covers the match + settlement
-  const LOCK = 'boz:demo:lock';
+  // lock TTL covers the match + settlement
   const lockTtl = Math.ceil(42 / speed) + 30;
   let acquired: string | null;
   try {
@@ -99,7 +103,11 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error('[demo] replay failed:', (e as Error).message);
     } finally {
-      await redis.del(LOCK).catch(() => {});
+      // only release the lock if it's still OURS — a run that was superseded
+      // (DELETE, or the lock naturally handed to a newer run) must never
+      // delete a different, legitimately-running match's lock on its way out
+      const stillOwner = await redis.get(LOCK).catch(() => null);
+      if (stillOwner === id) await redis.del(LOCK).catch(() => {});
     }
   });
 
@@ -173,6 +181,18 @@ async function runReplay(
   let prev = 0;
   let redCardSeen = false;
   for (const step of steps) {
+    // Someone reset the vault (DELETE /api/demo) or a genuinely new run took
+    // over mid-flight — without this check the old loop kept publishing
+    // events to Redis all the way to its own full-time regardless (verified
+    // live: DB rows were purged, but the Arena/agent and any board still
+    // watching this matchId kept reacting to a "match" that no longer
+    // existed anywhere in the DB). Bail the instant we're no longer the lock
+    // owner instead of running the remaining steps into the void.
+    const owner = await redis.get(LOCK).catch(() => id);
+    if (owner !== id) {
+      console.log(`[demo] ${id} superseded/purged — stopping early (was owner: ${owner})`);
+      return;
+    }
     const overBudget = Date.now() - startWall > BUDGET_MS;
     await sleep(overBudget ? 0 : Math.max(0, step.delayMs - prev));
     prev = step.delayMs;
@@ -269,6 +289,10 @@ async function runReplay(
 }
 
 export async function DELETE() {
+  // release the lock FIRST — an in-flight replay checks ownership before
+  // every step and stops as soon as it sees the lock is gone, instead of
+  // running its full remaining schedule after being "cancelled"
+  await redis.del(LOCK).catch(() => {});
   await purgeDemoMatches();
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,5 @@
-import { connectOddsStream, connectScoresStream, txlineRest } from '@bozpicks/txline-client';
-import type { TxOddsPayload, TxScores, TxFixture } from '@bozpicks/txline-client';
+import { connectOddsStream, connectScoresStream, txlineRest, buildPlayerMap } from '@bozpicks/txline-client';
+import type { TxOddsPayload, TxScores, TxFixture, ResolvedPlayer } from '@bozpicks/txline-client';
 import { oddsEventToBozEvent, scoresEventToBozEvent } from './normalizer';
 import { publish, redis } from './publisher';
 import { record, db } from './recorder';
@@ -55,10 +55,31 @@ async function start() {
     };
   }
 
+  // Per-fixture PlayerId → name/number map, built lazily from the fixture's
+  // lineup records (which arrive in the scores snapshot). Resolving a goal/card/
+  // sub's numeric PlayerId to "Mbappé · #10" needs these; without them the
+  // normalizer falls back to "Player #<id>". Cached per fixture, refreshed at
+  // most every 5 min while the match window is open (lineups can amend).
+  const fixturePlayers: Record<string, Map<number, ResolvedPlayer>> = {};
+  const playersFetchedAt: Record<string, number> = {};
+  async function ensurePlayers(fixtureId: string): Promise<Map<number, ResolvedPlayer> | undefined> {
+    const now = Date.now();
+    if (fixturePlayers[fixtureId] && now - (playersFetchedAt[fixtureId] ?? 0) < 300_000) {
+      return fixturePlayers[fixtureId];
+    }
+    try {
+      const snaps = await txlineRest.scoresSnapshot(Number(fixtureId));
+      const map = buildPlayerMap(Array.isArray(snaps) ? snaps : []);
+      if (map.size > 0) { fixturePlayers[fixtureId] = map; playersFetchedAt[fixtureId] = now; }
+      return fixturePlayers[fixtureId];
+    } catch { return fixturePlayers[fixtureId]; }
+  }
+
   // ── Scores SSE (global — all fixtures) ──────────────────────────────────
   const stopScores = connectScoresStream(undefined, {
     onMessage: async (scores: TxScores) => {
-      const event = scoresEventToBozEvent(scores, fixtureNames[String((scores as unknown as { FixtureId?: number }).FixtureId)]);
+      const fid = String((scores as unknown as { FixtureId?: number }).FixtureId);
+      const event = scoresEventToBozEvent(scores, fixtureNames[fid], await ensurePlayers(fid));
       if (!event) return;
       await Promise.all([publish(event), record(event)]);
       if (process.env.LOG_EVENTS === 'true') {
@@ -116,12 +137,17 @@ async function start() {
         snaps.sort((x, y) => ((x as unknown as { Seq?: number }).Seq ?? 0) - ((y as unknown as { Seq?: number }).Seq ?? 0));
         const seen = lastSeqByFixture[id] ?? 0;
         let maxSeq = seen;
+        // this snapshot already contains the fixture's lineup records — build the
+        // PlayerId→name map straight from it (no extra fetch) so goal/card/sub
+        // events in the same batch resolve to real names
+        const pmap = buildPlayerMap(snaps);
+        if (pmap.size > 0) { fixturePlayers[id] = pmap; playersFetchedAt[id] = Date.now(); }
         // records are PascalCase — read Seq
         for (const s of snaps) {
           const seq = (s as unknown as { Seq?: number }).Seq ?? 0;
           if (seq <= seen) continue;
           maxSeq = Math.max(maxSeq, seq);
-          const event = scoresEventToBozEvent(s, fixtureNames[id]);
+          const event = scoresEventToBozEvent(s, fixtureNames[id], fixturePlayers[id]);
           if (event) await Promise.all([publish(event), record(event)]);
         }
         lastSeqByFixture[id] = maxSeq;
@@ -154,7 +180,7 @@ async function start() {
       if (inWindow && !fixtureStreams[id]) {
         fixtureStreams[id] = connectScoresStream(f.FixtureId, {
           onMessage: async (scores: TxScores) => {
-            const event = scoresEventToBozEvent(scores, fixtureNames[id]);
+            const event = scoresEventToBozEvent(scores, fixtureNames[id], await ensurePlayers(id));
             if (!event) return;
             await Promise.all([publish(event), record(event)]);
             if (process.env.LOG_EVENTS === 'true') console.log(`[SCORE:${id}] ${event.type} min=${event.matchMinute}`);

@@ -121,6 +121,39 @@ export interface TxLineup {
   lineups?: TxLineupPlayer[];
 }
 
+/** A resolved player: display name + shirt number, from a lineup record. */
+export interface ResolvedPlayer { name: string; number?: string }
+
+/**
+ * Build a PlayerId → { name, number } map from a fixture's score records.
+ * TxLINE carries lineups as a score action (see World Cup channel: "lineups can
+ * also appear as a score action"). A goal/card/sub event references a numeric
+ * PlayerId whose meaning (fixturePlayerId vs the normative player id) isn't
+ * documented, so we index the SAME player under every id field present — a
+ * lookup then hits regardless of which id the event used. No name is invented:
+ * a PlayerId with no lineup entry simply isn't in the map, and the caller falls
+ * back to "Player #<id>".
+ */
+export function buildPlayerMap(records: TxScores[]): Map<number, ResolvedPlayer> {
+  const map = new Map<number, ResolvedPlayer>();
+  for (const rec of records) {
+    // records are PascalCase off the wire; `lineups` may be either casing
+    const lineups = (rec.lineups ?? (rec as unknown as { Lineups?: TxLineup[] }).Lineups) as TxLineup[] | undefined;
+    if (!Array.isArray(lineups)) continue;
+    for (const team of lineups) {
+      for (const p of team.lineups ?? []) {
+        const name = p.player?.preferredName?.trim();
+        if (!name) continue;
+        const resolved: ResolvedPlayer = { name, number: p.rosterNumber };
+        for (const id of [p.fixturePlayerId, p.player?.normativeId]) {
+          if (typeof id === 'number' && id > 0) map.set(id, resolved);
+        }
+      }
+    }
+  }
+  return map;
+}
+
 export interface TxScores {
   fixtureId: number;
   gameState: SoccerGameState;

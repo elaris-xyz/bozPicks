@@ -179,7 +179,11 @@ const goalBumped = new Set<string>();
 
 // ─── TxScores → BozEvent (real PascalCase shape) ─────────────────────────────
 
-export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; away: string }): BozEvent | null {
+export function scoresEventToBozEvent(
+  scores: TxScores,
+  names?: { home: string; away: string },
+  players?: Map<number, { name: string; number?: string }>,
+): BozEvent | null {
   const r = scores as unknown as RawScore;
   const id = r.FixtureId;
   if (!id) return null;
@@ -269,16 +273,22 @@ export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; 
   const d = r.Data;
   const isPenaltyGoal = type === 'GOAL' && action.toLowerCase() === 'penalty_outcome';
 
-  // TxLINE gives a numeric PlayerId per event — no name inline (resolving it
-  // needs a separate lineups fetch we haven't verified against a live
-  // fixture; see TXLINE-REFERENCE.md §10.8). Surfacing the id itself is
-  // honest and safe: no name is invented, but a timeline reader can still
-  // tell "this player, twice" apart from "two different players".
+  // TxLINE gives a numeric PlayerId per event. When a lineups map is available
+  // (built from the fixture's lineup records) we resolve it to a real name +
+  // shirt number ("Mbappé · #10"); otherwise we surface the id itself
+  // ("Player #4231") — honest, never invented, and still lets a reader tell
+  // "this player, twice" apart from "two different players".
+  const nameFor = (pid?: number): string | undefined => {
+    if (!pid) return undefined;
+    const hit = players?.get(pid);
+    if (hit) return hit.number ? `${hit.name} · #${hit.number}` : hit.name;
+    return `Player #${pid}`;
+  };
   let player: string | undefined;
   if (type === 'SUBSTITUTION' && (d?.PlayerInId || d?.PlayerOutId)) {
-    player = `${d?.PlayerInId ? `Player #${d.PlayerInId}` : '?'} ← ${d?.PlayerOutId ? `Player #${d.PlayerOutId}` : '?'}`;
+    player = `${nameFor(d?.PlayerInId) ?? '?'} ← ${nameFor(d?.PlayerOutId) ?? '?'}`;
   } else if (d?.PlayerId) {
-    player = `Player #${d.PlayerId}`;
+    player = nameFor(d.PlayerId);
   }
 
   return {

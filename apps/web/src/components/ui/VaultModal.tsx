@@ -273,6 +273,7 @@ export function VaultModal() {
                           <a href={`https://explorer.solana.com/tx/${e.txSig}?cluster=devnet`}
                              target="_blank" rel="noopener noreferrer"
                              onClick={ev => ev.stopPropagation()}
+                             title="Opens on Solana Explorer — the amount is in the memo: click the &quot;Programs & Logs&quot; tab there to see the exact {bozVault, amountUsdc} written on-chain."
                              className="flex items-center gap-0.5 text-[9px] font-semibold hover:brightness-125 transition-all"
                              style={{ color: '#93c5fd' }}>
                             <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">

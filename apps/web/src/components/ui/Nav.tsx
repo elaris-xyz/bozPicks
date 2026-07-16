@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { WalletModal } from './WalletModal';
-import { useSSEContext } from '@/contexts/SSEContext';
 import { useVault } from '@/contexts/VaultContext';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { usdcToDisplay } from '@bozpicks/shared';
@@ -64,7 +63,7 @@ export function LogoMark({ size = 26 }: { size?: number }) {
   );
 }
 
-function Logo({ connected, compact = false }: { connected: boolean; compact?: boolean }) {
+function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-2.5 group/logo">
       <LogoMark size={compact ? 24 : 28} />
@@ -72,11 +71,6 @@ function Logo({ connected, compact = false }: { connected: boolean; compact?: bo
         <span style={{ color: 'rgb(var(--c-blue))' }}>boz</span>
         <span className="text-white">Picks</span>
       </span>
-      <span
-        className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${connected ? 'badge-live' : ''}`}
-        style={{ background: connected ? 'var(--green)' : '#4b5563' }}
-        title={connected ? 'Live feed connected' : 'Feed offline'}
-      />
     </Link>
   );
 }
@@ -139,7 +133,6 @@ function WalletButton({ compact = false, onClick }: { compact?: boolean; onClick
 
 export function Nav({ variant }: { variant: NavVariant }) {
   const pathname = usePathname();
-  const { connected } = useSSEContext();
   const [walletOpen, setWalletOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = moreLinks.some(l => l.href === pathname);
@@ -154,7 +147,7 @@ export function Nav({ variant }: { variant: NavVariant }) {
                 WebkitBackdropFilter: 'blur(18px)',
               }}>
         <div className="max-w-7xl mx-auto px-6 h-15 flex items-center justify-between gap-6" style={{ height: 60 }}>
-          <Logo connected={connected} />
+          <Logo />
 
           <nav className="flex items-center gap-1">
             {tabs.map(({ href, label, icon }) => {
@@ -239,7 +232,7 @@ export function Nav({ variant }: { variant: NavVariant }) {
                   WebkitBackdropFilter: 'blur(16px)',
                   borderBottom: '1px solid var(--glass-border)',
                 }}>
-          <Logo connected={connected} compact />
+          <Logo compact />
           <div className="flex items-center gap-1.5">
             <VaultChip compact />
             <WalletButton compact onClick={() => setWalletOpen(true)} />

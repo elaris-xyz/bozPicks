@@ -385,10 +385,46 @@
     filter: drop-shadow(0 0 6px rgba(245,200,107,0.35));
   }
 
+  /* ── Gold banner flourish: a small ember traces the card's rounded outline
+     once, then a soft gold sweep drifts across the inside — both on one
+     shared 12s cycle so most of the time the banner just sits still (a
+     "very subtle, occasional" flourish, not constant motion). Requires
+     offset-path: border-box (Chromium/Safari 16.4+); on browsers without it
+     the ember simply stays put at the top-left corner — harmless. ── */
+  .boz-gold-orbit {
+    position: absolute; top: 0; left: 0; width: 9px; height: 9px;
+    border-radius: 9999px; pointer-events: none; z-index: 7;
+    background: radial-gradient(circle, rgba(253,224,71,0.95), rgba(245,200,107,0.55) 55%, transparent 75%);
+    box-shadow: 0 0 12px 3px rgba(245,200,107,0.5);
+    offset-path: border-box; offset-rotate: 0deg;
+    animation: boz-gold-orbit 12s cubic-bezier(0.45,0,0.3,1) infinite;
+  }
+  @keyframes boz-gold-orbit {
+    0%   { offset-distance: 0%;   opacity: 0; }
+    3%   { opacity: 0.85; }
+    47%  { opacity: 0.85; }
+    50%  { offset-distance: 100%; opacity: 0; }
+    100% { offset-distance: 100%; opacity: 0; }
+  }
+  .boz-gold-sweep { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 6; border-radius: inherit; }
+  .boz-gold-sweep::after {
+    content: ''; position: absolute; top: 0; left: -45%; width: 40%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(245,200,107,0.14), rgba(253,224,71,0.22), rgba(245,200,107,0.14), transparent);
+    transform: skewX(-18deg);
+    animation: boz-gold-sweep 12s cubic-bezier(0.45,0,0.3,1) infinite;
+  }
+  @keyframes boz-gold-sweep {
+    0%, 52% { left: -45%; opacity: 0; }
+    58%     { opacity: 0.9; }
+    70%     { left: 130%; opacity: 0; }
+    100%    { left: 130%; opacity: 0; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .fx-aurora, .fx-grain { animation: none; }
     .fx-overlay, .fx-stamp, .fx-win-glow, .sheen::after,
-    .fx-flame, .fx-pop, .fx-shake, .fx-open-pulse, .fx-scan::after { animation: none; }
+    .fx-flame, .fx-pop, .fx-shake, .fx-open-pulse, .fx-scan::after,
+    .boz-gold-orbit, .boz-gold-sweep::after { animation: none; opacity: 0; }
     /* decorative motion off — cards, coins, pulses and the whole live-match
        ball choreography settle to their resting state (still fully visible) */
     .boz-card-in, .boz-youpin, .boz-coin, .boz-vault-pop, .boz-ball-spin, .boz-ball-spin-slow,

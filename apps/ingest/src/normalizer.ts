@@ -268,6 +268,19 @@ export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; 
 
   const d = r.Data;
   const isPenaltyGoal = type === 'GOAL' && action.toLowerCase() === 'penalty_outcome';
+
+  // TxLINE gives a numeric PlayerId per event — no name inline (resolving it
+  // needs a separate lineups fetch we haven't verified against a live
+  // fixture; see TXLINE-REFERENCE.md §10.8). Surfacing the id itself is
+  // honest and safe: no name is invented, but a timeline reader can still
+  // tell "this player, twice" apart from "two different players".
+  let player: string | undefined;
+  if (type === 'SUBSTITUTION' && (d?.PlayerInId || d?.PlayerOutId)) {
+    player = `${d?.PlayerInId ? `Player #${d.PlayerInId}` : '?'} ← ${d?.PlayerOutId ? `Player #${d.PlayerOutId}` : '?'}`;
+  } else if (d?.PlayerId) {
+    player = `Player #${d.PlayerId}`;
+  }
+
   return {
     id: String(r.Id ?? randomUUID()),
     matchId: String(id),
@@ -277,6 +290,7 @@ export function scoresEventToBozEvent(scores: TxScores, names?: { home: string; 
     score: { home, away },
     seq: r.Seq,
     team,
+    player,
     goalKind: type === 'GOAL' ? (isPenaltyGoal ? 'PENALTY' : goalKind(d?.GoalType)) : undefined,
     isPenalty: isPenaltyGoal || d?.Penalty || undefined,
     isOwnGoal: type === 'GOAL' && goalKind(d?.GoalType) === 'OWN_GOAL' ? true : undefined,

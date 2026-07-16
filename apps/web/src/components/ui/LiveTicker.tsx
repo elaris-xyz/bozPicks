@@ -29,7 +29,9 @@ export function LiveTicker({ matches }: { matches: MatchState[] }) {
   // The CSS animation always travels −50% of the (variable) track width, so a
   // fixed duration would race when there are many matches. Scale the duration
   // with the segment count to hold a calm, readable pace (~one item / 2.4s).
-  const durationS = Math.max(30, Math.round(base.length * 2.4));
+  // 30% slower than the original pace (one item / 2.4s) — same trick of
+  // scaling the CSS duration keeps it calm regardless of match count.
+  const durationS = Math.max(30, Math.round(base.length * 2.4)) / 0.7;
 
   return (
     <div

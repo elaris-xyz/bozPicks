@@ -16,6 +16,11 @@ export function HomeHero() {
   return (
     <div className="glass cyber-corners fx-rise relative overflow-hidden">
       <HeroAura color="var(--blue)" />
+      {/* gold flourish: an ember traces the card outline once, then a soft
+          gold sweep drifts across the inside — one shared 12s cycle, mostly
+          still (see globals.css .boz-gold-orbit / .boz-gold-sweep) */}
+      <span className="boz-gold-orbit" aria-hidden />
+      <div className="boz-gold-sweep" aria-hidden />
 
       {/* striker art, right side (desktop) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -38,7 +43,8 @@ export function HomeHero() {
           </span>
         </h1>
         <p className="text-sm text-gray-400 mt-2 max-w-md">
-          Live scores, odds and events for all 104 matches — powered by TxLINE, settled on Solana.
+          Live scores, odds and events for all 104 matches<br />
+          powered by TxLINE, settled on Solana.
         </p>
         <div className="flex flex-wrap items-center gap-2.5 mt-4">
           {LINKS.map(l => (

@@ -77,13 +77,18 @@ reference.
 > the on-chain `validateStatV2` call that checked it. No one has to trust us —
 > they can check the proof themselves."
 
-## Scene 6 — Honesty: SIMULATED vs on-chain (3:45–4:15)
-**DO:** Point to the receipt's source label (Simulated / On-chain verified).
+## Scene 6 — Honesty: SIMULATED, then the REAL proof (3:45–4:30)
+**DO:** First point to the receipt's `SIMULATED` label. Then scroll up to the
+**"Verify a real result"** card and click **Verify England v Argentina live**.
+Wait ~1s for the rows to turn green.
 **SAY:**
-> "We label every receipt honestly. Fixtures that are upcoming settle in demo
-> mode and are stamped SIMULATED — no pretend 'verified' badge. Our keeper runs
-> the real Merkle proof and `validateStatV2` CPI the moment TxLINE publishes a
-> genuine final stat. That distinction matters for a settlement product."
+> "We label every receipt honestly — the synthetic demo match settles SIMULATED,
+> no pretend 'verified' badge. But here's the real thing: this pulls a *played*
+> World Cup fixture — England 1–2 Argentina — its actual TxLINE Merkle proof,
+> live, right now, and re-folds it in the browser to reproduce TxLINE's own
+> committed root. Both goal stats check out — key 1 equals 1, key 2 equals 2,
+> period 100 from the finalised record. That's a real cryptographic proof of a
+> real result, verified against TxLINE's own cryptography, not our word."
 
 ## Scene 7 — Proof it's real: on-chain program + tests (4:15–4:50)
 **DO:** Switch to the Explorer tab, show the deployed program

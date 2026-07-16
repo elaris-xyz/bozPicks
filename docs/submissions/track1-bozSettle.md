@@ -32,9 +32,16 @@ receipt** for every market (stat key/value, Merkle root, proof nodes, and the
 - **USDC/SOL only** for value — TxL is used solely for data authorization.
 - Full-tournament auto-market: markets open from the fixtures feed across all 104
   games.
-- **Honest receipts:** demo fixtures are upcoming, so their receipts are stamped
-  `SIMULATED`; the keeper runs the real Merkle proof + `validateStatV2` CPI the
-  moment TxLINE publishes the final stat — no pretend "verified" badges.
+- **Honest receipts:** synthetic demo matches settle with `SIMULATED` receipts —
+  no pretend "verified" badges.
+- **Live REAL-proof verification** (`/markets` → "Verify a real result"): for a
+  *played* World Cup fixture we fetch TxLINE's actual `stat-validation` Merkle
+  proof at click-time and re-fold it with our own `statproof.ts` to reproduce
+  TxLINE's committed `eventStatRoot` — trustless verification against real
+  cryptography, live, nothing bundled. Confirmed on England 1–2 Argentina
+  (fixture 18241006): both goal stats verify (key 1 = 1, key 2 = 2, `period=100`
+  from the `game_finalised` leaf). This is the honest, real counterpart to the
+  simulated demo receipts.
 - **Vault-backed stakes:** users deposit devnet SOL once into the vault and
   stake instantly (Postgres ledger + on-chain reconciliation) — no per-bet
   wallet friction, clean cash-out path.

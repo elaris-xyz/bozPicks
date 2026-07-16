@@ -39,9 +39,13 @@ const TEMPLATES: Template[] = [
 
 /**
  * The REAL TxLINE `Stats` keys that decide each market — validated on-chain via
- * validateStatV2 against the `game_finalised` record (period = Total). Derived
- * from the team-confirmed legend (goals 1/2, yellow 3/4, red 5/6, corners 7/8),
- * NOT the earlier placeholder codes (1002 etc., which were actually H1 keys).
+ * validateStatV2 against the `game_finalised` record. Per TxLINE guidance the
+ * finalisation record carries statusId=100 and the ScoreStat leaf's `period`
+ * field = 100 (the "final" marker, NOT period-prefix 0/Total) — so a proven
+ * total-goals leaf is { key:1, value, period:100 }. The base KEYS below are the
+ * team-confirmed legend (goals 1/2, yellow 3/4, red 5/6, corners 7/8), NOT the
+ * earlier placeholder codes (1002 etc., which were actually H1 keys). We don't
+ * hardcode the leaf period — the keeper passes TxLINE's own proof into the CPI.
  */
 const G = [statKey('GOALS', 1), statKey('GOALS', 2)];         // [1, 2]
 export const TXLINE_STAT_KEYS: Record<MarketKind, number[]> = {

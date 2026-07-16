@@ -45,14 +45,19 @@ receipt** for every market (stat key/value, Merkle root, proof nodes, and the
   choose the exact outcome, run — all six markets settle to it, verifiably.
 
 ## Settlement path (the real one)
-1. Select the decisive record: `Action = game_finalised` (statusId 100, period
-   Total) — never an in-play/90-minute record. This already accounts for ET +
-   penalties.
-2. Prove the deciding stats via `GET /api/scores/stat-validation?fixtureId=&seq=
-   &statKeys=…` and CPI into **validateStatV2**, reading the returned bool.
-3. Each market proves its REAL TxLINE Stats keys (team-confirmed legend, goals
-   1/2, yellow 3/4, red 5/6, corners 7/8): winner/goals/BTTS → 1,2 ·
-   corners → 7,8 · cards → 3,4,5,6. Shown on every receipt.
+1. Select the decisive record: `Action = game_finalised` (statusId 100; the
+   ScoreStat leaf carries `period = 100`, the finalisation marker — not the
+   period-prefix 0/Total) — never an in-play/90-minute record. This already
+   accounts for ET + penalties.
+2. Prove the deciding stat via `GET /api/scores/stat-validation?fixtureId=&seq=
+   &statKey=…` and CPI into **validateStatV2**, reading the returned bool. The
+   keeper currently anchors the on-chain proof on the total-goals stat
+   (participant-1, key 1); validateStatV2's two-stat form (`stat_b` + `op`) is
+   the natural extension to co-prove both goals in one call.
+3. Each market's DECIDING TxLINE Stats keys (team-confirmed legend, goals 1/2,
+   yellow 3/4, red 5/6, corners 7/8) are shown on every receipt: winner/goals/
+   BTTS → 1,2 · corners → 7,8 · cards → 3,4,5,6 — so a judge sees exactly which
+   on-chain-provable stat resolves each market.
 4. Leaf format we reproduce locally (`lib/statproof.ts`, unit-tested):
    `sha256(u32_le(key) ‖ i32_le(value) ‖ i32_le(period))`, folded by
    `is_right_sibling` — so a real proof is verifiable client-side too, not just

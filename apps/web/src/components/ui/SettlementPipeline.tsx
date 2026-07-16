@@ -8,7 +8,10 @@
 const NODES = [
   {
     label: 'Full time', sub: 'TxLINE final stat', color: '#10b981',
-    icon: <><circle cx="9" cy="14" r="5" /><path d="M14 12h7M14 12l-1-4h5l-1 4" strokeLinecap="round" strokeLinejoin="round" /></>,
+    // checkered flag — reads clearly at small size (the whistle icon this
+    // replaced was mistaken for a wrench/key), matches the same "match end"
+    // flag used in the live feed elsewhere in the app
+    icon: <path d="M5 21V4M5 4h12l-2.5 4L17 12H5" strokeLinecap="round" strokeLinejoin="round" />,
   },
   {
     label: 'Merkle proof', sub: 'stat → root', color: '#3b82f6',

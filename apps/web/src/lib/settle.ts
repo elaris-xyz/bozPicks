@@ -98,9 +98,12 @@ export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise
       ).catch(() => ({ rowCount: 0 }));
       if (!upd || upd.rowCount === 0) continue; // already graded by another pass
       if (won && payout > 0) {
+        // ref names the winning outcome, not just the market — matches the
+        // stake-side ref so the activity log reads as one clear story:
+        // "Staked on OVER — Total Corners 9.5" then "Won on OVER — Total Corners 9.5"
         await moveVault({
           wallet: p.wallet_address, delta: payout, kind: 'WIN',
-          ref: m.label, requireExisting: true,
+          ref: `${winningOutcome} · ${m.label}`, requireExisting: true,
         }).catch(() => { /* best-effort credit */ });
       }
     }

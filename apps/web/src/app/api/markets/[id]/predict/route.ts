@@ -41,7 +41,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     let vaultBalance: number | undefined;
     if (!NON_VAULT(wallet)) {
       try {
-        vaultBalance = await moveVault({ wallet, delta: -micro, kind: 'STAKE', ref: m.label });
+        // ref carries the outcome, not just the market name, so a viewer
+        // reading the activity log later can tell WHAT was picked, not just
+        // which market — "Staked on OVER — Total Corners 9.5" vs. just
+        // "Total Corners 9.5"
+        vaultBalance = await moveVault({ wallet, delta: -micro, kind: 'STAKE', ref: `${outcome} · ${m.label}` });
       } catch (e) {
         if (e instanceof InsufficientFunds) {
           return NextResponse.json({ error: 'insufficient', balance: e.balance, needed: micro }, { status: 402 });
@@ -64,7 +68,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     );
 
     const updated = { ...m, pools, totalPool: total };
-    await redis.publish('boz:markets', JSON.stringify(updated)).catch(() => {});
+    // fire-and-forget: the stake is already committed (DB), and the client
+    // gets the fresh market in this response either way — a slow/degraded
+    // Redis must never add seconds to the button's response time (this was
+    // an `await`, so a stalled Redis directly caused the "click takes up to
+    // 10s" lag reported during the recent quota outage)
+    void redis.publish('boz:markets', JSON.stringify(updated)).catch(() => {});
     return NextResponse.json({ ok: true, market: updated, balance: vaultBalance });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

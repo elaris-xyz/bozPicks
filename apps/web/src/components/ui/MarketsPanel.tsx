@@ -35,6 +35,10 @@ const KIND: Record<string, { color: string; icon: ReactNode }> = {
 /** Semantic colour per outcome (home/over/yes = green, away/under/no = blue). */
 const outcomeColor = (o: string) =>
   /HOME|OVER|YES/.test(o) ? '#10b981' : /AWAY|UNDER|NO/.test(o) ? '#3b82f6' : '#94a3b8';
+/** Same mapping as an RGB triplet, for rgba() gradients/glows — matches the
+    premium treatment already used on the match page's odds selector. */
+const outcomeRgb = (o: string) =>
+  /HOME|OVER|YES/.test(o) ? '16,185,129' : /AWAY|UNDER|NO/.test(o) ? '59,130,246' : '148,163,184';
 
 function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -84,7 +88,7 @@ function Receipt({ m, stamp }: { m: PropMarket; stamp?: boolean }) {
   );
 }
 
-function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; mine?: string }) {
+function MarketCard({ m, onBet, betting, pendingOutcome, mine }: { m: PropMarket; onBet: (id: string, outcome: string) => void; betting: string | null; pendingOutcome?: string | null; mine?: string }) {
   const settled = m.status === 'SETTLED';
   const k = KIND[m.kind] ?? KIND.MATCH_WINNER;
   const busy = betting === m.id;
@@ -158,36 +162,58 @@ function MarketCard({ m, onBet, betting, mine }: { m: PropMarket; onBet: (id: st
         </div>
       </div>
 
-      {/* outcome buttons */}
+      {/* outcome buttons — same premium recipe as the match page's odds
+          selector (gradient fill, glowing top edge, radial glow behind the
+          number, shine sweep on hover) so a betting card reads at the same
+          level as the rest of the app, not a flatter, simpler cousin of it */}
       <div className={`relative grid gap-2 ${m.outcomes.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
         {m.outcomes.map(o => {
           const win = settled && m.winningOutcome === o;
           const lose = settled && m.winningOutcome !== o;
           const picked = mine === o;
+          const pending = busy && pendingOutcome === o;
           const odds = poolOdds(m, o);
           const pct = Math.round(impliedFromPool(m, o) * 100);
           const col = outcomeColor(o);
+          const rgb = outcomeRgb(o);
           return (
             <button key={o} disabled={settled || busy}
               onClick={() => onBet(m.id, o)}
-              className={`relative rounded-xl px-2 pt-2.5 pb-3 text-center overflow-hidden transition-all disabled:cursor-default enabled:hover:brightness-125 enabled:hover:-translate-y-px active:scale-[0.97] ${win ? 'fx-win-glow' : ''}`}
+              className={`odds-btn card-shine group relative rounded-xl px-2 pt-2.5 pb-3 text-center overflow-hidden transition-all duration-200 disabled:cursor-default ${win ? 'fx-win-glow' : ''} ${!settled && !busy ? 'hover:-translate-y-0.5' : ''}`}
               style={win
-                ? { background: 'var(--green-dim)', border: '1px solid var(--green)', boxShadow: '0 0 16px rgba(16,185,129,0.35)' }
+                ? { background: `linear-gradient(160deg, rgba(${rgb},0.22), rgba(${rgb},0.06))`, border: '1px solid var(--green)', boxShadow: '0 0 16px rgba(16,185,129,0.35)' }
                 : lose
                 ? { background: 'rgba(255,255,255,0.015)', border: '1px solid var(--glass-border)', opacity: 0.45 }
-                : { background: `${col}0d`, border: `1px solid ${col}33` }}>
+                : { background: `linear-gradient(160deg, rgba(${rgb},0.14), rgba(255,255,255,0.02) 65%)`, border: `1px solid rgba(${rgb},0.3)` }}>
+              {/* glowing top edge — the same accent every premium button in
+                  the app uses, absent here before */}
+              {!lose && (
+                <span className="absolute top-0 left-0 right-0 h-[2px]"
+                      style={{ background: `linear-gradient(90deg, transparent, rgba(${rgb},${win ? 0.9 : 0.55}), transparent)` }} />
+              )}
+              {/* soft radial glow behind the number */}
+              {!lose && (
+                <span className="absolute inset-0 pointer-events-none"
+                      style={{ background: `radial-gradient(ellipse 70% 55% at 50% 42%, rgba(${rgb},0.12), transparent 70%)` }} />
+              )}
               {picked && (
-                /* inside the button bounds — the card clips overflow, so a
-                   negative-offset badge was getting cut off ("YO…") */
+                /* premium gold chip — was plain blue and easy to miss;
+                   inside the button bounds since the card clips overflow */
                 <span className="boz-youpin absolute top-1 right-1 z-10 flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: 'var(--blue)', color: '#fff' }}>
-                  <svg viewBox="0 0 24 24" className="w-2 h-2" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6" /></svg>
+                      style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#3a1e02', boxShadow: '0 0 10px rgba(245,158,11,0.7), 0 0 0 1px rgba(255,255,255,0.5) inset' }}>
+                  <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="currentColor"><path d="M12 2.5l2.6 5.9 6.4.6-4.8 4.3 1.4 6.3L12 16.6l-5.6 3 1.4-6.3-4.8-4.3 6.4-.6z" /></svg>
                   YOU
                 </span>
               )}
-              <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: win ? 'var(--green)' : '#e2e8f0' }}>{o}</p>
-              <p className="text-[17px] font-black tabular-nums leading-tight mt-0.5" style={{ color: win ? 'var(--green)' : col }}>{odds.toFixed(2)}</p>
-              <p className="text-[9px] text-gray-500 tabular-nums">{pct}%</p>
+              <p className="relative text-[11px] font-bold uppercase tracking-wide" style={{ color: win ? 'var(--green)' : '#e2e8f0' }}>{o}</p>
+              {pending ? (
+                <span className="relative flex items-center justify-center h-[21px] mt-0.5">
+                  <span className="w-3.5 h-3.5 rounded-full border-2 animate-spin" style={{ borderColor: `rgba(${rgb},0.25)`, borderTopColor: col }} />
+                </span>
+              ) : (
+                <p className="relative text-[17px] font-black tabular-nums leading-tight mt-0.5" style={{ color: win ? 'var(--green)' : col, filter: `drop-shadow(0 0 8px rgba(${rgb},0.3))` }}>{odds.toFixed(2)}</p>
+              )}
+              <p className="relative text-[9px] text-gray-500 tabular-nums">{pending ? 'staking…' : `${pct}%`}</p>
               {/* implied-probability fill along the bottom edge */}
               <span className="absolute bottom-0 left-0 h-[3px]" style={{ width: `${pct}%`, background: win ? 'var(--green)' : col, opacity: 0.55, transition: 'width .5s' }} />
             </button>
@@ -231,22 +257,30 @@ function ActivityFeed({ items }: { items: Activity[] }) {
         <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto rail-scroll pr-1">
           {items.map(a => {
             const oc = outcomeColor(a.outcome);
+            const orgb = outcomeRgb(a.outcome);
             if (a.kind === 'settle') {
               const onchain = a.source === 'TXLINE_ONCHAIN';
               const c = onchain ? 'var(--green)' : 'var(--amber)';
+              const crgb = onchain ? '16,185,129' : '245,158,11';
               return (
-                <div key={a.id} className="anim-in flex items-center gap-2 rounded-lg px-2.5 py-1.5"
-                     style={{ background: onchain ? 'rgba(16,185,129,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${onchain ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}` }}>
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke={c} strokeWidth={2}><path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <div key={a.id} className="anim-in relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 overflow-hidden"
+                     style={{ background: `linear-gradient(90deg, rgba(${crgb},0.1), rgba(${crgb},0.02))`, border: `1px solid rgba(${crgb},0.3)` }}>
+                  <span className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: c }} />
+                  <span className="relative w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: `rgba(${crgb},0.18)`, color: c }}>
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </span>
                   <span className="text-[11px] text-gray-300 truncate flex-1 min-w-0">{a.label} → <span className="font-bold" style={{ color: oc }}>{a.outcome}</span></span>
                   <span className="text-[8px] font-black uppercase px-1 py-0.5 rounded flex-shrink-0" style={{ color: c, border: `1px solid ${c}` }}>{onchain ? '✓' : 'sim'}</span>
                 </div>
               );
             }
             return (
-              <div key={a.id} className="anim-in flex items-center gap-2 rounded-lg px-2.5 py-1.5"
-                   style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
-                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: oc }} />
+              <div key={a.id} className="anim-in relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 overflow-hidden"
+                   style={{ background: `linear-gradient(90deg, rgba(${orgb},0.09), rgba(255,255,255,0.02))`, border: `1px solid rgba(${orgb},0.28)` }}>
+                <span className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: oc }} />
+                <span className="relative w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: `rgba(${orgb},0.18)`, color: oc }}>
+                  <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>
+                </span>
                 <span className="text-[11px] font-bold tabular-nums flex-shrink-0" style={{ color: oc }}>+{usdcToDisplay(a.amt ?? 0)}</span>
                 <span className="text-[11px] text-gray-400 truncate flex-1 min-w-0">→ {a.outcome} · <span className="text-gray-600">{a.label}</span></span>
               </div>
@@ -264,6 +298,10 @@ export function MarketsPanel() {
   const [markets, setMarkets] = useState<PropMarket[]>([]);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [betting, setBetting] = useState<string | null>(null);
+  // WHICH outcome is in flight, not just which card — a busy card alone can't
+  // tell the player their exact tap registered when several outcomes look
+  // similar; this drives the instant per-button spinner
+  const [pendingOutcome, setPendingOutcome] = useState<string | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [userBets, setUserBets] = useState<Record<string, { outcome: string; stake: number }>>({});
@@ -359,6 +397,7 @@ export function MarketsPanel() {
       return;
     }
     setBetting(id);
+    setPendingOutcome(outcome);
     try {
       const res = await fetch(`/api/markets/${id}/predict`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -377,7 +416,7 @@ export function MarketsPanel() {
       fireToast({ kind: 'info', title: `Staked ${STAKE} USDC from your vault`, body: `${outcome} · instant · no signing` });
     } catch {
       fireToast({ kind: 'warn', title: 'Stake not placed', body: 'Please try again.' });
-    } finally { setBetting(null); }
+    } finally { setBetting(null); setPendingOutcome(null); }
   };
 
   // detect settlement transition → sound + pull the vault (winnings just landed)
@@ -522,7 +561,7 @@ export function MarketsPanel() {
         <div key={matchId ?? 'board'} className={`grid gap-3 sm:grid-cols-2 min-w-0 content-start ${activity.length === 0 ? 'xl:grid-cols-3' : ''}`}>
           {markets.map((m, i) => (
             <div key={m.id} className="boz-card-in" style={{ animationDelay: `${i * 80}ms` }}>
-              <MarketCard m={m} onBet={bet} betting={betting} mine={userBets[m.id]?.outcome} />
+              <MarketCard m={m} onBet={bet} betting={betting} pendingOutcome={betting === m.id ? pendingOutcome : null} mine={userBets[m.id]?.outcome} />
             </div>
           ))}
         </div>

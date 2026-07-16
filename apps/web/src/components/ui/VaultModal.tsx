@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useVault, type LedgerEntry } from '@/contexts/VaultContext';
 import { usdcToDisplay } from '@bozpicks/shared';
 import { fireToast } from './Toast';
+import { IconTrophy, IconTarget } from './Icons';
 
 /**
  * bozVault modal — the game's cashier. Shows the balance, deposits from the
@@ -24,6 +25,21 @@ const KIND_META: Record<LedgerEntry['kind'], { label: string; color: string; sig
   WITHDRAW: { label: 'Cash out', color: '#a78bfa', sign: '' },
 };
 
+/**
+ * Turn a raw ledger row into a plain-English line. STAKE/WIN refs are
+ * `"OUTCOME · Market Label"` (set server-side in predict/settle) — split
+ * that into "Staked on OVER" + "Total Corners 9.5" instead of showing the
+ * generic kind label next to a run-on ref string.
+ */
+function describeEntry(e: LedgerEntry): { headline: string; detail?: string } {
+  const meta = KIND_META[e.kind];
+  if ((e.kind === 'STAKE' || e.kind === 'WIN') && e.ref?.includes(' · ')) {
+    const [outcome, ...rest] = e.ref.split(' · ');
+    return { headline: `${e.kind === 'STAKE' ? 'Staked on' : 'Won on'} ${outcome}`, detail: rest.join(' · ') };
+  }
+  return { headline: meta.label, detail: e.ref ?? undefined };
+}
+
 /** `HH:MM · D Mon` — compact, always shows an absolute time (never "3h ago",
     which goes stale the instant a judge pauses the video). */
 function stamp(iso: string): string {
@@ -34,7 +50,7 @@ function stamp(iso: string): string {
 }
 
 export function VaultModal() {
-  const { modal, close, balance, deposited, won, staked, withdrawn, ledger, busy, deposit, withdraw, reset } = useVault();
+  const { modal, close, balance, deposited, won, staked, withdrawn, activeStake, activeCount, ledger, busy, deposit, withdraw, reset } = useVault();
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState(25);
   const [flash, setFlash] = useState<'deposit' | 'withdraw' | null>(null);
@@ -128,16 +144,40 @@ export function VaultModal() {
               {bal} <span className="text-sm font-bold text-gray-500">USDC</span>
             </p>
 
-            {/* the four numbers that MAKE the balance, spelled out as a literal
-                equation — so it visibly checks out instead of asking for trust */}
-            <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 mt-3 text-[11px] font-mono tabular-nums">
-              <span className="text-gray-300">{usdcToDisplay(deposited)}</span>
-              <span className="text-gray-600">deposited</span>
-              {staked > 0 && (<><span className="text-gray-600">−</span><span className="text-gray-300">{usdcToDisplay(staked)}</span><span className="text-gray-600">staked</span></>)}
-              {won > 0 && (<><span className="text-gray-600">+</span><span style={{ color: 'var(--green)' }}>{usdcToDisplay(won)}</span><span className="text-gray-600">won</span></>)}
-              {withdrawn > 0 && (<><span className="text-gray-600">−</span><span className="text-gray-300">{usdcToDisplay(withdrawn)}</span><span className="text-gray-600">cashed out</span></>)}
-              <span className="text-gray-600">=</span>
-              <span className="font-bold text-gray-100">{bal} USDC</span>
+            {/* the money that's NOT lost, just waiting — this is the single
+                biggest source of "where did my balance go?" confusion: a
+                fresh round of stakes debits instantly, before any result is
+                known, and reads exactly like a loss unless it's called out */}
+            {activeCount > 0 && (
+              <div className="relative mt-3 flex items-center gap-2 rounded-xl px-3 py-2"
+                   style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+                <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(245,158,11,0.18)', color: '#fbbf24' }}>
+                  <IconTarget size={13} />
+                </span>
+                <p className="text-[11px] text-amber-200 leading-snug">
+                  <b className="font-bold">{usdcToDisplay(activeStake)} USDC</b> is in {activeCount} open bet{activeCount > 1 ? 's' : ''} right now — not lost, just waiting on the result.
+                </p>
+              </div>
+            )}
+
+            {/* what makes up the balance, as labeled tiles instead of a
+                run-on equation — each movement type gets its own icon, color,
+                and plain word, then a one-line summary in real sentences */}
+            <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-2.5">How this adds up</p>
+              <div className="grid grid-cols-2 gap-2">
+                <FlowTile icon={<IconDeposit />} label="Put in" amount={deposited} color="#3b82f6" sign="+" />
+                <FlowTile icon={<IconTarget size={14} />} label="Bet so far" amount={staked} color="#f59e0b" sign="−" />
+                <FlowTile icon={<IconTrophy size={14} />} label="Won back" amount={won} color="#22c55e" sign="+" />
+                <FlowTile icon={<IconCashOut />} label="Taken out" amount={withdrawn} color="#a78bfa" sign="−" />
+              </div>
+              <p className="text-[11px] text-gray-500 leading-relaxed mt-3">
+                You put in <b className="text-gray-300">{usdcToDisplay(deposited)}</b>, bet{' '}
+                <b className="text-gray-300">{usdcToDisplay(staked)}</b> across your games, won back{' '}
+                <b style={{ color: 'var(--green)' }}>{usdcToDisplay(won)}</b>, and cashed out{' '}
+                <b className="text-gray-300">{usdcToDisplay(withdrawn)}</b> — leaving{' '}
+                <b className="text-gray-100">{bal} USDC</b> to play with.
+              </p>
             </div>
           </div>
         </div>
@@ -209,17 +249,20 @@ export function VaultModal() {
               {ledger.slice(0, 12).map(e => {
                 const meta = KIND_META[e.kind];
                 const credit = e.amount >= 0;
+                const { headline, detail } = describeEntry(e);
                 return (
                   <div key={e.id} className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg"
                        style={{ background: 'rgba(255,255,255,0.02)' }}>
                     <div className="flex flex-col min-w-0 gap-0.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: meta.color }} />
-                        <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
-                        {e.ref && <span className="text-[10px] text-gray-600 truncate">· {e.ref}</span>}
+                        <span className="text-xs font-semibold truncate" style={{ color: meta.color }}>{headline}</span>
                       </div>
-                      {/* WHEN this happened — without it, a viewer can't tell
+                      {/* market/context on its own line so long labels never
+                          get clipped against the headline, and WHEN this
+                          happened — without a timestamp, a viewer can't tell
                           which of many similar rows a given number came from */}
+                      {detail && <span className="text-[10px] text-gray-500 truncate pl-3.5">{detail}</span>}
                       <span className="text-[9px] text-gray-600 pl-3.5">{stamp(e.at)}</span>
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0">
@@ -257,3 +300,31 @@ function VaultIcon() {
     </svg>
   );
 }
+
+/** One labeled movement in the balance breakdown — icon badge + plain word +
+    amount, so the number reads on its own without needing the sentence below. */
+function FlowTile({ icon, label, amount, color, sign }: { icon: React.ReactNode; label: string; amount: number; color: string; sign: '+' | '−' }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5"
+         style={{ background: `${color}0f`, border: `1px solid ${color}30` }}>
+      <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-500 leading-none">{label}</p>
+        <p className="text-sm font-black tabular-nums mt-1" style={{ color }}>{sign}{usdcToDisplay(amount)}</p>
+      </div>
+    </div>
+  );
+}
+
+const IconDeposit = () => (
+  <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3v11m0 0l-4-4m4 4l4-4" /><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+  </svg>
+);
+const IconCashOut = () => (
+  <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 21V10m0 0l-4 4m4-4l4 4" /><path d="M4 8V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3" />
+  </svg>
+);

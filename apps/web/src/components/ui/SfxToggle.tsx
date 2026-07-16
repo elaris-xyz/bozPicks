@@ -21,7 +21,7 @@ export function SfxToggle() {
 
   return (
     <button onClick={toggle} title={on ? 'Sound on' : 'Sound off'} aria-label="Toggle sound"
-      className="fixed z-40 bottom-20 right-3 md:bottom-4 md:right-4 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90"
+      className="fixed z-40 bottom-24 right-3 md:bottom-16 md:right-4 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90"
       style={{ background: 'rgba(9,13,26,0.8)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(10px)', color: on ? 'var(--blue)' : '#64748b' }}>
       {on ? (
         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

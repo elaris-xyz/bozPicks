@@ -130,7 +130,7 @@ export function CommandBridge() {
     : 'Brazil v Argentina — preset';
 
   return (
-    <div ref={wrapRef} className="fixed z-40 bottom-20 left-3 md:bottom-4 md:left-4 print:hidden">
+    <div ref={wrapRef} className="fixed z-40 bottom-24 left-3 md:bottom-16 md:left-4 print:hidden">
       {/* expanded panel — solid, opens from the corner upward */}
       {open && (
         <div className="anim-in absolute bottom-full mb-2 left-0 w-[min(92vw,384px)]">

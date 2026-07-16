@@ -177,6 +177,11 @@ export function TwoSidedTimeline({
                 <div className={`flex items-center gap-1.5 ${isHome ? 'flex-row-reverse' : ''}`}>
                   <span style={{ color: cfg.color }}>{cfg.icon}</span>
                   <span className="text-xs font-bold" style={{ color: cfg.color }}>{cfg.label}</span>
+                  {/* the minute — was missing on goal/card/sub chips, so the
+                      big moments read with no time while minor events had one */}
+                  {e.matchMinute > 0 && (
+                    <span className="text-[10px] font-mono font-bold tabular-nums text-gray-400">{e.matchMinute}&rsquo;</span>
+                  )}
                   {e.score && (
                     <span className="text-[11px] font-bold font-mono tabular-nums text-white">
                       {e.score.home}–{e.score.away}

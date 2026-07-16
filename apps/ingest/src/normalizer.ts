@@ -167,15 +167,13 @@ function classifyReal(action: string, r: RawScore): BozEventType | null {
 
 const n = (v: number | undefined): number => (typeof v === 'number' ? v : 0);
 
-// A 'goal' record's OWN Score/Stats snapshot is frequently stale — TxLINE
-// emits the goal record before the stat totals it carries are incremented, so
-// reading it naively shows the PRE-goal score next to a "GOAL" event (visibly
-// wrong on the live scoreboard for the few seconds until the next tick
-// corrects it). Track each fixture's last-confirmed score and force a GOAL
-// record to reflect at least +1 for the scoring side — guarded so a
-// redelivered/duplicate copy of the exact same record can't double-count.
+// Each fixture's last trusted score, only used to carry forward across records
+// whose Stats we deliberately don't trust for the score (VAR review records —
+// TxLINE emits a transient over-count on a `var_end` Overturned, then the very
+// next record and game_finalised carry the corrected total). We do NOT clamp
+// the score monotonically: a VAR overturn legitimately lowers it, and the Stats
+// map is otherwise authoritative per record.
 const lastScore = new Map<string, { home: number; away: number }>();
-const goalBumped = new Set<string>();
 
 // ─── TxScores → BozEvent (real PascalCase shape) ─────────────────────────────
 
@@ -216,52 +214,18 @@ export function scoresEventToBozEvent(
   let home = isHome1 ? g1 : g2;
   let away = isHome1 ? g2 : g1;
 
-  if (type === 'GOAL') {
-    const d0 = r.Data;
-    const ownGoal = goalKind(d0?.GoalType) === 'OWN_GOAL';
-    // side crediting the goal: Participant 1|2 mapped through isHome1, the
-    // same mapping already used below for `team` — independent of whether
-    // team names were passed in
-    const scoringSide: 'home' | 'away' | undefined =
-      r.Participant === 1 ? (isHome1 ? 'home' : 'away')
-      : r.Participant === 2 ? (isHome1 ? 'away' : 'home')
-      : undefined;
-    // own goals are rarer and Participant's meaning for them is unconfirmed —
-    // skip the forced bump rather than risk crediting the wrong side; the
-    // monotonic clamp below still protects against a regression.
-    if (scoringSide && !ownGoal) {
-      const goalKey = `${id}:${r.Id ?? r.Seq ?? `${action}-${clockSec}`}`;
-      if (!goalBumped.has(goalKey)) {
-        goalBumped.add(goalKey);
-        const prev = lastScore.get(String(id)) ?? { home: 0, away: 0 };
-        // Only force +1 when the cumulative Stats map HASN'T caught up yet
-        // (the live lag: a goal record arrives before its own Stats increment,
-        // so the side's Stats value still equals the previous confirmed score).
-        // In a full-history replay the Stats are already incremented, so we
-        // trust them — and a disallowed/duplicate goal whose Stats never moved
-        // won't over-count the score (was the 0-3-instead-of-0-2 bug).
-        const sideCur = scoringSide === 'home' ? home : away;   // from Stats
-        const sidePrev = scoringSide === 'home' ? prev.home : prev.away;
-        if (sideCur <= sidePrev) {
-          if (scoringSide === 'home') home = sidePrev + 1;
-          else away = sidePrev + 1;
-        }
-      }
-    }
-  }
-  // The game_finalised record is the AUTHORITATIVE final score — trust its
-  // Stats verbatim, bypassing the monotonic clamp. A VAR overturn legitimately
-  // reduces the score, and TxLINE can emit a transient over-count at the
-  // overturn moment (seen live: France v Spain seq 641 var_end shows Spain 3,
-  // then game_finalised corrects to 2) that the clamp would otherwise lock in.
-  if (finalised) {
-    lastScore.set(String(id), { home, away });
+  // The Stats map (participant goals, keys 1/2) is the authoritative running
+  // total per record — trust it directly. The ONE exception is a VAR review
+  // record: TxLINE emits a transient over-count on `var_end` Overturned (seen
+  // live: France v Spain seq 641 shows Spain 3, then the next record + the
+  // game_finalised record both carry the corrected 2). A `var`/`var_end`
+  // record shouldn't move the displayed score anyway — the correction rides in
+  // on the following record — so we carry the last trusted score across it.
+  const isVarRecord = type === 'VAR' || action.toLowerCase().startsWith('var');
+  if (isVarRecord) {
+    const prev = lastScore.get(String(id));
+    if (prev) { home = prev.home; away = prev.away; }
   } else {
-    // in-play: never let the running score regress below the last confirmed
-    // value (an out-of-order or incomplete record must not roll it back)
-    const prevScore = lastScore.get(String(id)) ?? { home: 0, away: 0 };
-    home = Math.max(home, prevScore.home);
-    away = Math.max(away, prevScore.away);
     lastScore.set(String(id), { home, away });
   }
 

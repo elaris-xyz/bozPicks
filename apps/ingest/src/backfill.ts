@@ -54,13 +54,39 @@ async function backfillFixture(fixtureId: string): Promise<void> {
   const sorted = [...records].sort((a, b) =>
     ((a as unknown as { Seq?: number }).Seq ?? 0) - ((b as unknown as { Seq?: number }).Seq ?? 0));
 
-  const events = sorted
+  const raw = sorted
     .map(r => scoresEventToBozEvent(r, names, players))
     .filter((e): e is NonNullable<typeof e> => !!e);
 
+  // Drop the routine SCORE_UPDATE ticks (possession/danger heartbeats — the
+  // snapshot has a run of them clustered at the end, which padded the replay
+  // with a dozen identical 96' frames). Keep only meaningful moments so the
+  // timeline reads clean and the replay doesn't stall on the last minute.
+  const meaningful = raw.filter(e => e.type !== 'SCORE_UPDATE');
+
+  // Anchor the timeline at kick-off: the snapshot rarely includes a 1st-half
+  // kickoff record, so the earliest event is often mid-match (a 19' penalty).
+  // Prepend a synthetic MATCH_START at 0' (0-0) so the timeline + momentum span
+  // the whole match from the start, and ensure a MATCH_END closes it.
+  const events = [...meaningful];
+  if (!events.some(e => e.type === 'MATCH_START')) {
+    const first = events[0];
+    events.unshift({
+      id: `${fixtureId}-synth-kickoff`,
+      matchId: fixtureId,
+      type: 'MATCH_START',
+      timestamp: first?.timestamp ?? new Date().toISOString(),
+      matchMinute: 0,
+      score: { home: 0, away: 0 },
+      seq: -1,
+      stats: first?.stats,
+      rawPayload: { synthetic: 'kickoff' },
+    } as NonNullable<typeof first>);
+  }
+
   let named = 0;
   for (const e of events) if (e.player && !e.player.startsWith('Player #') && !e.player.includes('?')) named++;
-  console.log(`[backfill] ${fixtureId}: ${events.length} events · ${named} with resolved player names`);
+  console.log(`[backfill] ${fixtureId}: ${events.length} events (${raw.length - meaningful.length} routine ticks dropped) · ${named} named`);
 
   // replace the fixture's stored events with the clean named set
   await db.query('BEGIN');

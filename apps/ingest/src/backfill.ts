@@ -67,10 +67,16 @@ async function backfillFixture(fixtureId: string): Promise<void> {
   try {
     await db.query(`DELETE FROM boz_events        WHERE match_id=$1`, [fixtureId]);
     await db.query(`DELETE FROM boz_replay_events WHERE match_id=$1`, [fixtureId]);
+    // Play back in Seq order (= the order we normalized in), NOT by matchMinute:
+    // a late-Seq finalisation record or a clock glitch can carry a high minute
+    // with an early/low running score, so minute-based delays would replay the
+    // score out of order (final event showing 0-0). Seq order keeps the score
+    // progression monotonic and correct.
     const span = 90_000; // synthetic playback span for replay timing
+    const denom = Math.max(1, events.length - 1);
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
-      const delayMs = Math.round((Math.min(95, e.matchMinute) / 95) * span) + i; // +i keeps ties ordered
+      const delayMs = Math.round((i / denom) * span);
       await db.query(
         `INSERT INTO boz_events (id, match_id, type, match_minute, timestamp, payload)
          VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload, match_minute=EXCLUDED.match_minute`,

@@ -234,17 +234,36 @@ export function scoresEventToBozEvent(
       if (!goalBumped.has(goalKey)) {
         goalBumped.add(goalKey);
         const prev = lastScore.get(String(id)) ?? { home: 0, away: 0 };
-        if (scoringSide === 'home') home = Math.max(home, prev.home + 1);
-        else away = Math.max(away, prev.away + 1);
+        // Only force +1 when the cumulative Stats map HASN'T caught up yet
+        // (the live lag: a goal record arrives before its own Stats increment,
+        // so the side's Stats value still equals the previous confirmed score).
+        // In a full-history replay the Stats are already incremented, so we
+        // trust them — and a disallowed/duplicate goal whose Stats never moved
+        // won't over-count the score (was the 0-3-instead-of-0-2 bug).
+        const sideCur = scoringSide === 'home' ? home : away;   // from Stats
+        const sidePrev = scoringSide === 'home' ? prev.home : prev.away;
+        if (sideCur <= sidePrev) {
+          if (scoringSide === 'home') home = sidePrev + 1;
+          else away = sidePrev + 1;
+        }
       }
     }
   }
-  // never let a live score regress below the last confirmed value for this
-  // fixture (an out-of-order or incomplete record must not roll it back)
-  const prevScore = lastScore.get(String(id)) ?? { home: 0, away: 0 };
-  home = Math.max(home, prevScore.home);
-  away = Math.max(away, prevScore.away);
-  lastScore.set(String(id), { home, away });
+  // The game_finalised record is the AUTHORITATIVE final score — trust its
+  // Stats verbatim, bypassing the monotonic clamp. A VAR overturn legitimately
+  // reduces the score, and TxLINE can emit a transient over-count at the
+  // overturn moment (seen live: France v Spain seq 641 var_end shows Spain 3,
+  // then game_finalised corrects to 2) that the clamp would otherwise lock in.
+  if (finalised) {
+    lastScore.set(String(id), { home, away });
+  } else {
+    // in-play: never let the running score regress below the last confirmed
+    // value (an out-of-order or incomplete record must not roll it back)
+    const prevScore = lastScore.get(String(id)) ?? { home: 0, away: 0 };
+    home = Math.max(home, prevScore.home);
+    away = Math.max(away, prevScore.away);
+    lastScore.set(String(id), { home, away });
+  }
 
   // the game_finalised record carries Clock.Seconds=0 — don't stamp full-time /
   // late events at 0'; floor them to 90' (or ET if the clock says so)

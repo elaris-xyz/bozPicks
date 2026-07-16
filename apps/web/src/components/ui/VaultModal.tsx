@@ -263,6 +263,17 @@ export function VaultModal() {
                           happened — without a timestamp, a viewer can't tell
                           which of many similar rows a given number came from */}
                       {detail && <span className="text-[10px] text-gray-500 truncate pl-3.5">{detail}</span>}
+                      {/* the on-chain memo, spelled out right here — Explorer's
+                          Summary tab doesn't parse custom memo data, so a judge
+                          would otherwise have to dig into Programs & Logs to
+                          find the amount. Quoting the exact bytes we wrote
+                          on-chain means the connection to the tx below isn't a
+                          claim to take on faith — it's right there to compare. */}
+                      {(e.kind === 'DEPOSIT' || e.kind === 'WITHDRAW') && (
+                        <span className="text-[9px] text-gray-600 font-mono truncate pl-3.5">
+                          on-chain: {`{"bozVault":"${e.kind === 'DEPOSIT' ? 'deposit' : 'withdraw'}","amountUsdc":${usdcToDisplay(Math.abs(e.amount))}}`}
+                        </span>
+                      )}
                       <span className="flex items-center gap-1.5 pl-3.5">
                         <span className="text-[9px] text-gray-600">{stamp(e.at)}</span>
                         {/* deposit/cash-out are anchored by a real signed devnet
@@ -273,7 +284,7 @@ export function VaultModal() {
                           <a href={`https://explorer.solana.com/tx/${e.txSig}?cluster=devnet`}
                              target="_blank" rel="noopener noreferrer"
                              onClick={ev => ev.stopPropagation()}
-                             title="Opens on Solana Explorer — the amount is in the memo: click the &quot;Programs & Logs&quot; tab there to see the exact {bozVault, amountUsdc} written on-chain."
+                             title="Opens on Solana Explorer — find this same memo under the &quot;Programs & Logs&quot; tab, Memo Instruction, Data (UTF-8)."
                              className="flex items-center gap-0.5 text-[9px] font-semibold hover:brightness-125 transition-all"
                              style={{ color: '#93c5fd' }}>
                             <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">

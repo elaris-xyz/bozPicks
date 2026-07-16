@@ -3,6 +3,7 @@ import { MarketsHero } from '@/components/ui/MarketsHero';
 import { MarketsBanner } from '@/components/ui/MarketsBanner';
 import { SettlementPipeline } from '@/components/ui/SettlementPipeline';
 import { OnChainProof } from '@/components/ui/OnChainProof';
+import { RealProofCard } from '@/components/ui/RealProofCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,9 @@ export default function MarketsPage() {
 
       {/* one-click on-chain verification of the deployed programs */}
       <OnChainProof />
+
+      {/* live verification of a REAL played fixture's TxLINE Merkle proof */}
+      <RealProofCard />
 
       {/* the prop-market cards + verifiable-resolution receipts */}
       <section className="space-y-3">

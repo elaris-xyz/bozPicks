@@ -180,25 +180,34 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
     return [...rest, ...Object.values(seenFinished)];
   })();
 
-  const liveCount     = dedupedMatches.filter(m => m.status === 'LIVE' || m.status === 'HALFTIME').length;
-  const upcomingCount = dedupedMatches.filter(m => m.status === 'SCHEDULED').length;
-  const finishedCount = dedupedMatches.filter(m => m.status === 'FINISHED').length;
-  const starredCount  = dedupedMatches.filter(m => isFav(m.id)).length;
-
-  const tabDefs: { key: Tab; label: string; count: number }[] = [
-    { key: 'all',      label: 'All',      count: dedupedMatches.length },
-    { key: 'live',     label: 'Live',     count: liveCount },
-    { key: 'upcoming', label: 'Upcoming', count: upcomingCount },
-    { key: 'finished', label: 'Finished', count: finishedCount },
-    { key: 'starred',  label: '★',        count: starredCount },
-  ];
-
   const isDemo = (m: MatchState) => m.id.startsWith('demo-');
   const isWC = (m: MatchState) => !isDemo(m) && !!m.competition?.toLowerCase().includes('world cup');
   const isFriendly = (m: MatchState) => !isDemo(m) && !!m.competition?.toLowerCase().includes('friendl');
   const wcCount = dedupedMatches.filter(isWC).length;
   const frCount = dedupedMatches.filter(isFriendly).length;
   const demoCount = dedupedMatches.filter(isDemo).length;
+
+  // The status tabs count what's ACTUALLY reachable under the current
+  // competition filter — showing "All 10" while a World Cup filter narrows the
+  // grid to 3 made the numbers read as broken. Counts now track the filter.
+  const compScoped = dedupedMatches.filter(m =>
+    compFilter === 'all'      ? true :
+    compFilter === 'wc'       ? isWC(m) :
+    compFilter === 'friendly' ? isFriendly(m) :
+                                isDemo(m));
+
+  const liveCount     = compScoped.filter(m => m.status === 'LIVE' || m.status === 'HALFTIME').length;
+  const upcomingCount = compScoped.filter(m => m.status === 'SCHEDULED').length;
+  const finishedCount = compScoped.filter(m => m.status === 'FINISHED').length;
+  const starredCount  = compScoped.filter(m => isFav(m.id)).length;
+
+  const tabDefs: { key: Tab; label: string; count: number }[] = [
+    { key: 'all',      label: 'All',      count: compScoped.length },
+    { key: 'live',     label: 'Live',     count: liveCount },
+    { key: 'upcoming', label: 'Upcoming', count: upcomingCount },
+    { key: 'finished', label: 'Finished', count: finishedCount },
+    { key: 'starred',  label: '★',        count: starredCount },
+  ];
 
   const q = query.toLowerCase();
   const visible = dedupedMatches.filter(m => {
@@ -444,21 +453,27 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
       {/* Tabs + Odds format toggle */}
       <div className="flex items-center gap-2">
       <div className="flex gap-1.5 overflow-x-auto pb-0.5 flex-1" style={{ scrollbarWidth: 'none' }}>
-        {tabDefs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3.5 h-8 rounded-xl text-xs font-semibold transition-all"
-            style={tab === t.key
-              ? { background: 'var(--blue-dim)', color: 'var(--blue)', border: '1px solid rgba(59,130,246,0.4)', boxShadow: '0 0 12px rgba(59,130,246,0.15)' }
-              : { background: 'var(--glass-bg)', color: '#6b7280', border: '1px solid var(--glass-border)' }}>
-            {t.label}
-            {t.count > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
-                    style={{ background: tab === t.key ? 'rgba(59,130,246,0.22)' : 'rgba(255,255,255,0.06)' }}>
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
+        {tabDefs.map(t => {
+          // the active tab wears the CURRENT competition's accent (gold under a
+          // World Cup filter, cyan under Demos…) so the whole control reads as
+          // one filter, not two unrelated ones
+          const acc = compActive.accent;
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3.5 h-8 rounded-xl text-xs font-semibold transition-all"
+              style={tab === t.key
+                ? { background: `${acc}1f`, color: acc, border: `1px solid ${acc}66`, boxShadow: `0 0 12px ${acc}26` }
+                : { background: 'var(--glass-bg)', color: '#6b7280', border: '1px solid var(--glass-border)' }}>
+              {t.label}
+              {t.count > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
+                      style={{ background: tab === t.key ? `${acc}38` : 'rgba(255,255,255,0.06)' }}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
         {/* Competition filter — All · World Cup · Friendlies */}

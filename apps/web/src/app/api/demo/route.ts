@@ -54,6 +54,9 @@ async function purgeDemoMatches() {
     }
   } catch { /* best-effort refunds */ }
   await db.query(`DELETE FROM boz_events      WHERE match_id LIKE 'demo-%'`).catch(() => {});
+  // demos now record themselves for playback — purge those rows too, or every
+  // replaced run would leave its replay behind forever
+  await db.query(`DELETE FROM boz_replay_events WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_markets     WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_predictions WHERE match_id LIKE 'demo-%'`).catch(() => {});
   await db.query(`DELETE FROM boz_pools       WHERE match_id LIKE 'demo-%'`).catch(() => {});
@@ -176,23 +179,30 @@ async function runReplay(
   // If we run long (slow env), stop waiting and fast-forward the remaining
   // events so the match still reaches full-time and settles cleanly.
   const startWall = Date.now();
-  const BUDGET_MS = 50_000;
+  // Leave real headroom under the 60s serverless ceiling: once we pass this,
+  // the remaining steps fire immediately so MATCH_END + settlement ALWAYS
+  // land. (At 50s the run was getting killed mid-loop, stranding the match
+  // LIVE at ~88' forever — the Command Bridge then showed "Live · 88'" and the
+  // pitch clock froze there because full-time never arrived.)
+  const BUDGET_MS = 38_000;
 
   let prev = 0;
   let redCardSeen = false;
+  let stepNo = 0;
   for (const step of steps) {
-    // Someone reset the vault (DELETE /api/demo) or a genuinely new run took
-    // over mid-flight — without this check the old loop kept publishing
-    // events to Redis all the way to its own full-time regardless (verified
-    // live: DB rows were purged, but the Arena/agent and any board still
-    // watching this matchId kept reacting to a "match" that no longer
-    // existed anywhere in the DB). Bail the instant we're no longer the lock
-    // owner instead of running the remaining steps into the void.
-    const owner = await redis.get(LOCK).catch(() => id);
-    if (owner !== id) {
-      console.log(`[demo] ${id} superseded/purged — stopping early (was owner: ${owner})`);
-      return;
+    // Someone reset (DELETE /api/demo) or a new run took over mid-flight — bail
+    // instead of publishing into the void. Checked every 8th step rather than
+    // every step: a round-trip to Upstash per step cost ~0.3s × ~40 steps,
+    // which alone blew the function budget and made the speed control almost
+    // meaningless (network, not the schedule, set the pace).
+    if (stepNo % 8 === 0) {
+      const owner = await redis.get(LOCK).catch(() => id);
+      if (owner !== id) {
+        console.log(`[demo] ${id} superseded/purged — stopping early (was owner: ${owner})`);
+        return;
+      }
     }
+    stepNo++;
     const overBudget = Date.now() - startWall > BUDGET_MS;
     await sleep(overBudget ? 0 : Math.max(0, step.delayMs - prev));
     prev = step.delayMs;
@@ -218,7 +228,11 @@ async function runReplay(
     });
     if (event.odds) pipe.lpush(`boz:match:${id}:odds`, JSON.stringify(event.odds));
     if (event.stats) pipe.set(`boz:match:${id}:stats`, JSON.stringify(event.stats), 'EX', 7200);
-    await pipe.exec().catch(() => {});
+    // fire-and-forget: awaiting this added a full Upstash round-trip to EVERY
+    // step, so network latency — not the chosen speed — set the playback pace
+    // (8x and 1x both landed around ~90s) and pushed the run past the
+    // serverless ceiling. Commands on one connection still arrive in order.
+    void pipe.exec().catch(() => {});
 
     // ── simulated live order flow: named demo bots stake into the pools so the
     // market cards move AND the leaderboard fills — each stake is a real
@@ -237,7 +251,7 @@ async function runReplay(
          VALUES ($1,$2,$3,$4,$5,$6,$7,'ACTIVE')`,
         [randomUUID(), id, mk.id, bot, o, stake, `sim-flow-${event.seq ?? 0}`]
       ).catch(() => {});
-      await redis.publish('boz:markets', JSON.stringify(mk)).catch(() => {});
+      void redis.publish('boz:markets', JSON.stringify(mk)).catch(() => {}); // don't block the clock
     }
 
     // fire-and-forget persistence
@@ -245,6 +259,14 @@ async function runReplay(
       `INSERT INTO boz_events (id, match_id, type, match_minute, timestamp, payload)
        VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
       [event.id, id, event.type, event.matchMinute, event.timestamp, event]
+    ).catch(() => {});
+    // Record the demo for playback too — only real fixtures were ever written
+    // here, so a finished demo had no Replay button at all. step.delayMs is the
+    // event's scheduled offset, which is exactly the playback timeline.
+    void db.query(
+      `INSERT INTO boz_replay_events (id, match_id, recorded_at, delay_ms, payload)
+       VALUES ($1,$2,NOW(),$3,$4) ON CONFLICT (id) DO NOTHING`,
+      [event.id, id, step.delayMs, JSON.stringify(event)]
     ).catch(() => {});
     void db.query(
       `UPDATE boz_matches SET home_score=$1, away_score=$2, current_minute=$3, status=$4,

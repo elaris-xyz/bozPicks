@@ -205,13 +205,18 @@ export function CommandBridge() {
             {/* speed + run */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <label className="text-[10px] uppercase tracking-widest text-gray-500">Speed</label>
+                {/* Label the RUNTIME, not a multiplier: a 90-minute match is
+                    compressed to ~42s at 1×, so "8×" read as "8× of 90 minutes"
+                    and set the wrong expectation. Each option states how long
+                    the run actually takes. */}
+                <label className="text-[10px] uppercase tracking-widest text-gray-500">Runs in</label>
                 <div className="flex rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
                   {SPEEDS.map(s => (
                     <button key={s} onClick={() => chooseSpeed(s)}
+                      title={`${s}× — full match in about ${Math.round(42 / s)}s`}
                       className="px-2.5 h-6 text-[11px] font-bold tabular-nums transition-colors"
                       style={speed === s ? { background: 'rgba(59,130,246,0.2)', color: '#93c5fd' } : { color: '#64748b' }}>
-                      {s}×
+                      {Math.round(42 / s)}s
                     </button>
                   ))}
                 </div>

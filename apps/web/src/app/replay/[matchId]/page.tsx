@@ -73,7 +73,17 @@ export default function ReplayPage() {
     setVisible(prev => [payload, ...prev].slice(0, 200));
 
     if (idx + 1 < evts.length) {
-      const gap = Math.max((evts[idx + 1].delayMs - evts[idx].delayMs) / spd, 90);
+      // Pace from the MATCH MINUTE, not the recorded delay_ms. delay_ms is
+      // wall-clock-at-record time, and the live recorder derives it from when
+      // it first saw MATCH_START — for a fixture it joined mid-stream that's
+      // never, so every row lands at delay_ms ≈ 0 and the whole replay flushed
+      // in ~1s no matter the speed (0 / spd is still 0). The minute is always
+      // meaningful, so 1x ≈ one second per match minute (~95s a match) and the
+      // speed control actually means something. Order stays as stored (Seq),
+      // since minutes can step backwards (full-time at 90' after a 96' shot).
+      const curMin  = evts[idx].payload.matchMinute || 0;
+      const nextMin = evts[idx + 1].payload.matchMinute || curMin;
+      const gap = Math.max((Math.max(0, nextMin - curMin) * 1000) / spd, 90);
       timerRef.current = setTimeout(() => advance(idx + 1, spd), gap);
     } else {
       setPlaying(false);
@@ -239,14 +249,25 @@ export default function ReplayPage() {
             </button>
             <span className="text-[11px] text-gray-500 font-mono tabular-nums">{cursor + 1}/{rawEvents.length}</span>
           </div>
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(0,0,0,0.25)' }}>
-            {SPEEDS.map(s => (
-              <button key={s} onClick={() => { setSpeed(s); if (playing) { pause(); setTimeout(() => { setPlaying(true); advance(cursorRef.current + 1, s); }, 0); } }}
-                className="px-2.5 h-7 rounded-lg text-[11px] font-bold tabular-nums transition-all"
-                style={speed === s ? { background: 'var(--blue-dim)', color: 'var(--blue)' } : { color: '#6b7280' }}>
-                {s}×
-              </button>
-            ))}
+          {/* Speed shows the resulting PLAYBACK LENGTH, not a bare multiplier —
+              "8×" invites "8× of what?" (a 90-min match? the clip?). A ~95-min
+              match at 1× is ~95s, so each option can state its own runtime. */}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-widest text-gray-600 hidden sm:inline">Watch in</span>
+            <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(0,0,0,0.25)' }}>
+              {SPEEDS.map(s => {
+                const secs = Math.round(95 / s);
+                const label = secs >= 60 ? `${Math.round(secs / 60)}m` : `${secs}s`;
+                return (
+                  <button key={s} onClick={() => { setSpeed(s); if (playing) { pause(); setTimeout(() => { setPlaying(true); advance(cursorRef.current + 1, s); }, 0); } }}
+                    title={`${s}× — the full match plays in about ${label}`}
+                    className="px-2.5 h-7 rounded-lg text-[11px] font-bold tabular-nums transition-all"
+                    style={speed === s ? { background: 'var(--blue-dim)', color: 'var(--blue)' } : { color: '#6b7280' }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
         {/* thin progress fill under the transport */}

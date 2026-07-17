@@ -233,9 +233,9 @@ export default function MatchDetailPage() {
           Back
         </button>
         <div className="flex items-center gap-2">
-          {/* Replay plays back the ingest recorder's stream — real fixtures only
-              (demo runs aren't recorded; showing a dead button reads as broken) */}
-          {match.status === 'FINISHED' && !id.startsWith('demo-') && (
+          {/* Replay plays back the recorded stream — real fixtures come from the
+              ingest recorder, demo runs record themselves as they play */}
+          {match.status === 'FINISHED' && (
             <button onClick={() => router.push(`/replay/${id}`)}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all hover:opacity-80"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)', color: '#9ca3af' }}>

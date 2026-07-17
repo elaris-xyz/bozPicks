@@ -1,36 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { txlineRest } from '@bozpicks/txline-client';
-import { verifyRealFixture } from '@/lib/realproof';
+import { verifyRealFixture, pickBestRealFixture, SHOWCASE_FIXTURE } from '@/lib/realproof';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 /**
- * GET /api/proof/real?fixtureId=<id>
- * Fetches a FINISHED fixture's real TxLINE Merkle proof for its deciding goal
- * stats and re-folds it locally to reproduce TxLINE's own eventStatRoot — a
- * live, trustless verification of the result against TxLINE's commitment (not a
- * simulated receipt). Team names are resolved from the fixtures snapshot.
+ * GET /api/proof/real[?fixtureId=<id>]
+ * Fetches a fixture's real TxLINE Merkle proof for its goal stats and re-folds
+ * it locally to reproduce TxLINE's own eventStatRoot — a live, trustless
+ * verification against TxLINE's commitment (not a simulated receipt).
+ *
+ * With no `fixtureId`, auto-picks the most compelling REAL fixture: a match in
+ * play right now > a recently-finished one > the evergreen showcase. So on a
+ * real match day the card verifies the LIVE game; otherwise it falls back to a
+ * finished fixture that always verifies.
  *
  * Requires TXLINE_API_KEY in the environment (our activated mainnet token).
  */
 export async function GET(req: NextRequest) {
-  const fixtureId = req.nextUrl.searchParams.get('fixtureId');
-  if (!fixtureId) return NextResponse.json({ error: 'fixtureId required' }, { status: 400 });
+  const explicit = req.nextUrl.searchParams.get('fixtureId');
 
   try {
-    const result = await verifyRealFixture(fixtureId);
-    if (!result) return NextResponse.json({ error: 'no finalised proof for this fixture' }, { status: 404 });
+    const fixtureId = explicit || await pickBestRealFixture();
+    let result = await verifyRealFixture(fixtureId);
 
-    // resolve real team names (public fixture metadata)
-    try {
-      const fixtures = await txlineRest.fixtures();
-      const f = fixtures.find(x => String(x.FixtureId) === fixtureId);
-      if (f) {
-        result.home = f.Participant1IsHome ? f.Participant1 : f.Participant2;
-        result.away = f.Participant1IsHome ? f.Participant2 : f.Participant1;
-      }
-    } catch { /* names are best-effort */ }
+    // auto-pick landed on something unprovable (e.g. a live match between
+    // committed ticks) — fall back to the evergreen showcase so the card is
+    // never empty
+    if (!result && !explicit && fixtureId !== SHOWCASE_FIXTURE.fixtureId) {
+      result = await verifyRealFixture(SHOWCASE_FIXTURE.fixtureId);
+    }
+    if (!result) return NextResponse.json({ error: 'no verifiable proof for this fixture' }, { status: 404 });
 
     return NextResponse.json(result);
   } catch (e) {

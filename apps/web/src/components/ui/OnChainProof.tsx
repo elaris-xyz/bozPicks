@@ -63,9 +63,9 @@ export function OnChainProof() {
       </div>
       <p className="text-[10px] text-gray-600 basis-full leading-snug">
         Real programs, live now. Demo prop markets settle in-DB with{' '}
-        <span style={{ color: 'var(--amber)' }}>Simulated</span> receipts because the World Cup fixtures are
-        still upcoming — the keeper runs the on-chain <span className="font-mono">validate_stat</span> + payout
-        the moment TxLINE publishes a final stat.
+        <span style={{ color: 'var(--amber)' }}>Simulated</span> receipts; for a real fixture the keeper runs the
+        on-chain <span className="font-mono">validate_stat</span> + payout the moment TxLINE publishes a final
+        stat — verify one live under <span className="text-gray-400">Verify a real result</span> below.
       </p>
     </div>
   );

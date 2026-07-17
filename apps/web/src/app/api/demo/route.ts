@@ -92,7 +92,15 @@ async function purgeDemoMatches() {
  */
 export async function POST(req: NextRequest) {
   const p = req.nextUrl.searchParams;
+  // Playback length in SECONDS — the Command Bridge sends `runSecs` directly
+  // (3m/2m/48s/19s/10s, same options the replay page offers; the old 42s/21s/
+  // 11s/5s read as a blur). The legacy `speed` multiplier still works for old
+  // callers: 42/speed seconds. Note: BUDGET_MS below fast-forwards anything
+  // past ~38s of real wall time regardless of runSecs, so the 3m/2m options
+  // play at a realistic pace for the first ~38s then rush to full-time — same
+  // safety net that already covered the old 42s option, just a bigger tail.
   const speed = Math.max(1, Math.min(90, Number(p.get('speed')) || 4));
+  const runSecs = Math.max(5, Math.min(240, Number(p.get('runSecs')) || Math.round(42 / speed)));
   const scenarioKey = p.get('scenario') ?? 'home-win';
   const scenario = SCENARIOS[scenarioKey] ?? SCENARIOS['home-win'];
   const homeTeam = (p.get('home') || 'Brazil').slice(0, 40);
@@ -101,7 +109,7 @@ export async function POST(req: NextRequest) {
   const id = `demo-${Date.now()}`;
 
   // lock TTL covers the match + settlement
-  const lockTtl = Math.ceil(42 / speed) + 30;
+  const lockTtl = runSecs + 45;
   let acquired: string | null;
   try {
     acquired = await redis.set(LOCK, id, 'EX', lockTtl, 'NX');
@@ -118,7 +126,7 @@ export async function POST(req: NextRequest) {
 
   after(async () => {
     try {
-      await runReplay(id, speed, scenario, homeTeam, awayTeam, competition);
+      await runReplay(id, runSecs, scenario, homeTeam, awayTeam, competition);
     } catch (e) {
       console.error('[demo] replay failed:', (e as Error).message);
     } finally {
@@ -131,14 +139,14 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json(
-    { ok: true, matchId: id, homeTeam, awayTeam, scenario: scenario.key, speed },
+    { ok: true, matchId: id, homeTeam, awayTeam, scenario: scenario.key, runSecs },
     { status: 202 },
   );
 }
 
 /** The full replay lifecycle — runs after the ACK has been sent. */
 async function runReplay(
-  id: string, speed: number, scenario: ReplayScenario,
+  id: string, runSecs: number, scenario: ReplayScenario,
   homeTeam: string, awayTeam: string, competition: string,
 ) {
   await purgeDemoMatches();
@@ -189,7 +197,7 @@ async function runReplay(
   }
 
   // ── Generate + play the replay ──────────────────────────────────────────────
-  const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: 42_000 / speed, scenario });
+  const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: runSecs * 1000, scenario });
 
   // Re-arm the lock now that the setup (purge + inserts + market seeding) is
   // done, so its TTL only has to cover the playback itself. Otherwise a slow

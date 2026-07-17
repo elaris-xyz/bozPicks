@@ -7,6 +7,7 @@ import { Flag, FlagWash, FlagCorner, FlagBleed } from '@/components/ui/Flag';
 import { TwoSidedTimeline } from '@/components/ui/TwoSidedTimeline';
 import { MatchStats } from '@/components/ui/MatchStats';
 import { MomentumRecap } from '@/components/ui/MatchMomentum';
+import { PunditRail } from '@/components/ui/PunditRail';
 import { CountUp } from '@/components/ui/CountUp';
 import { IconChart, IconBall } from '@/components/ui/Icons';
 
@@ -35,6 +36,10 @@ export default function ReplayPage() {
   const [score, setScore] = useState({ home: 0, away: 0 });
   const [minute, setMinute] = useState(0);
   const [flash, setFlash] = useState(false);
+  // the event currently being played back — feeds the AI Pundit booth so the
+  // replay gets the same live commentary as /play (scrubbing doesn't set it;
+  // jumping around shouldn't make the booth read out half the match at once)
+  const [lastPlayed, setLastPlayed] = useState<BozEvent | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cursorRef = useRef(-1);
   const rawRef = useRef<RawEvent[]>([]);
@@ -71,6 +76,7 @@ export default function ReplayPage() {
       setScore({ home, away });
     }
     setVisible(prev => [payload, ...prev].slice(0, 200));
+    setLastPlayed(payload); // hand the moment to the AI Pundit booth
 
     if (idx + 1 < evts.length) {
       // Pace from the MATCH MINUTE, not the recorded delay_ms. delay_ms is
@@ -301,6 +307,8 @@ export default function ReplayPage() {
             </div>
           </div>
           <div className="space-y-4">
+            {/* the same AI Pundit booth as /play, fed by the replay's playback */}
+            <PunditRail home={home} away={away} feedEvent={lastPlayed} />
             <MatchStats events={chrono} homeTeam={home} awayTeam={away} score={score} />
           </div>
         </div>

@@ -20,7 +20,9 @@ const GameIcon = ({ size = 18 }: { size?: number }) => (
 );
 
 const tabs = [
-  { href: '/',         label: 'Live',     icon: <IconPulse size={18} /> },
+  // "Live" oversold the page — it's the full match centre (live + upcoming +
+  // finished + search/filters), so name it for what it actually holds
+  { href: '/',         label: 'Matches',  icon: <IconPulse size={18} /> },
   { href: '/play',     label: 'Play',     icon: <GameIcon size={18} /> },
   { href: '/markets',  label: 'Markets',  icon: <IconTrendUp size={18} /> },
   { href: '/agent',    label: 'Agent',    icon: <IconRadar size={18} /> },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, BozEventType } from '@bozpicks/shared';
@@ -27,7 +27,13 @@ const VOICES = [
 const BIG = new Set<BozEventType>(['GOAL', 'RED_CARD', 'PENALTY']);
 interface Line { id: string; text: string; ai?: boolean; kind: BozEventType }
 
-export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; away?: string } = {}) {
+export function PunditRail({ home: homeProp, away: awayProp, feedEvent }: { home?: string; away?: string; feedEvent?: BozEvent | null } = {}) {
+  // The replay page always passes `feedEvent` (even as null before the first
+  // tick); /play never does. That distinguishes "driven locally by replay
+  // playback" from "driven by the live global stream" — without it, replay
+  // would also speak commentary for whatever real match happens to be live
+  // elsewhere on the site while you're scrubbing through a past one.
+  const isReplay = feedEvent !== undefined;
   const live = useLiveMatch();
   const home = homeProp ?? live?.homeTeam;
   const away = awayProp ?? live?.awayTeam;
@@ -70,28 +76,10 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
     try { localStorage.setItem('boz_pundit_voice', id); } catch { /* ignore */ }
   };
 
-  useSSE({
-    onMessage: (msg: SSEMessage) => {
-      if (msg.type !== 'event' || !msg.data) return;
-      const e = msg.data as BozEvent;
-      if (msg.catchup) {
-        // history replay, not a live moment — but seed ONE opening read from it
-        // so the booth speaks the moment you arrive mid-match instead of
-        // sitting silent until the next live record (real matches can go
-        // minutes between events). Catchup replays oldest→newest, so keep
-        // replacing the seed while it's the only line — it converges to the
-        // freshest reading in history.
-        if (!e.stats) return;
-        const opener = punditLine({ ...e, type: 'SCORE_UPDATE' }, home, away);
-        if (!opener) return;
-        seeded.current = true;
-        lastReading.current = Date.now();
-        setLines(prev => (prev.some(l => !l.id.endsWith('-seed'))
-          ? prev
-          : [{ id: `${e.id}-seed`, text: opener, kind: 'SCORE_UPDATE' }]));
-        return;
-      }
-
+  // The commentary brain — shared by BOTH feeds: the live SSE stream (play /
+  // match pages) and a locally-driven replay (the replay page hands each event
+  // in as it plays it back via the `feedEvent` prop). Identical booth either way.
+  const handleEvent = useCallback((e: BozEvent) => {
       const ex = exciteRef.current; // 0 calm · 1 live · 2 hyped
       // a REAL fixture plays at 1× — minutes between moments, so every
       // classified event deserves a line. Only fast demo replays (events
@@ -149,6 +137,37 @@ export function PunditRail({ home: homeProp, away: awayProp }: { home?: string; 
           else if (ex >= 2 && line) say(forSpeech(line), 'low');
         }
       }
+  }, [home, away]);
+
+  // replay feed: the replay page hands us each event as it plays it back
+  useEffect(() => {
+    if (feedEvent) handleEvent(feedEvent);
+  }, [feedEvent, handleEvent]);
+
+  useSSE({
+    onMessage: (msg: SSEMessage) => {
+      if (isReplay) return; // replay drives the booth via feedEvent, not the live stream
+      if (msg.type !== 'event' || !msg.data) return;
+      const e = msg.data as BozEvent;
+      if (msg.catchup) {
+        // history replay, not a live moment — but seed ONE opening read from it
+        // so the booth speaks the moment you arrive mid-match instead of
+        // sitting silent until the next live record (real matches can go
+        // minutes between events). Catchup replays oldest→newest, so keep
+        // replacing the seed while it's the only line — it converges to the
+        // freshest reading in history.
+        if (!e.stats) return;
+        const opener = punditLine({ ...e, type: 'SCORE_UPDATE' }, home, away);
+        if (!opener) return;
+        seeded.current = true;
+        lastReading.current = Date.now();
+        setLines(prev => (prev.some(l => !l.id.endsWith('-seed'))
+          ? prev
+          : [{ id: `${e.id}-seed`, text: opener, kind: 'SCORE_UPDATE' }]));
+        return;
+      }
+
+      handleEvent(e);
     },
   });
 

@@ -53,18 +53,34 @@ async function purgeDemoMatches() {
       }).catch(() => {});
     }
   } catch { /* best-effort refunds */ }
-  await db.query(`DELETE FROM boz_events      WHERE match_id LIKE 'demo-%'`).catch(() => {});
-  // demos now record themselves for playback — purge those rows too, or every
-  // replaced run would leave its replay behind forever
-  await db.query(`DELETE FROM boz_replay_events WHERE match_id LIKE 'demo-%'`).catch(() => {});
-  await db.query(`DELETE FROM boz_markets     WHERE match_id LIKE 'demo-%'`).catch(() => {});
-  await db.query(`DELETE FROM boz_predictions WHERE match_id LIKE 'demo-%'`).catch(() => {});
-  await db.query(`DELETE FROM boz_pools       WHERE match_id LIKE 'demo-%'`).catch(() => {});
-  // agent signals from a demo run are never useful once the run is replaced —
-  // left uncleaned, they piled up forever (every test run added more,
-  // permanently stuck unverified) and inflated the /agent stats with noise
-  await db.query(`DELETE FROM boz_signals     WHERE match_id LIKE 'demo-%'`).catch(() => {});
-  await db.query(`DELETE FROM boz_matches     WHERE id       LIKE 'demo-%'`).catch(() => {});
+  // One statement, one round-trip. These ran as 7 sequential DELETEs, each a
+  // separate trip to Neon — ~20s of the run's budget before a ball was kicked
+  // (and long enough that the demo lock could expire before the loop even
+  // started). Children first, parent last, so the FKs stay satisfied.
+  // boz_replay_events is in here because demos now record themselves for
+  // playback; without it every replaced run left its replay behind forever.
+  // boz_signals too: agent signals from a replaced run are never useful, and
+  // left uncleaned they piled up (permanently unverified) and skewed /agent.
+  await db.query(`
+    WITH e  AS (DELETE FROM boz_events        WHERE match_id LIKE 'demo-%'),
+         r  AS (DELETE FROM boz_replay_events WHERE match_id LIKE 'demo-%'),
+         mk AS (DELETE FROM boz_markets       WHERE match_id LIKE 'demo-%'),
+         p  AS (DELETE FROM boz_predictions   WHERE match_id LIKE 'demo-%'),
+         pl AS (DELETE FROM boz_pools         WHERE match_id LIKE 'demo-%'),
+         s  AS (DELETE FROM boz_signals       WHERE match_id LIKE 'demo-%')
+    DELETE FROM boz_matches WHERE id LIKE 'demo-%'
+  `).catch(async () => {
+    // fall back to the sequential path if the CTE form ever trips on FK order
+    for (const q of [
+      `DELETE FROM boz_events        WHERE match_id LIKE 'demo-%'`,
+      `DELETE FROM boz_replay_events WHERE match_id LIKE 'demo-%'`,
+      `DELETE FROM boz_markets       WHERE match_id LIKE 'demo-%'`,
+      `DELETE FROM boz_predictions   WHERE match_id LIKE 'demo-%'`,
+      `DELETE FROM boz_pools         WHERE match_id LIKE 'demo-%'`,
+      `DELETE FROM boz_signals       WHERE match_id LIKE 'demo-%'`,
+      `DELETE FROM boz_matches       WHERE id       LIKE 'demo-%'`,
+    ]) await db.query(q).catch(() => {});
+  });
 }
 
 /**
@@ -175,6 +191,13 @@ async function runReplay(
   // ── Generate + play the replay ──────────────────────────────────────────────
   const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: 42_000 / speed, scenario });
 
+  // Re-arm the lock now that the setup (purge + inserts + market seeding) is
+  // done, so its TTL only has to cover the playback itself. Otherwise a slow
+  // purge ate the whole TTL and the very first ownership check saw an expired
+  // lock, read it as "superseded", and killed the run on step 0 — the match
+  // then sat LIVE at 0' forever.
+  await redis.expire(LOCK, 90).catch(() => {});
+
   // Time budget: keep the whole request comfortably under the serverless limit.
   // If we run long (slow env), stop waiting and fast-forward the remaining
   // events so the match still reaches full-time and settles cleanly.
@@ -268,9 +291,16 @@ async function runReplay(
        VALUES ($1,$2,NOW(),$3,$4) ON CONFLICT (id) DO NOTHING`,
       [event.id, id, step.delayMs, JSON.stringify(event)]
     ).catch(() => {});
+    // `AND status <> 'FINISHED'` is load-bearing: these per-step updates are
+    // fire-and-forget, so once the loop stopped being network-bound they fly
+    // concurrently and can land OUT OF ORDER. A straggler from minute 82 was
+    // landing after MATCH_END and reviving the match — leaving it LIVE at 82'
+    // forever, which froze the pitch clock and blocked every new demo run.
+    // Full-time is terminal: nothing may un-finish a match.
     void db.query(
       `UPDATE boz_matches SET home_score=$1, away_score=$2, current_minute=$3, status=$4,
-         stats=COALESCE($5,stats), last_updated=NOW() WHERE id=$6`,
+         stats=COALESCE($5,stats), last_updated=NOW()
+       WHERE id=$6 AND status <> 'FINISHED'`,
       [event.score?.home ?? 0, event.score?.away ?? 0, event.matchMinute, status,
        event.stats ? JSON.stringify(event.stats) : null, id]
     ).catch(() => {});
@@ -290,6 +320,22 @@ async function runReplay(
       await redis.publish('boz:signals', JSON.stringify(signal));
     }
   }
+
+  // ── Full time is FINAL — write it authoritatively, and AWAIT it ─────────────
+  // Everything in the loop above is fire-and-forget, so the last few writes may
+  // still be in flight (and can land out of order). These two awaited writes are
+  // the source of truth for "this match is over": without them a straggler could
+  // leave the match LIVE at ~82' forever, freezing the clock and blocking every
+  // subsequent demo run.
+  await db.query(
+    `UPDATE boz_matches SET home_score=$1, away_score=$2, current_minute=90,
+       status='FINISHED', last_updated=NOW() WHERE id=$3`,
+    [final.homeScore, final.awayScore, id]
+  ).catch(() => {});
+  await redis.hset(`boz:match:${id}:state`, {
+    homeScore: String(final.homeScore), awayScore: String(final.awayScore),
+    currentMinute: '90', status: 'FINISHED', lastUpdated: new Date().toISOString(),
+  }).catch(() => {});
 
   // stash the resolved stats so prop-market settlement can read them
   await redis.set(`boz:match:${id}:final`, JSON.stringify(final), 'EX', 86400);

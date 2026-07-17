@@ -6,15 +6,30 @@ import type { MatchState, OddsSnapshot } from '@bozpicks/shared';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // ── Self-heal zombie demos ──────────────────────────────────────────────────
+  // A demo updates itself every second while it plays, so one sitting LIVE with
+  // no update for minutes can only mean its run died (a deploy, a serverless
+  // kill, a lost connection). Left alone it stays LIVE forever: the pitch clock
+  // freezes at whatever minute it reached and the Command Bridge refuses to
+  // start anything new, because the app correctly believes a match is on air.
+  // This is the poll every client already makes, so the fix lands within ~10s
+  // without anyone touching the database.
+  await db.query(
+    `UPDATE boz_matches SET status='FINISHED', last_updated=NOW()
+     WHERE id LIKE 'demo-%' AND status IN ('LIVE','HALFTIME')
+       AND last_updated < NOW() - INTERVAL '3 minutes'`
+  ).catch(() => {});
+
   const { rows } = await db.query(
     `SELECT id, home_team, away_team, home_score, away_score,
             status, current_minute, kickoff_time, last_updated, competition
      FROM boz_matches ORDER BY kickoff_time ASC`
   );
 
-  const oddsRaw = await Promise.all(
-    rows.map(r => redis.lindex(`boz:match:${r.id}:odds`, 0))
-  );
+  // odds are an optional Redis cache — never let their failure empty the list
+  const oddsRaw: (string | null)[] = await Promise.all(
+    rows.map(r => redis.lindex(`boz:match:${r.id}:odds`, 0).catch(() => null))
+  ).catch(() => rows.map(() => null));
 
   const matches: MatchState[] = rows.map((r, i) => ({
     id: r.id,

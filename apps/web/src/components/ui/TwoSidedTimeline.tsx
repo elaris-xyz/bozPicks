@@ -75,25 +75,52 @@ export function TwoSidedTimeline({
   events: BozEvent[]; homeTeam: string; awayTeam: string;
 }) {
   // Chronological order, whatever mix arrives (initial fetch is ASC but SSE
-  // prepends): TxLINE Seq is authoritative when present; minute is the fallback.
+  // prepends). Minute leads, because the feed mixes two sequence spaces: score
+  // records carry a TxLINE Seq, odds ticks carry none. The old rule ("any event
+  // with a Seq sorts before any event without") therefore dumped every odds
+  // tick in a heap AFTER full-time. Kick-off is pinned first and full-time last
+  // (their records can carry an odd clock — full-time reads 90' even when a
+  // 96' shot exists), and Seq breaks ties inside a minute, keeping a seq-less
+  // odds tick just after the pitch event that moved it.
+  const rank = (e: BozEvent) =>
+    e.type === 'MATCH_START' ? -1 :
+    e.type === 'MATCH_END'   ? Number.MAX_SAFE_INTEGER :
+    (e.matchMinute || 0);
   const ordered = [...events].sort((a, b) => {
+    const dr = rank(a) - rank(b);
+    if (dr !== 0) return dr;
     if (a.seq != null && b.seq != null) return a.seq - b.seq;
-    if (a.seq != null) return -1;
+    if (a.seq != null) return -1;   // within a minute: pitch event, then its odds tick
     if (b.seq != null) return 1;
-    return (a.matchMinute || 0) - (b.matchMinute || 0);
+    return 0;
   });
 
   // Precompute odds direction by tracking the running home price.
   // Odds shortening (price ↓) = home more likely → green ▲.
-  let prevHome: number | null = null;
-  const rows = ordered.map(e => {
-    let oddsUp: boolean | null = null; // probability direction (▲ = home favoured)
-    if (e.type === 'ODDS_UPDATE' && e.odds) {
-      if (prevHome !== null && e.odds.homeWin !== prevHome) oddsUp = e.odds.homeWin < prevHome;
+  //
+  // A real fixture carries a tick a minute (~120 of them). Rendering every one
+  // buries the goals and cards under a wall of near-identical rows, so only
+  // ticks that actually MOVED the home implied probability (≥1pp since the last
+  // one we showed) earn a row. Nothing is hidden from the analysis — Turning
+  // Points and the Odds Movement chart still read the full series.
+  const SHOW_MOVE = 0.01;
+  let prevHome: number | null = null;      // last price we rendered
+  let prevProb: number | null = null;      // last probability we rendered
+  const rows: { e: BozEvent; oddsUp: boolean | null }[] = [];
+  for (const e of ordered) {
+    if (e.type === 'ODDS_UPDATE') {
+      const prob = e.odds?.impliedProb?.home;
+      if (e.odds == null || prob == null) continue;
+      const moved = prevProb === null || Math.abs(prob - prevProb) >= SHOW_MOVE;
+      if (!moved) continue;
+      const oddsUp = prevHome !== null && e.odds.homeWin !== prevHome ? e.odds.homeWin < prevHome : null;
       prevHome = e.odds.homeWin;
+      prevProb = prob;
+      rows.push({ e, oddsUp });
+      continue;
     }
-    return { e, oddsUp };
-  });
+    rows.push({ e, oddsUp: null });
+  }
 
   return (
     <div className="relative py-1">

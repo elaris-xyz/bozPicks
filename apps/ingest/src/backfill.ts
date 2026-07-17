@@ -10,12 +10,14 @@
  * Usage:  pnpm --dir apps/ingest tsx src/backfill.ts <fixtureId> [<fixtureId> …]
  */
 import { Pool } from 'pg';
+import Redis from 'ioredis';
 import { txlineRest, buildPlayerMap } from '@bozpicks/txline-client';
 import type { TxScores, TxOddsPayload } from '@bozpicks/txline-client';
 import { scoresEventToBozEvent, oddsEventToBozEvent } from './normalizer';
 import type { BozEvent } from '@bozpicks/shared';
 
 const db = new Pool({ connectionString: process.env.DATABASE_URL });
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
 /**
  * The fixture's real in-play odds history, normalised to ODDS_UPDATE events.
@@ -215,6 +217,21 @@ async function backfillFixture(fixtureId: string): Promise<void> {
          ON CONFLICT (id) DO UPDATE SET delay_ms=EXCLUDED.delay_ms, payload=EXCLUDED.payload`, rpCols);
     }
     await db.query('COMMIT');
+
+    // The Match Odds panel and the Odds Movement sparklines don't read
+    // boz_events — they read the Redis odds list (/api/matches/[id]/odds and
+    // the page's own lindex). Without this the odds are in the timeline but
+    // those two panels stay empty. Newest-first, matching what the live
+    // publisher writes; capped like the live path.
+    if (oddsEvents.length) {
+      const key = `boz:match:${fixtureId}:odds`;
+      const snaps = oddsEvents.map(e => JSON.stringify(e.odds));
+      await redis.del(key).catch(() => {});
+      await redis.rpush(key, ...snaps.reverse()).catch(() => {});  // index 0 = latest
+      await redis.ltrim(key, 0, 199).catch(() => {});
+      await redis.expire(key, 60 * 60 * 24 * 30).catch(() => {});
+      console.log(`[backfill] ${fixtureId}: ${snaps.length} odds snapshots cached for the odds panels`);
+    }
     console.log(`[backfill] ${fixtureId}: DONE ✓`);
   } catch (err) {
     await db.query('ROLLBACK');
@@ -226,6 +243,7 @@ async function main() {
   const ids = process.argv.slice(2);
   if (ids.length === 0) { console.error('usage: tsx src/backfill.ts <fixtureId> …'); process.exit(1); }
   for (const id of ids) await backfillFixture(id);
+  await redis.quit().catch(() => {});
   await db.end();
 }
 

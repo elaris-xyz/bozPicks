@@ -232,6 +232,56 @@ async function backfillFixture(fixtureId: string): Promise<void> {
       await redis.expire(key, 60 * 60 * 24 * 30).catch(() => {});
       console.log(`[backfill] ${fixtureId}: ${snaps.length} odds snapshots cached for the odds panels`);
     }
+
+    // Sharp signals — the SAME detector math the live agent runs (relative
+    // implied-prob shift vs a ~2-minute-earlier baseline, threshold 10%,
+    // HIGH ≥20% / MEDIUM ≥15%), just run over the recorded odds series: an
+    // honest backtest. During these fixtures' live windows the agent received
+    // no per-fixture odds (that ingest fix landed later), so their pages had
+    // no signals at all while every demo did. Each signal is graded against
+    // the REAL final result immediately — which also feeds the /agent accuracy
+    // stats with genuine match data instead of only demo runs.
+    if (oddsEvents.length >= 3) {
+      const winner = finalH > finalA ? 'HOME' : finalA > finalH ? 'AWAY' : 'DRAW';
+      const THRESH = 0.10;
+      const keys = [['home', 'HOME'], ['draw', 'DRAW'], ['away', 'AWAY']] as const;
+      type Sig = { minute: number; outcome: string; delta: number; conf: string; accurate: boolean; before: unknown; after: unknown; ts: string };
+      const sigs: Sig[] = [];
+      const lastFired: Record<string, number> = {};
+      for (let i = 2; i < oddsEvents.length; i++) {
+        const cur = oddsEvents[i], base = oddsEvents[i - 2]; // ticks are 1/min → ~2-min window
+        if (!cur.odds || !base.odds) continue;
+        for (const [k, label] of keys) {
+          const before = base.odds.impliedProb[k], after = cur.odds.impliedProb[k];
+          if (!before) continue;
+          const delta = (after - before) / before;
+          if (Math.abs(delta) < THRESH) continue;
+          const dirKey = `${label}:${delta > 0 ? '+' : '-'}`;
+          if (cur.matchMinute - (lastFired[dirKey] ?? -10) < 3) continue; // 3-min cooldown per stance
+          lastFired[dirKey] = cur.matchMinute;
+          const accurate = delta > 0 ? label === winner : label !== winner;
+          sigs.push({
+            minute: cur.matchMinute, outcome: label, delta: delta * 100,
+            conf: Math.abs(delta) >= 0.20 ? 'HIGH' : Math.abs(delta) >= 0.15 ? 'MEDIUM' : 'LOW',
+            accurate, before: base.odds, after: cur.odds, ts: cur.timestamp,
+          });
+          break; // one signal per tick, like the live detector
+        }
+      }
+      await db.query(`DELETE FROM boz_signals WHERE match_id=$1`, [fixtureId]).catch(() => {});
+      for (const s of sigs) {
+        await db.query(
+          `INSERT INTO boz_signals (id, match_id, type, detected_at, odds_before, odds_after,
+             delta_percent, affected_outcome, confidence, context, outcome_verified, was_accurate,
+             verified_at, verification_source)
+           VALUES (gen_random_uuid(), $1, 'SHARP_MOVE', $2, $3, $4, $5, $6, $7, $8, true, $9, NOW(), 'TXLINE_FINAL')`,
+          [fixtureId, s.ts, JSON.stringify(s.before), JSON.stringify(s.after),
+           s.delta, s.outcome, s.conf, `Backtest · recorded TxLINE odds · min ${s.minute}'`, s.accurate]
+        ).catch(e => console.warn(`[backfill] signal insert: ${(e as Error).message}`));
+      }
+      const acc = sigs.length ? Math.round(sigs.filter(s => s.accurate).length / sigs.length * 100) : 0;
+      console.log(`[backfill] ${fixtureId}: ${sigs.length} sharp signals (backtest) · ${acc}% accurate vs real result`);
+    }
     console.log(`[backfill] ${fixtureId}: DONE ✓`);
   } catch (err) {
     await db.query('ROLLBACK');

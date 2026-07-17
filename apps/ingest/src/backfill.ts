@@ -11,10 +11,40 @@
  */
 import { Pool } from 'pg';
 import { txlineRest, buildPlayerMap } from '@bozpicks/txline-client';
-import type { TxScores } from '@bozpicks/txline-client';
-import { scoresEventToBozEvent } from './normalizer';
+import type { TxScores, TxOddsPayload } from '@bozpicks/txline-client';
+import { scoresEventToBozEvent, oddsEventToBozEvent } from './normalizer';
+import type { BozEvent } from '@bozpicks/shared';
 
 const db = new Pool({ connectionString: process.env.DATABASE_URL });
+
+/**
+ * The fixture's real in-play odds history, normalised to ODDS_UPDATE events.
+ * Without these a real match's page is missing everything odds-derived that the
+ * demo shows: the Match Odds panel, Odds Movement, and Turning Points (which
+ * pairs each big implied-probability swing with the pitch event that caused
+ * it). TxLINE returns ~60k odds records per fixture across every bookmaker and
+ * market, so we keep only in-play 1X2 (what oddsEventToBozEvent accepts) and
+ * then thin to at most one tick per minute — enough to draw an honest curve
+ * without burying the timeline in thousands of near-identical rows.
+ */
+async function fetchOddsEvents(fixtureId: string, kickoffMs: number): Promise<BozEvent[]> {
+  let raw: TxOddsPayload[] = [];
+  try { raw = await txlineRest.oddsUpdates(Number(fixtureId)); } catch { return []; }
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+
+  const events: BozEvent[] = [];
+  const seenMinute = new Set<number>();
+  const sorted = [...raw].sort((a, b) => (a.Ts ?? 0) - (b.Ts ?? 0));
+  for (const o of sorted) {
+    const e = oddsEventToBozEvent(o, kickoffMs);  // filters to in-play 1X2 for us
+    if (!e) continue;
+    if (seenMinute.has(e.matchMinute)) continue;  // one tick a minute
+    seenMinute.add(e.matchMinute);
+    events.push(e);
+  }
+  console.log(`[backfill] ${fixtureId}: ${raw.length} odds records -> ${events.length} in-play 1X2 ticks`);
+  return events;
+}
 
 async function backfillFixture(fixtureId: string): Promise<void> {
   console.log(`\n[backfill] ${fixtureId} …`);
@@ -36,6 +66,11 @@ async function backfillFixture(fixtureId: string): Promise<void> {
       `SELECT home_team, away_team FROM boz_matches WHERE id=$1`, [fixtureId]);
     if (rows[0]) names = { home: rows[0].home_team, away: rows[0].away_team };
   }
+
+  // kickoff anchors the odds ticks to a match minute (they carry no clock)
+  const { rows: koRows } = await db.query<{ ko: Date }>(
+    `SELECT kickoff_time AS ko FROM boz_matches WHERE id=$1`, [fixtureId]);
+  const kickoffMs = koRows[0]?.ko ? new Date(koRows[0].ko).getTime() : 0;
 
   // THE COMPLETE match history via the SSE updates endpoint (~900+ records) —
   // snapshot only returns the last ~40, which misses earlier goals (England's
@@ -86,7 +121,19 @@ async function backfillFixture(fixtureId: string): Promise<void> {
   // goals, cards, subs, penalties, VAR, corners, shots, offsides, kickoff/HT/FT.
   const KEEP = new Set(['GOAL', 'PENALTY', 'YELLOW_CARD', 'RED_CARD', 'SUBSTITUTION',
     'VAR', 'CORNER', 'SHOT', 'OFFSIDE', 'MATCH_START', 'HALFTIME', 'MATCH_END']);
-  const meaningful = goalDeduped.filter(e => KEEP.has(e.type));
+  const scoreEvents = goalDeduped.filter(e => KEEP.has(e.type));
+
+  // Merge in the real in-play odds ticks, interleaved by minute. These are what
+  // the Match Odds panel, Odds Movement and Turning Points all read — a real
+  // fixture had none of them without this.
+  const oddsEvents = kickoffMs ? await fetchOddsEvents(fixtureId, kickoffMs) : [];
+  const meaningful = [...scoreEvents, ...oddsEvents].sort((a, b) => {
+    const d = (a.matchMinute || 0) - (b.matchMinute || 0);
+    if (d !== 0) return d;
+    // within a minute: odds tick after the pitch event that moved it, so
+    // Turning Points can attribute the swing to the goal/card that caused it
+    return (a.type === 'ODDS_UPDATE' ? 1 : 0) - (b.type === 'ODDS_UPDATE' ? 1 : 0);
+  });
 
   // Anchor the timeline at kick-off: the snapshot rarely includes a 1st-half
   // kickoff record, so the earliest event is often mid-match (a 19' penalty).

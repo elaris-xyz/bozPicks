@@ -10,14 +10,33 @@ function safeTs(ts: number | undefined): string {
 
 // ─── Odds → OddsSnapshot ────────────────────────────────────────────────────
 
+/**
+ * Find the home/draw/away column of a 1X2 price array.
+ *
+ * The live TxLINE feed labels them `part1` / `draw` / `part2` — NOT the
+ * `1` / `X` / `2` we originally coded against. That single mismatch meant every
+ * real odds record was silently rejected: no Match Odds panel, no Odds
+ * Movement, no Turning Points on a real fixture, and the agent/Arena never saw
+ * a real price move (the demo was unaffected because it synthesises snapshots
+ * directly, which is why this hid for so long). Accept both spellings.
+ */
+function idxOf1X2(names: string[]): { i1: number; iX: number; i2: number } {
+  const find = (...cands: string[]) => {
+    for (const c of cands) {
+      const i = names.findIndex(n => n?.toLowerCase() === c);
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  return { i1: find('part1', '1'), iX: find('draw', 'x'), i2: find('part2', '2') };
+}
+
 export function oddsToSnapshot(odds: TxOddsPayload): OddsSnapshot | null {
   if (!odds.Prices || odds.Prices.length < 3) return null;
   if (!odds.PriceNames) return null;
 
   // Prices are integer * 1000 (e.g. 1850 = 1.850 decimal odds)
-  const idx1 = odds.PriceNames.indexOf('1');
-  const idxX = odds.PriceNames.indexOf('X');
-  const idx2 = odds.PriceNames.indexOf('2');
+  const { i1: idx1, iX: idxX, i2: idx2 } = idxOf1X2(odds.PriceNames);
 
   if (idx1 < 0 || idxX < 0 || idx2 < 0) return null;
 
@@ -299,20 +318,30 @@ export function scoresEventToBozEvent(
 
 // ─── TxOddsPayload → BozEvent ────────────────────────────────────────────────
 
-export function oddsEventToBozEvent(odds: TxOddsPayload): BozEvent | null {
-  // Only process 1X2 match winner market
-  if (!odds.PriceNames?.includes('1')) return null;
-  if (!odds.InRunning) return null; // only in-game odds for now
+/**
+ * @param kickoffMs when known, stamps the tick with a real match minute. Odds
+ * records carry no clock of their own, so without it the tick lands at 0' and
+ * sorts/paces to the top of a timeline it belongs in the middle of.
+ */
+export function oddsEventToBozEvent(odds: TxOddsPayload, kickoffMs?: number): BozEvent | null {
+  // Only the 1X2 match-winner market (the feed also carries over/under and
+  // Asian handicap, whose price arrays we'd otherwise misread)
+  if (!odds.PriceNames || idxOf1X2(odds.PriceNames).i1 < 0) return null;
+  if (!odds.InRunning) return null; // only in-game odds
 
   const snapshot = oddsToSnapshot(odds);
   if (!snapshot) return null;
+
+  const minute = kickoffMs && odds.Ts
+    ? Math.max(0, Math.min(130, Math.floor((odds.Ts - kickoffMs) / 60_000)))
+    : 0;
 
   return {
     id: odds.MessageId,
     matchId: String(odds.FixtureId),
     type: 'ODDS_UPDATE',
     timestamp: snapshot.timestamp,
-    matchMinute: 0,
+    matchMinute: minute,
     odds: snapshot,
     rawPayload: odds as unknown as object,
   };

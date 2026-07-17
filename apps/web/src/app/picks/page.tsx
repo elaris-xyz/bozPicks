@@ -18,9 +18,11 @@ async function getLiveMatches(): Promise<MatchState[]> {
       ORDER BY kickoff_time ASC
       LIMIT 6
     `);
-    const oddsRaw = await Promise.all(
-      rows.map(r => redis.lindex(`boz:match:${r.id}:odds`, 0))
-    );
+    // odds are an optional Redis cache — a Redis outage must not wipe out the
+    // match list that Postgres already returned (see page.tsx for the same fix)
+    const oddsRaw: (string | null)[] = await Promise.all(
+      rows.map(r => redis.lindex(`boz:match:${r.id}:odds`, 0).catch(() => null))
+    ).catch(() => rows.map(() => null));
     return rows.map((r, i) => ({
       id: r.id,
       homeTeam: r.home_team,

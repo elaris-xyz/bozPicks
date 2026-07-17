@@ -11,16 +11,22 @@ export const dynamic = 'force-dynamic';
 
 async function getMatches(): Promise<MatchState[]> {
   try {
-    await maybeSyncFixtures(); // self-heal a stale fixtures snapshot before reading
+    // never let a fixtures-sync hiccup take the page down with it
+    await maybeSyncFixtures().catch(() => {});
     const { rows } = await db.query(
       `SELECT id, home_team, away_team, home_score, away_score,
               status, current_minute, kickoff_time, last_updated,
               competition, competition_id, stats
        FROM boz_matches ORDER BY kickoff_time ASC`
     );
-    const oddsRaw = await Promise.all(
-      rows.map(r => redis.lindex(`boz:match:${r.id}:odds`, 0))
-    );
+    // Odds are a NICE-TO-HAVE from the Redis cache — the match list itself
+    // comes from Postgres and must survive without them. This used to sit
+    // inside the outer try, so a single Redis outage threw here and the catch
+    // returned [] — the whole board read "No matches yet" while the database
+    // was perfectly healthy. Degrade to "no odds" instead of "no matches".
+    const oddsRaw: (string | null)[] = await Promise.all(
+      rows.map(r => redis.lindex(`boz:match:${r.id}:odds`, 0).catch(() => null))
+    ).catch(() => rows.map(() => null));
     return rows.map((r, i) => ({
       id: r.id,
       homeTeam: r.home_team,

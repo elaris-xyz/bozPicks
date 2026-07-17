@@ -14,7 +14,7 @@ import type { MatchState } from '@bozpicks/shared';
  * The same math holds at every breakpoint since it keys off the column count.
  * On mobile there's no spare width, so the hero is hidden and cards stack.
  *
- * Drop the artwork at /public/hero-striker.png (transparent PNG). If it's
+ * Drop the artwork at /public/boz_solana.png (transparent PNG). If it's
  * missing the panel degrades to a themed gradient with a tagline.
  */
 export function LiveHero({
@@ -50,10 +50,10 @@ export function LiveHero({
           {imgOk && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src="/hero-striker-baner.png"
+              src="/boz_solana.png"
               alt=""
               onError={() => setImgOk(false)}
-              className="absolute right-0 bottom-0 h-[112%] w-auto max-w-none object-contain object-right-bottom select-none pointer-events-none"
+              className="absolute right-0 bottom-0 h-full w-auto max-w-none object-contain object-right-bottom select-none pointer-events-none"
               style={{ filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.6))' }}
               draggable={false}
             />

@@ -15,9 +15,10 @@ import { fireToast } from './Toast';
  * result (settlement, agent P&L, Hi-Lo) is deterministic and verifiable.
  */
 
-// Same runtime options the Replay page offers (3m/2m/48s/19s/10s) — direct
-// seconds, not an abstract multiplier, so the label says exactly what happens.
-const RUN_SECS = [190, 95, 48, 19, 10] as const;
+// Real minutes — the timed playback runs on the always-on ingest worker (not
+// this serverless route), so these are genuine wall-clock durations, not a
+// compressed multiplier: picking "10m" really does play out over 10 minutes.
+const RUN_SECS = [60, 120, 180, 300, 600] as const;
 const runLabel = (secs: number) => (secs >= 60 ? `${Math.round(secs / 60)}m` : `${secs}s`);
 const PANEL_BG = 'linear-gradient(180deg, #101a30, #0a0f1e)';
 
@@ -29,7 +30,7 @@ export function CommandBridge() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'warn' | 'error'; text: string } | null>(null);
-  const [runSecs, setRunSecs] = useState(48);
+  const [runSecs, setRunSecs] = useState(60);
   const [scenarioKey, setScenarioKey] = useState('home-win');
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [fixtureIdx, setFixtureIdx] = useState(-1); // -1 = preset
@@ -46,7 +47,7 @@ export function CommandBridge() {
   });
 
   useEffect(() => {
-    setRunSecs(Number(localStorage.getItem('boz_demo_run_secs')) || 48);
+    setRunSecs(Number(localStorage.getItem('boz_demo_run_secs')) || 60);
     setScenarioKey(localStorage.getItem('boz_demo_scenario') || 'home-win');
     if (bootstrapped.current) return;
     bootstrapped.current = true;
@@ -208,9 +209,8 @@ export function CommandBridge() {
             {/* speed + run */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                {/* Same 3m/2m/48s/19s/10s options as the Replay page — direct
-                    runtime, not a multiplier, so the label states exactly how
-                    long the run takes. */}
+                {/* 1/2/3/5/10 real minutes — genuine wall-clock duration, not
+                    a compressed multiplier (the ingest worker plays it out). */}
                 <label className="text-[10px] uppercase tracking-widest text-gray-500">Runs in</label>
                 <div className="flex rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
                   {RUN_SECS.map(s => (

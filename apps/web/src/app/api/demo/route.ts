@@ -1,27 +1,19 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
-import { randomUUID } from 'crypto';
 import { generateMatchReplay, SCENARIOS, type ReplayScenario } from '@/lib/replay';
-import { buildMarketsForMatch, rowToMarket } from '@/lib/markets';
-import { settleMarketRow } from '@/lib/settle';
+import { buildMarketsForMatch } from '@/lib/markets';
 import { moveVault } from '@/lib/vault';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-// one running replay at a time — the value is the owning matchId, so an
-// in-flight loop can tell (see runReplay) whether IT is still the current
-// run or has been superseded/purged and should stop publishing
+// one running replay at a time — the value is the owning matchId. The timed
+// playback itself runs on the always-on ingest worker (see apps/ingest/src/
+// demoRunner.ts), which checks this same key before every step — so this
+// function only ever does fast, synchronous setup work.
 const LOCK = 'boz:demo:lock';
-
-/** Named paper-trading bots — their stakes fill the pools AND the leaderboard. */
-const DEMO_BOTS = [
-  'bot.striker9', 'bot.tikitaka', 'bot.catenaccio', 'bot.parkedbus',
-  'bot.falsenine', 'bot.gegenpress', 'bot.longball', 'bot.golazo',
-];
+const JOBS_QUEUE = 'boz:demo:jobs';
 
 /** Remove every artifact of previous demo runs (DB rows + Redis keys). */
 async function purgeDemoMatches() {
@@ -85,22 +77,20 @@ async function purgeDemoMatches() {
 
 /**
  * Starts a live replay. The request ACKs in well under a second (202 +
- * matchId) and the heavy work — purge, inserts, the timed event stream, and
- * settlement — continues via after(), so the Run button never feels dead.
- * One replay at a time via a Redis lock; a second Run gets an honest 409
- * (with the running matchId) instead of the old silent cooldown 429.
+ * matchId); setup (purge + inserts + market seeding) continues via after(),
+ * then hands the timed playback off to the ingest worker so it can run for
+ * its full real duration without this function's timeout. One replay at a
+ * time via a Redis lock; a second Run gets an honest 409 (with the running
+ * matchId) instead of the old silent cooldown 429.
  */
 export async function POST(req: NextRequest) {
   const p = req.nextUrl.searchParams;
-  // Playback length in SECONDS — the Command Bridge sends `runSecs` directly
-  // (3m/2m/48s/19s/10s, same options the replay page offers; the old 42s/21s/
-  // 11s/5s read as a blur). The legacy `speed` multiplier still works for old
-  // callers: 42/speed seconds. Note: BUDGET_MS below fast-forwards anything
-  // past ~38s of real wall time regardless of runSecs, so the 3m/2m options
-  // play at a realistic pace for the first ~38s then rush to full-time — same
-  // safety net that already covered the old 42s option, just a bigger tail.
+  // Playback length in SECONDS — real minutes: 1/2/3/5/10 (matches the
+  // Command Bridge's buttons). The legacy `speed` multiplier still works for
+  // old callers: 42/speed seconds. The timed loop runs on the ingest worker,
+  // not this function, so a 10-minute demo genuinely takes 10 real minutes.
   const speed = Math.max(1, Math.min(90, Number(p.get('speed')) || 4));
-  const runSecs = Math.max(5, Math.min(240, Number(p.get('runSecs')) || Math.round(42 / speed)));
+  const runSecs = Math.max(5, Math.min(600, Number(p.get('runSecs')) || Math.round(42 / speed)));
   const scenarioKey = p.get('scenario') ?? 'home-win';
   const scenario = SCENARIOS[scenarioKey] ?? SCENARIOS['home-win'];
   const homeTeam = (p.get('home') || 'Brazil').slice(0, 40);
@@ -108,8 +98,8 @@ export async function POST(req: NextRequest) {
   const competition = (p.get('competition') || 'FIFA World Cup').slice(0, 60);
   const id = `demo-${Date.now()}`;
 
-  // lock TTL covers the match + settlement
-  const lockTtl = runSecs + 45;
+  // lock TTL covers queue wait + the full playback + settlement grace
+  const lockTtl = runSecs + 120;
   let acquired: string | null;
   try {
     acquired = await redis.set(LOCK, id, 'EX', lockTtl, 'NX');
@@ -126,13 +116,12 @@ export async function POST(req: NextRequest) {
 
   after(async () => {
     try {
-      await runReplay(id, runSecs, scenario, homeTeam, awayTeam, competition);
+      await setupAndEnqueue(id, runSecs, scenario, homeTeam, awayTeam, competition);
     } catch (e) {
-      console.error('[demo] replay failed:', (e as Error).message);
-    } finally {
-      // only release the lock if it's still OURS — a run that was superseded
-      // (DELETE, or the lock naturally handed to a newer run) must never
-      // delete a different, legitimately-running match's lock on its way out
+      console.error('[demo] setup failed:', (e as Error).message);
+      // setup itself failed before handing off to ingest — nothing is going
+      // to finish this run and release the lock, so do it here. (Once the
+      // job is successfully enqueued, ingest owns the lock's lifecycle.)
       const stillOwner = await redis.get(LOCK).catch(() => null);
       if (stillOwner === id) await redis.del(LOCK).catch(() => {});
     }
@@ -144,8 +133,13 @@ export async function POST(req: NextRequest) {
   );
 }
 
-/** The full replay lifecycle — runs after the ACK has been sent. */
-async function runReplay(
+/**
+ * Fast setup only — runs after the ACK has been sent, and finishes in a few
+ * DB round-trips. The timed playback (the part that can take up to 10 real
+ * minutes) is handed off to the always-on ingest worker via a Redis job;
+ * see apps/ingest/src/demoRunner.ts for the loop and settlement.
+ */
+async function setupAndEnqueue(
   id: string, runSecs: number, scenario: ReplayScenario,
   homeTeam: string, awayTeam: string, competition: string,
 ) {
@@ -196,172 +190,20 @@ async function runReplay(
     await redis.publish('boz:markets', JSON.stringify(mk)).catch(() => {});
   }
 
-  // ── Generate + play the replay ──────────────────────────────────────────────
+  // ── Generate the schedule, hand it to the ingest worker to play out ─────────
   const { steps, final } = generateMatchReplay(id, homeTeam, awayTeam, { durationMs: runSecs * 1000, scenario });
 
-  // Re-arm the lock now that the setup (purge + inserts + market seeding) is
-  // done, so its TTL only has to cover the playback itself. Otherwise a slow
-  // purge ate the whole TTL and the very first ownership check saw an expired
-  // lock, read it as "superseded", and killed the run on step 0 — the match
-  // then sat LIVE at 0' forever.
-  await redis.expire(LOCK, 90).catch(() => {});
+  // Re-arm the lock now that setup (purge + inserts + market seeding) is done,
+  // so its TTL only has to cover queue wait + the real playback + settlement.
+  await redis.expire(LOCK, runSecs + 90).catch(() => {});
 
-  // Time budget: keep the whole request comfortably under the serverless limit.
-  // If we run long (slow env), stop waiting and fast-forward the remaining
-  // events so the match still reaches full-time and settles cleanly.
-  const startWall = Date.now();
-  // Leave real headroom under the 60s serverless ceiling: once we pass this,
-  // the remaining steps fire immediately so MATCH_END + settlement ALWAYS
-  // land. (At 50s the run was getting killed mid-loop, stranding the match
-  // LIVE at ~88' forever — the Command Bridge then showed "Live · 88'" and the
-  // pitch clock froze there because full-time never arrived.)
-  const BUDGET_MS = 38_000;
-
-  let prev = 0;
-  let redCardSeen = false;
-  let stepNo = 0;
-  for (const step of steps) {
-    // Someone reset (DELETE /api/demo) or a new run took over mid-flight — bail
-    // instead of publishing into the void. Checked every 8th step rather than
-    // every step: a round-trip to Upstash per step cost ~0.3s × ~40 steps,
-    // which alone blew the function budget and made the speed control almost
-    // meaningless (network, not the schedule, set the pace).
-    if (stepNo % 8 === 0) {
-      const owner = await redis.get(LOCK).catch(() => id);
-      if (owner !== id) {
-        console.log(`[demo] ${id} superseded/purged — stopping early (was owner: ${owner})`);
-        return;
-      }
-    }
-    stepNo++;
-    const overBudget = Date.now() - startWall > BUDGET_MS;
-    await sleep(overBudget ? 0 : Math.max(0, step.delayMs - prev));
-    prev = step.delayMs;
-
-    const event = { ...step.event, timestamp: new Date().toISOString() };
-    const payload = JSON.stringify(event);
-    const status = event.type === 'MATCH_END' ? 'FINISHED' : event.type === 'HALFTIME' ? 'HALFTIME' : 'LIVE';
-
-    // Broadcast is what drives the live UI — one pipelined round-trip per step
-    // (Upstash bills per command; the old 5-7 parallel calls per step burned
-    // through the free-tier request quota). History is trimmed so the catch-up
-    // list can't grow unbounded.
-    const pipe = redis.pipeline();
-    pipe.publish(`boz:events:${id}`, payload);
-    pipe.publish('boz:global', payload);
-    pipe.lpush('boz:global:history', payload);
-    pipe.ltrim('boz:global:history', 0, 99);
-    pipe.hset(`boz:match:${id}:state`, {
-      homeScore: String(event.score?.home ?? 0),
-      awayScore: String(event.score?.away ?? 0),
-      currentMinute: String(event.matchMinute),
-      status, lastUpdated: event.timestamp,
-    });
-    if (event.odds) pipe.lpush(`boz:match:${id}:odds`, JSON.stringify(event.odds));
-    if (event.stats) pipe.set(`boz:match:${id}:stats`, JSON.stringify(event.stats), 'EX', 7200);
-    // fire-and-forget: awaiting this added a full Upstash round-trip to EVERY
-    // step, so network latency — not the chosen speed — set the playback pace
-    // (8x and 1x both landed around ~90s) and pushed the run past the
-    // serverless ceiling. Commands on one connection still arrive in order.
-    void pipe.exec().catch(() => {});
-
-    // ── simulated live order flow: named demo bots stake into the pools so the
-    // market cards move AND the leaderboard fills — each stake is a real
-    // boz_predictions row that settlement grades WON/LOST at full time.
-    if (status === 'LIVE' && event.type !== 'MATCH_START' && markets.length && Math.random() < 0.6) {
-      const mk = markets[Math.floor(Math.random() * markets.length)];
-      const o = mk.outcomes[Math.floor(Math.random() * mk.outcomes.length)];
-      const stake = (1 + Math.floor(Math.random() * 5)) * 1_000_000; // 1–5 USDC
-      const bot = DEMO_BOTS[Math.floor(Math.random() * DEMO_BOTS.length)];
-      mk.pools[o] = (mk.pools[o] ?? 0) + stake;
-      mk.totalPool += stake;
-      void db.query(`UPDATE boz_markets SET pools=$1, total_pool=$2 WHERE id=$3`,
-        [JSON.stringify(mk.pools), mk.totalPool, mk.id]).catch(() => {});
-      void db.query(
-        `INSERT INTO boz_predictions (id, match_id, market_id, wallet_address, outcome, amount_usdc, escrow_tx, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'ACTIVE')`,
-        [randomUUID(), id, mk.id, bot, o, stake, `sim-flow-${event.seq ?? 0}`]
-      ).catch(() => {});
-      void redis.publish('boz:markets', JSON.stringify(mk)).catch(() => {}); // don't block the clock
-    }
-
-    // fire-and-forget persistence
-    void db.query(
-      `INSERT INTO boz_events (id, match_id, type, match_minute, timestamp, payload)
-       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
-      [event.id, id, event.type, event.matchMinute, event.timestamp, event]
-    ).catch(() => {});
-    // Record the demo for playback too — only real fixtures were ever written
-    // here, so a finished demo had no Replay button at all. step.delayMs is the
-    // event's scheduled offset, which is exactly the playback timeline.
-    void db.query(
-      `INSERT INTO boz_replay_events (id, match_id, recorded_at, delay_ms, payload)
-       VALUES ($1,$2,NOW(),$3,$4) ON CONFLICT (id) DO NOTHING`,
-      [event.id, id, step.delayMs, JSON.stringify(event)]
-    ).catch(() => {});
-    // `AND status <> 'FINISHED'` is load-bearing: these per-step updates are
-    // fire-and-forget, so once the loop stopped being network-bound they fly
-    // concurrently and can land OUT OF ORDER. A straggler from minute 82 was
-    // landing after MATCH_END and reviving the match — leaving it LIVE at 82'
-    // forever, which froze the pitch clock and blocked every new demo run.
-    // Full-time is terminal: nothing may un-finish a match.
-    void db.query(
-      `UPDATE boz_matches SET home_score=$1, away_score=$2, current_minute=$3, status=$4,
-         stats=COALESCE($5,stats), last_updated=NOW()
-       WHERE id=$6 AND status <> 'FINISHED'`,
-      [event.score?.home ?? 0, event.score?.away ?? 0, event.matchMinute, status,
-       event.stats ? JSON.stringify(event.stats) : null, id]
-    ).catch(() => {});
-
-    // emit a sharp-move signal right after the red card swings the market
-    if (event.type === 'RED_CARD' && !redCardSeen) {
-      redCardSeen = true;
-      const signal = {
-        id: randomUUID(), matchId: id, type: 'SHARP_MOVE',
-        detectedAt: new Date().toISOString(),
-        oddsBefore: { homeWin: 2.60, draw: 3.10, awayWin: 2.60 },
-        oddsAfter: { homeWin: 1.80, draw: 3.50, awayWin: 4.20 },
-        deltaPercent: -30.8, affectedOutcome: 'HOME', confidence: 'HIGH',
-        context: `RED CARD min ${event.matchMinute} (${awayTeam}) → home shortens`,
-        outcomeVerified: false, verificationSource: 'PENDING',
-      };
-      await redis.publish('boz:signals', JSON.stringify(signal));
-    }
-  }
-
-  // ── Full time is FINAL — write it authoritatively, and AWAIT it ─────────────
-  // Everything in the loop above is fire-and-forget, so the last few writes may
-  // still be in flight (and can land out of order). These two awaited writes are
-  // the source of truth for "this match is over": without them a straggler could
-  // leave the match LIVE at ~82' forever, freezing the clock and blocking every
-  // subsequent demo run.
-  await db.query(
-    `UPDATE boz_matches SET home_score=$1, away_score=$2, current_minute=90,
-       status='FINISHED', last_updated=NOW() WHERE id=$3`,
-    [final.homeScore, final.awayScore, id]
-  ).catch(() => {});
-  await redis.hset(`boz:match:${id}:state`, {
-    homeScore: String(final.homeScore), awayScore: String(final.awayScore),
-    currentMinute: '90', status: 'FINISHED', lastUpdated: new Date().toISOString(),
-  }).catch(() => {});
-
-  // stash the resolved stats so prop-market settlement can read them
-  await redis.set(`boz:match:${id}:final`, JSON.stringify(final), 'EX', 86400);
-
-  // ── Auto-settle every prop market trustlessly from the final stats ──────────
-  let settledCount = 0;
-  for (const mk of markets) {
-    try {
-      const { rows } = await db.query(`SELECT * FROM boz_markets WHERE id=$1`, [mk.id]);
-      if (!rows[0]) continue;
-      await settleMarketRow(rowToMarket(rows[0]), final);
-      settledCount++;
-    } catch (e) {
-      // never swallow silently — a settle that throws left a market stuck open
-      console.error(`[demo] settle FAILED for ${mk.kind} (${mk.id}):`, (e as Error).message);
-    }
-  }
-  console.log(`[demo] ${id} finished ${final.homeScore}-${final.awayScore} · ${settledCount}/${markets.length} markets settled`);
+  await redis.set(
+    `boz:demo:job:${id}`,
+    JSON.stringify({ id, awayTeam, steps, final, markets }),
+    'EX', runSecs + 300,
+  );
+  await redis.lpush(JOBS_QUEUE, id);
+  console.log(`[demo] ${id} enqueued — ${steps.length} steps over ${runSecs}s, ingest worker will play it out`);
 }
 
 export async function DELETE() {

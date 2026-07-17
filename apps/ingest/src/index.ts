@@ -3,6 +3,7 @@ import type { TxOddsPayload, TxScores, TxFixture, ResolvedPlayer } from '@bozpic
 import { oddsEventToBozEvent, scoresEventToBozEvent } from './normalizer';
 import { publish, redis } from './publisher';
 import { record, db } from './recorder';
+import { pollDemoJobs } from './demoRunner';
 
 console.log('[boz-ingest] starting...');
 
@@ -107,6 +108,10 @@ async function start() {
   });
 
   console.log('[boz-ingest] connected to TxLINE scores + odds streams');
+
+  // Command Bridge demo playback — runs here (not in the Vercel route) so a
+  // multi-minute demo can genuinely take that long without a function timeout.
+  void pollDemoJobs().catch(e => console.error('[boz-ingest] demo runner crashed:', e.message));
 
   // ── REST snapshot poller (belt-and-suspenders for the SSE stream) ────────
   // The global /api/scores/stream can sit connected-but-silent (heartbeats,

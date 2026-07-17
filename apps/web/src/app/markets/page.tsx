@@ -17,25 +17,40 @@ export default function MarketsPage() {
     <div className="space-y-6">
       <MarketsHero />
 
-      {/* live centrepiece — pool + settlement status (or an invite when idle) */}
+      {/* ── WHAT YOU DO HERE: pick an outcome and stake ──────────────────────
+          The live pool banner sets the scene, then the actual prop markets come
+          straight after — a user who came to predict never has to scroll past
+          the credibility section to find where to act. */}
       <MarketsBanner />
 
-      {/* signature visual — the trustless settlement flow */}
-      <SettlementPipeline />
-
-      {/* one-click on-chain verification of the deployed programs */}
-      <OnChainProof />
-
-      {/* live verification of a REAL played fixture's TxLINE Merkle proof */}
-      <RealProofCard />
-
-      {/* the prop-market cards + verifiable-resolution receipts */}
       <section className="space-y-3">
         <div className="flex items-center gap-2.5">
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--green)', boxShadow: '0 0 10px rgba(16,185,129,0.5)' }} />
-          <h2 className="text-sm font-bold tracking-tight" style={{ color: 'var(--green)' }}>Prop Markets</h2>
+          <h2 className="text-sm font-bold tracking-tight" style={{ color: 'var(--green)' }}>Predict &amp; stake</h2>
+          <span className="text-[11px] text-gray-500">pick an outcome — winners split the pool</span>
         </div>
         <MarketsPanel />
+      </section>
+
+      {/* ── HOW IT PAYS OUT: the trustless-settlement proof, for anyone who
+          wants to check the plumbing. Kept below the markets so it informs
+          rather than blocks — this is the Track 1 credibility story. */}
+      <section className="space-y-4 pt-2">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--blue)', boxShadow: '0 0 10px rgba(59,130,246,0.5)' }} />
+          <h2 className="text-sm font-bold tracking-tight" style={{ color: 'var(--blue)' }}>How settlement works</h2>
+          <span className="text-[11px] text-gray-500">no trusted oracle — verify it yourself</span>
+        </div>
+
+        {/* signature visual — the trustless settlement flow */}
+        <SettlementPipeline />
+
+        {/* one-click on-chain verification of the deployed programs */}
+        <OnChainProof />
+
+        {/* live verification of a REAL fixture's TxLINE Merkle proof (its own
+            real match — independent of any demo you ran above) */}
+        <RealProofCard />
       </section>
     </div>
   );

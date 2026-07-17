@@ -166,6 +166,20 @@ export async function verifyRealFixture(fixtureId: string): Promise<RealProofRes
     }
   } catch { /* names are best-effort */ }
 
+  // fixtures/snapshot only lists UPCOMING fixtures, so a past fixture's names
+  // come back empty — without this the card renders " 1–2 " with blank teams.
+  // Fall back to the known showcase labels; any other nameless fixture at least
+  // shows Participant 1/2 instead of nothing.
+  if (!result.home || !result.away) {
+    if (fixtureId === SHOWCASE_FIXTURE.fixtureId) {
+      result.home = SHOWCASE_FIXTURE.home;
+      result.away = SHOWCASE_FIXTURE.away;
+    } else {
+      result.home ||= 'Participant 1';
+      result.away ||= 'Participant 2';
+    }
+  }
+
   return result;
 }
 

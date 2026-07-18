@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { IconBolt, IconBall, IconCard, IconPulse } from './Icons';
+import { isQuiet } from '@/lib/quiet';
 
 type ToastKind = 'signal' | 'goal' | 'card' | 'info' | 'warn';
 type ToastItem = { id: number; title: string; body?: string; kind: ToastKind };
@@ -10,6 +11,7 @@ let _nextId = 0;
 const _listeners = new Set<(t: ToastItem) => void>();
 
 export function fireToast(t: Omit<ToastItem, 'id'>) {
+  if (isQuiet()) return; // quiet mode — no toasts at all
   const item: ToastItem = { ...t, id: _nextId++ };
   _listeners.forEach(fn => fn(item));
 }

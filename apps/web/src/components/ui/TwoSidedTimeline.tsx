@@ -4,6 +4,7 @@ import type { BozEvent } from '@bozpicks/shared';
 import {
   IconBall, IconCard, IconSub, IconKickoff, IconFlagEnd, IconPause, IconTarget,
 } from './Icons';
+import { useQuiet } from '@/lib/quiet';
 
 const IconOffside = ({ size = 13 }: { size?: number }) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -74,6 +75,7 @@ export function TwoSidedTimeline({
 }: {
   events: BozEvent[]; homeTeam: string; awayTeam: string;
 }) {
+  const quiet = useQuiet(); // quiet mode → drop odds ticks entirely
   // Chronological order, whatever mix arrives (initial fetch is ASC but SSE
   // prepends). Minute leads, because the feed mixes two sequence spaces: score
   // records carry a TxLINE Seq, odds ticks carry none. The old rule ("any event
@@ -109,6 +111,7 @@ export function TwoSidedTimeline({
   const rows: { e: BozEvent; oddsUp: boolean | null }[] = [];
   for (const e of ordered) {
     if (e.type === 'ODDS_UPDATE') {
+      if (quiet) continue; // quiet mode — no odds rows at all
       const prob = e.odds?.impliedProb?.home;
       if (e.odds == null || prob == null) continue;
       const moved = prevProb === null || Math.abs(prob - prevProb) >= SHOW_MOVE;

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useSSEContext } from '@/contexts/SSEContext';
 import { useLiveMatchContext } from '@/contexts/LiveMatchContext';
+import { useQuiet } from '@/lib/quiet';
 import type { BozEvent, MatchState, SSEMessage } from '@bozpicks/shared';
 import { Flag } from './Flag';
 import {
@@ -136,7 +137,10 @@ export function LiveEventFeed() {
   });
 
   const isLive = Boolean(liveMatch?.live);
-  const hasEvents = events.length > 0;
+  const quiet = useQuiet();
+  // quiet mode → hide the odds-tick cards that flood a live match's feed
+  const shown = quiet ? events.filter(e => e.type !== 'ODDS_UPDATE') : events;
+  const hasEvents = shown.length > 0;
 
   // No events at all → collapse to a slim bar with a corner note. Nothing to
   // show, so we don't reserve a tall empty box.
@@ -165,13 +169,13 @@ export function LiveEventFeed() {
                   style={{ background: 'rgba(100,116,139,0.15)', color: '#94a3b8' }}>Finished</span>
           )}
         </div>
-        <span className="text-[10px] text-gray-500">{events.length} events</span>
+        <span className="text-[10px] text-gray-500">{shown.length} events</span>
       </div>
 
       {(
         <div className={`relative overflow-x-auto rail-scroll pb-1 ${isLive ? '' : 'opacity-60 saturate-50'}`}>
           <div className="flex gap-2.5 min-w-max pt-1">
-            {events.map((e, idx) => {
+            {shown.map((e, idx) => {
               const cfg = EVENT_CFG[e.type] ?? DEFAULT_CFG;
               // when no match is live, every card reads as inactive (grey)
               const dead = !isLive || finished.has(e.matchId) || (activeMatch.current != null && e.matchId !== activeMatch.current);

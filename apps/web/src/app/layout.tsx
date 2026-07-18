@@ -16,6 +16,7 @@ import { CinematicFX } from '@/components/ui/CinematicFX';
 import { SmoothScroll } from '@/components/ui/SmoothScroll';
 import { LiveMatchBar } from '@/components/ui/LiveMatchBar';
 import { SfxToggle } from '@/components/ui/SfxToggle';
+import { QuietToggle } from '@/components/ui/QuietToggle';
 import { FirstVisitHint } from '@/components/ui/FirstVisitHint';
 import { CommandBridge } from '@/components/ui/CommandBridge';
 
@@ -80,6 +81,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LiveMatchBar />
           <CommandBridge />
           <SfxToggle />
+          <QuietToggle />
           <FirstVisitHint />
 
           {/* Desktop nav */}

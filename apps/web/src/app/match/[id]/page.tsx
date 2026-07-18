@@ -384,9 +384,6 @@ export default function MatchDetailPage() {
         )}
       </div>
 
-      {/* ── Starting Lineups — self-hides unless TxLINE has published the XI ── */}
-      <Lineup fixtureId={id} home={match.homeTeam} away={match.awayTeam} />
-
       {/* ── Match Odds — interactive selector when a pool is open ── */}
       {currentOdds && (() => {
         const bettable = pool?.status === 'OPEN';
@@ -691,6 +688,12 @@ export default function MatchDetailPage() {
       </div>
       );
 
+      // Starting XI pitch — self-hides unless TxLINE has published the lineup.
+      // Lives at the TOP of the side column (above stats), subs listed inside it.
+      const lineupCard = (
+        <Lineup fixtureId={id} home={match.homeTeam} away={match.awayTeam} />
+      );
+
       const statsCard = events.length > 0 && (
         <MatchStats events={events} homeTeam={match.homeTeam} awayTeam={match.awayTeam}
                     score={{ home: match.homeScore, away: match.awayScore }} />
@@ -742,8 +745,12 @@ export default function MatchDetailPage() {
       // pre-match: balanced auto-flow grid, no empty timeline shell (cards that
       // have nothing to say — AI, signals — simply don't render)
       if (isSched) return (
-        <div className="grid gap-4 md:grid-cols-2 items-start">
-          {poolCard}{aiCard}{signalsCard}{oddsMovementCard}
+        <div className="space-y-4">
+          {/* pre-match, the XI is the headline once it lands — full width */}
+          {lineupCard}
+          <div className="grid gap-4 md:grid-cols-2 items-start">
+            {poolCard}{aiCard}{signalsCard}{oddsMovementCard}
+          </div>
         </div>
       );
 
@@ -754,7 +761,7 @@ export default function MatchDetailPage() {
       return (
         <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr] items-stretch">
           <div className="flex flex-col gap-4 min-h-0">{momentumCard}{timelineCard}</div>
-          <div className="space-y-4">{statsCard}{turningCard}{oddsMovementCard}{poolCard}{aiCard}{signalsCard}</div>
+          <div className="space-y-4">{lineupCard}{statsCard}{turningCard}{oddsMovementCard}{poolCard}{aiCard}{signalsCard}</div>
         </div>
       );
       })()}

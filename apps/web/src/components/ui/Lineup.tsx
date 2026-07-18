@@ -15,6 +15,11 @@ import { POS_ORDER, type MatchLineup, type TeamLineup, type LineupPlayer, type P
 const HOME_RGB = '16,185,129'; // green
 const AWAY_RGB = '59,130,246'; // blue
 
+// position accent — a quick colour cue on the roster labels
+const POS_COLOR: Record<PlayerPos, string> = {
+  GK: '#f59e0b', DEF: '#3b82f6', MID: '#10b981', FWD: '#ef4444',
+};
+
 export function Lineup({ fixtureId, home, away }: { fixtureId: string; home: string; away: string }) {
   const [data, setData] = useState<MatchLineup | null>(null);
 
@@ -163,10 +168,14 @@ function SubList({ team, rgb }: { team: TeamLineup; rgb: string }) {
       </p>
       <div className="space-y-1">
         {team.subs.map((p, i) => (
-          <div key={`${p.number}-${i}`} className="flex items-center gap-2 text-[11px]">
+          <div key={`${p.number}-${i}`} className="flex items-center gap-1.5 text-[11px]">
             <span className="flex items-center justify-center rounded font-bold tabular-nums flex-shrink-0"
                   style={{ width: 18, height: 18, fontSize: 9, background: `rgba(${rgb},0.12)`, color: `rgb(${rgb})`, border: `1px solid rgba(${rgb},0.25)` }}>
               {p.number || '–'}
+            </span>
+            <span className="flex items-center justify-center rounded text-[7px] font-black uppercase tracking-wide flex-shrink-0"
+                  style={{ width: 24, height: 14, background: `${POS_COLOR[p.pos]}22`, color: POS_COLOR[p.pos], border: `1px solid ${POS_COLOR[p.pos]}44` }}>
+              {p.pos}
             </span>
             <span className="text-gray-300 truncate">{p.last}</span>
           </div>

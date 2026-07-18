@@ -6,13 +6,13 @@ import { IconBall, IconCard, IconSub, IconTarget, IconFlagEnd } from './Icons';
 
 type Pair = [number, number];
 type Stats = {
-  goals: Pair; shots: Pair; onTarget: Pair; corners: Pair;
+  goals: Pair; shots: Pair; onTarget: Pair; offTarget: Pair; blocked: Pair; corners: Pair;
   yellow: Pair; red: Pair; offsides: Pair; fouls: Pair; subs: Pair;
 };
 
 function calcStats(events: BozEvent[], homeTeam: string, score?: { home: number; away: number }): Stats {
   const s: Stats = {
-    goals: [0, 0], shots: [0, 0], onTarget: [0, 0], corners: [0, 0],
+    goals: [0, 0], shots: [0, 0], onTarget: [0, 0], offTarget: [0, 0], blocked: [0, 0], corners: [0, 0],
     yellow: [0, 0], red: [0, 0], offsides: [0, 0], fouls: [0, 0], subs: [0, 0],
   };
   const add = (p: Pair, isHome: boolean) => { p[isHome ? 0 : 1]++; };
@@ -21,7 +21,11 @@ function calcStats(events: BozEvent[], homeTeam: string, score?: { home: number;
     if (e.type === 'GOAL')         add(s.goals, isHome);
     if (e.type === 'SHOT') {
       add(s.shots, isHome);
-      if (e.shotOutcome === 'OnTarget' || e.shotOutcome === 'Woodwork') add(s.onTarget, isHome);
+      // TxLINE shot outcome breakdown (Data.Outcome)
+      const o = e.shotOutcome;
+      if (o === 'OnTarget' || o === 'Woodwork') add(s.onTarget, isHome);
+      else if (o === 'OffTarget')               add(s.offTarget, isHome);
+      else if (o === 'Blocked')                 add(s.blocked, isHome);
     }
     if (e.type === 'CORNER')       add(s.corners, isHome);
     if (e.type === 'YELLOW_CARD')  add(s.yellow, isHome);
@@ -114,10 +118,27 @@ export function MatchStats({ events, homeTeam, awayTeam, score }: Props) {
   if (events.length === 0) return null;
   const s = calcStats(events, homeTeam, score);
 
+  // P3 — half-by-half goal split. Goal events carry matchMinute (TxLINE also
+  // breaks scores into H1/HT/H2); split at 45'. Shown only once a goal exists.
+  const halfGoals = (from: number, to: number): Pair => {
+    const p: Pair = [0, 0];
+    for (const e of events) {
+      if (e.type !== 'GOAL') continue;
+      const m = e.matchMinute ?? 0;
+      if (m > from && m <= to) p[!e.team || e.team === homeTeam ? 0 : 1]++;
+    }
+    return p;
+  };
+  const h1 = halfGoals(0, 45);
+  const h2 = halfGoals(45, 999);
+  const hasHalfGoals = h1[0] + h1[1] + h2[0] + h2[1] > 0;
+
   const rows: { label: string; pair: Pair; icon: React.ReactNode; color: string }[] = [
     { label: 'Goals',     pair: s.goals,    icon: <IconBall size={11} />,    color: 'var(--green)' },
     { label: 'Shots',     pair: s.shots,    icon: <IconTarget size={11} />,  color: '#06b6d4' },
     { label: 'On Target', pair: s.onTarget, icon: <IconTarget size={11} />,  color: '#22d3ee' },
+    { label: 'Off Target',pair: s.offTarget,icon: <IconTarget size={11} />,  color: '#64748b' },
+    { label: 'Blocked',   pair: s.blocked,  icon: <IconTarget size={11} />,  color: '#94a3b8' },
     { label: 'Corners',   pair: s.corners,  icon: <IconFlagEnd size={11} />, color: 'var(--amber)' },
     { label: 'Yellow',    pair: s.yellow,   icon: <IconCard size={10} />,    color: 'var(--amber)' },
     { label: 'Red Cards', pair: s.red,      icon: <IconCard size={10} />,    color: 'var(--red)' },
@@ -135,6 +156,18 @@ export function MatchStats({ events, homeTeam, awayTeam, score }: Props) {
         <span style={{ color: 'var(--green)' }}>{homeTeam}</span>
         <span style={{ color: 'var(--blue)' }}>{awayTeam}</span>
       </div>
+
+      {/* By-half goal breakdown (P3) */}
+      {hasHalfGoals && (
+        <div className="flex items-center justify-between text-[10px] mb-3 pb-3" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+          <span className="text-gray-500 uppercase tracking-widest">Goals by half</span>
+          <span className="tabular-nums font-bold text-gray-300">
+            1st <span style={{ color: 'var(--green)' }}>{h1[0]}</span>–<span style={{ color: 'var(--blue)' }}>{h1[1]}</span>
+            <span className="text-gray-600 mx-1.5">·</span>
+            2nd <span style={{ color: 'var(--green)' }}>{h2[0]}</span>–<span style={{ color: 'var(--blue)' }}>{h2[1]}</span>
+          </span>
+        </div>
+      )}
 
       <div className="space-y-3">
         {rows

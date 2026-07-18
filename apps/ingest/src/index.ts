@@ -167,6 +167,49 @@ async function start() {
   await pollSnapshots().catch(() => {});
   const snapTimer = setInterval(() => { void pollSnapshots(); }, 20_000);
 
+  // ── REST ODDS poller (belt-and-suspenders for the odds SSE stream) ───────
+  // Odds have the same "connected-but-silent stream" failure mode as scores,
+  // but unlike scores had NO REST backup — so if the fixture-scoped odds SSE
+  // went quiet during a live match, Win Probability AND all three agents
+  // (detector / arena / market maker) sat dead for the whole game. This polls
+  // /api/odds/updates (the 5-min in-play cache) for any in-window fixture, feeds
+  // the latest IN-RUNNING 1X2 offer through the same normalizer, and dedupes by
+  // MessageId so it never double-publishes a tick the SSE already delivered.
+  const lastOddsMsg: Record<string, string> = {};
+  async function pollOdds() {
+    const now = Date.now();
+    for (const f of fixtures) {
+      const id = String(f.FixtureId);
+      const ko = kickoffMs[id];
+      if (!ko || now < ko - 60_000 || now > ko + 3.5 * 3600_000) continue; // only around the live window
+      const { rows } = await db.query(`SELECT status FROM boz_matches WHERE id=$1`, [id]).catch(() => ({ rows: [] }));
+      if (rows[0]?.status === 'FINISHED') continue;
+      try {
+        // Use the SNAPSHOT (current best offer per market, ~10 rows), NOT
+        // /odds/updates — that returns the whole 5-min cache (27k+ offers of
+        // every handicap/line) and would be far too heavy to poll and filter.
+        const offers = await txlineRest.oddsSnapshot(f.FixtureId);
+        if (!Array.isArray(offers) || offers.length === 0) continue;
+        // the newest in-running consensus 1X2 offer (draw included)
+        const inplay = offers
+          .filter(o => o.InRunning && o.SuperOddsType === '1X2_PARTICIPANT_RESULT')
+          .sort((a, b) => (b.Ts ?? 0) - (a.Ts ?? 0));
+        const latest = inplay[0];
+        if (!latest || latest.MessageId === lastOddsMsg[id]) continue;
+        lastOddsMsg[id] = latest.MessageId;
+        const event = oddsEventToBozEvent(latest, ko);
+        if (event) {
+          await Promise.all([publish(event), record(event)]);
+          if (process.env.LOG_EVENTS === 'true') console.log(`[ODDS-POLL] ${id} tick published`);
+        }
+      } catch (e) {
+        console.error(`[boz-ingest] odds poll ${id}:`, (e as Error).message);
+      }
+    }
+  }
+  await pollOdds().catch(() => {});
+  const oddsTimer = setInterval(() => { void pollOdds(); }, 15_000);
+
   // ── Fixture-scoped scores streams (the real fix) ─────────────────────────
   // TxLINE confirmed: the GLOBAL /api/scores/stream stays connected but sends
   // no data for a given match — you must subscribe per fixture with
@@ -226,7 +269,7 @@ async function start() {
 
   const shutdown = () => {
     stopScores(); stopOdds();
-    clearInterval(snapTimer); clearInterval(fixtureMgrTimer);
+    clearInterval(snapTimer); clearInterval(oddsTimer); clearInterval(fixtureMgrTimer);
     Object.values(fixtureStreams).forEach(stop => stop());
     Object.values(fixtureOddsStreams).forEach(stop => stop());
     process.exit(0);

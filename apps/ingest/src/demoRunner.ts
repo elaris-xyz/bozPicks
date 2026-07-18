@@ -82,11 +82,16 @@ async function runJob(id: string): Promise<void> {
   let stepNo = 0;
 
   for (const step of job.steps) {
-    // cheap ownership check every few steps — the Command Bridge's Stop
-    // (DELETE /api/demo) must be able to cut a run short
+    // Every few steps: stop ONLY if a genuinely newer run has taken the lock
+    // (Stop button / a fresh demo), and otherwise RE-ARM our lock. A step awaits
+    // several DB/Redis round-trips, so a "1-minute" run can take longer in real
+    // time than its lock TTL — the old check read an expired lock (null) as
+    // "superseded" and froze the match mid-play (the classic stuck-at-82' bug).
+    // Re-arming keeps the lock alive as long as we're still progressing.
     if (stepNo % 4 === 0) {
       const owner = await redis.get(LOCK).catch(() => id);
-      if (owner !== id) { console.log(`[demo-runner] ${id} superseded/purged — stopping early`); return; }
+      if (owner && owner !== id) { console.log(`[demo-runner] ${id} superseded by ${owner} — stopping`); return; }
+      await redis.set(LOCK, id, 'EX', 120).catch(() => {}); // reclaim/extend
     }
     stepNo++;
 

@@ -361,11 +361,36 @@ function MarketCard({ m, onBet, betting, pendingOutcome, mine, onOpenReceipt }: 
   );
 }
 
-type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number; marketId?: string; mine?: boolean };
+type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number; marketId?: string; mine?: boolean; replaced?: boolean };
+
+// Cap the order flow, but NEVER evict the player's own rows — a settled demo
+// floods the feed with bot stakes + settlements, and losing your own "You"
+// records to that flood is exactly what made 2 of 4 picks disappear. Keep every
+// `mine` row, trim only the oldest anonymous ones.
+const ACTIVITY_CAP = 30;
+function trimActivity(list: Activity[]): Activity[] {
+  if (list.length <= ACTIVITY_CAP) return list;
+  const out = [...list];
+  for (let i = out.length - 1; i >= 0 && out.length > ACTIVITY_CAP; i--) {
+    if (!out[i].mine) out.splice(i, 1);
+  }
+  return out;
+}
 
 /** A small gold "you" tag pinned to the end of the player's own order-flow
-    rows — the same gold identity the market cards use for the YOU pick. */
-function MineTag() {
+    rows — the same gold identity the market cards use for the YOU pick. Dimmed
+    to a plain gray chip when the row is a superseded (refunded) pick. */
+function MineTag({ dim }: { dim?: boolean }) {
+  if (dim) {
+    return (
+      <span title="Your order — changed" aria-label="Your order, changed"
+        className="flex-shrink-0 flex items-center gap-0.5 text-[8px] font-black uppercase tracking-wide px-1 py-0.5 rounded"
+        style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="currentColor"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 1.8c-3.3 0-6.5 1.7-6.5 4.2V20h13v-2c0-2.5-3.2-4.2-6.5-4.2z" /></svg>
+        You
+      </span>
+    );
+  }
   return (
     <span title="Your order" aria-label="Your order"
       className="flex-shrink-0 flex items-center gap-0.5 text-[8px] font-black uppercase tracking-wide px-1 py-0.5 rounded"
@@ -413,25 +438,32 @@ function ActivityFeed({ items, getMarket, onOpenReceipt }: { items: Activity[]; 
                       visibly-brighter icon than a plain "…" so it doesn't read
                       as decorative */}
                   {mkt && (
+                    /* quiet secondary action — plain gray dots that match the
+                       row text (brighten on hover) so it doesn't read as a loud
+                       "click me, a box opens" control */
                     <button onClick={() => onOpenReceipt(mkt)} title="View full receipt" aria-label="View full receipt"
-                      className="relative flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-all hover:scale-110"
-                      style={{ background: `rgba(${crgb},0.16)`, color: c, border: `1px solid rgba(${crgb},0.4)` }}>
+                      className="relative flex-shrink-0 w-5 h-6 flex items-center justify-center text-gray-600 hover:text-gray-300 transition-colors">
                       <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
                     </button>
                   )}
                 </div>
               );
             }
+            // a superseded (refunded) pick — grayed and inactive, not a live stake
+            const dim = a.replaced;
             return (
               <div key={a.id} className="anim-in relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 overflow-hidden"
-                   style={{ background: `linear-gradient(90deg, rgba(${orgb},0.09), rgba(255,255,255,0.02))`, border: `1px solid rgba(${orgb},0.28)` }}>
-                <span className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: oc }} />
-                <span className="relative w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: `rgba(${orgb},0.18)`, color: oc }}>
+                   style={dim
+                     ? { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', opacity: 0.65 }
+                     : { background: `linear-gradient(90deg, rgba(${orgb},0.09), rgba(255,255,255,0.02))`, border: `1px solid rgba(${orgb},0.28)` }}>
+                <span className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: dim ? '#3f4654' : oc }} />
+                <span className="relative w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: dim ? 'rgba(255,255,255,0.04)' : `rgba(${orgb},0.18)`, color: dim ? '#64748b' : oc }}>
                   <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>
                 </span>
-                <span className="text-[11px] font-bold tabular-nums flex-shrink-0" style={{ color: oc }}>+{usdcToDisplay(a.amt ?? 0)}</span>
-                <span className="text-[11px] text-gray-400 truncate flex-1 min-w-0">→ {a.outcome} · <span className="text-gray-600">{a.label}</span></span>
-                {a.mine && <MineTag />}
+                <span className="text-[11px] font-bold tabular-nums flex-shrink-0" style={{ color: dim ? '#64748b' : oc, textDecoration: dim ? 'line-through' : undefined }}>+{usdcToDisplay(a.amt ?? 0)}</span>
+                <span className="text-[11px] truncate flex-1 min-w-0" style={{ color: dim ? '#64748b' : '#9ca3af' }}>→ {a.outcome} · <span style={{ color: dim ? '#576070' : '#6b7280' }}>{a.label}</span></span>
+                {dim && <span className="text-[8px] font-bold uppercase tracking-wide text-gray-600 flex-shrink-0">changed</span>}
+                {a.mine && <MineTag dim={dim} />}
               </div>
             );
           })}
@@ -522,7 +554,7 @@ export function MarketsPanel() {
         if (m.status === 'SETTLED' && prevM && prevM.status !== 'SETTLED' && m.winningOutcome) {
           const mine = !!userBetsRef.current[m.id];
           const entry: Activity = { id: `${m.id}-settle`, kind: 'settle', label: m.label, outcome: m.winningOutcome, source: m.receipt?.source, ts: Date.now(), marketId: m.id, mine };
-          setActivity(a => [entry, ...a].slice(0, 24));
+          setActivity(a => trimActivity([entry, ...a]));
         } else if (prevM && m.totalPool > prevM.totalPool) {
           let o = '', d = 0;
           for (const x of m.outcomes) { const g = (m.pools[x] ?? 0) - (prevM.pools[x] ?? 0); if (g > d) { d = g; o = x; } }
@@ -537,7 +569,7 @@ export function MarketsPanel() {
               ownStakes.current.splice(idx, 1);
             } else {
               const entry: Activity = { id: `${m.id}-${now}`, kind: 'stake', label: m.label, outcome: o, amt: d, ts: now };
-              setActivity(a => [entry, ...a].slice(0, 24));
+              setActivity(a => trimActivity([entry, ...a]));
             }
           }
         }
@@ -595,7 +627,14 @@ export function MarketsPanel() {
       const label = (data.market as PropMarket | undefined)?.label ?? '';
       if (!data.replacedFrom) ownStakes.current.push({ key: `${id}|${outcome}|${micro}`, ts: Date.now() });
       const mineEntry: Activity = { id: `mine-${id}-${Date.now()}`, kind: 'stake', label, outcome, amt: micro, ts: Date.now(), marketId: id, mine: true };
-      setActivity(a => [mineEntry, ...a].slice(0, 24));
+      // a switch supersedes the earlier pick on this market — gray it out
+      // (its stake was refunded) instead of leaving it looking active
+      setActivity(a => {
+        const marked = data.replacedFrom
+          ? a.map(x => (x.mine && x.kind === 'stake' && x.marketId === id && !x.replaced) ? { ...x, replaced: true } : x)
+          : a;
+        return trimActivity([mineEntry, ...marked]);
+      });
 
       refreshVault();
       playSfx('tick');

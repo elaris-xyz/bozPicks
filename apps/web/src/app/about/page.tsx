@@ -23,8 +23,8 @@ const TRACKS = [
   {
     href: '/agent', badge: 'Track 3 · Agents', color: '#a78bfa', name: 'bozAgent',
     title: 'Trading Tools & Agents',
-    desc: 'Two autonomous agents trade the same odds stream with opposite theses in a head-to-head Arena, scored on closing-line value.',
-    points: ['Agent-vs-Agent Arena', 'CLV + accuracy tracking', 'Headless — no human input'],
+    desc: 'Three autonomous agents on one odds stream — a sharp-move detector, a Momentum-vs-Contrarian arena, and an in-play market maker, with CLV and P&L tracking.',
+    points: ['Detector · Arena · Market Maker', 'CLV, ROI & spread capture', 'Headless — no human input'],
   },
 ];
 
@@ -148,7 +148,7 @@ export default function AboutPage() {
           {[
             { n: '1', title: 'Open the Command Bridge', desc: 'The ⚡ icon, bottom-left on every page — pick a REAL TxLINE fixture and the exact outcome you want.', color: '#3b82f6' },
             { n: '2', title: 'Run the match', desc: 'Every page reacts live: feed, Hi-Lo, pundit voice, markets, agents — all off one SSE stream.', color: '#10b981' },
-            { n: '3', title: 'Verify the settlement', desc: 'All six markets resolve to your chosen outcome with proof receipts. Or run `pnpm --filter=web test` — 28 deterministic tests.', color: '#a78bfa' },
+            { n: '3', title: 'Verify the settlement', desc: 'All six markets resolve to your chosen outcome with proof receipts. Or run `pnpm --filter=web test` — 47 deterministic tests.', color: '#a78bfa' },
           ].map(s => (
             <div key={s.n} className="rounded-xl p-3.5" style={{ background: `${s.color}0d`, border: `1px solid ${s.color}33` }}>
               <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black mb-2"

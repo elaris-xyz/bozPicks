@@ -11,7 +11,7 @@ import { IconWallet, IconBall, IconTarget, IconShield, IconChain, IconClock } fr
 type Prediction = {
   id: string;
   match_id: string;
-  outcome: 'HOME' | 'DRAW' | 'AWAY';
+  outcome: string;             // HOME/DRAW/AWAY OR a prop outcome (OVER/UNDER/YES/NO/…)
   amount_usdc: number;
   placed_at: string;
   escrow_tx: string;
@@ -22,13 +22,29 @@ type Prediction = {
   home_score: number;
   away_score: number;
   match_status: string;
+  market_label?: string | null; // prop-market name, e.g. "Total Corners 9.5"
+  market_kind?: string | null;
 };
 
-const OUTCOME = {
+const OUTCOME: Record<string, { label: string; color: string }> = {
   HOME: { label: 'Home Win', color: 'var(--green)' },
   DRAW: { label: 'Draw',     color: '#94a3b8' },
   AWAY: { label: 'Away Win', color: 'var(--blue)' },
 };
+
+/**
+ * Resilient outcome meta — predictions include PROP markets (OVER/UNDER/YES/NO/
+ * scorer names), not just 1X2. An unmapped outcome used to crash the whole page
+ * on `o.color`. Fall back to a semantic colour + a humanised label.
+ */
+function outcomeMeta(outcome: string): { label: string; color: string } {
+  if (OUTCOME[outcome]) return OUTCOME[outcome];
+  const color = /^(OVER|YES)$/i.test(outcome) ? 'var(--green)'
+    : /^(UNDER|NO)$/i.test(outcome) ? 'var(--blue)'
+    : '#94a3b8';
+  const label = outcome.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return { label, color };
+}
 
 const usdc = (micro: number) => (micro / 1_000_000).toFixed(1);
 const network = process.env.NEXT_PUBLIC_SOLANA_NETWORK ?? 'devnet';
@@ -166,7 +182,7 @@ export default function PredictionsPage() {
             <div className="space-y-2">
               <p className="section-label">History — {preds.length}</p>
               {preds.map(p => {
-                const o = OUTCOME[p.outcome];
+                const o = outcomeMeta(p.outcome);
                 const st = p.status === 'WON'
                   ? { label: 'Won', color: 'var(--green)', cls: 'chip-green' }
                   : p.status === 'LOST'
@@ -189,6 +205,7 @@ export default function PredictionsPage() {
                           </p>
                           <p className="text-[11px] mt-1">
                             <span style={{ color: o.color }} className="font-semibold">{o.label}</span>
+                            {p.market_label && <span className="text-gray-600"> · {p.market_label}</span>}
                             <span className="text-gray-600"> · staked </span>
                             <span className="text-gray-400 font-mono">{usdc(p.amount_usdc)} USDC</span>
                           </p>

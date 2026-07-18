@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Flag } from './Flag';
-import { POS_ORDER, type MatchLineup, type TeamLineup, type LineupPlayer, type PlayerPos } from '@/lib/lineup';
+import { POS_ORDER, buildDemoLineup, type MatchLineup, type TeamLineup, type LineupPlayer, type PlayerPos } from '@/lib/lineup';
 
 /**
  * Starting Lineups — a broadcast-style pitch graphic built from TxLINE's real
@@ -22,15 +22,22 @@ const POS_COLOR: Record<PlayerPos, string> = {
 
 export function Lineup({ fixtureId, home, away }: { fixtureId: string; home: string; away: string }) {
   const [data, setData] = useState<MatchLineup | null>(null);
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
-    // demo ids and empty names can't have a real lineup — don't even ask
-    if (!/^\d+$/.test(fixtureId)) return;
+    // demo matches (non-numeric id) aren't real TxLINE fixtures — show the
+    // replay squads so a live demo still gets a starting XI, just like a real
+    // fixture does. Real fixtures fetch the confirmed XI from TxLINE.
+    if (!/^\d+$/.test(fixtureId)) {
+      const d = buildDemoLineup(home, away);
+      if (d) { setData(d); setDemo(true); }
+      return;
+    }
     let live = true;
     const q = new URLSearchParams({ home, away });
     fetch(`/api/lineup/${fixtureId}?${q}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (live && d && d.home && d.away) setData(d); })
+      .then(d => { if (live && d && d.home && d.away) { setData(d); setDemo(false); } })
       .catch(() => {});
     return () => { live = false; };
   }, [fixtureId, home, away]);
@@ -44,7 +51,7 @@ export function Lineup({ fixtureId, home, away }: { fixtureId: string; home: str
           <span className="w-2 h-2 rounded-full" style={{ background: 'var(--green)', boxShadow: '0 0 8px rgba(16,185,129,0.6)' }} />
           <h2 className="section-label">Starting Lineups</h2>
         </div>
-        <span className="text-[10px] text-gray-500 hidden sm:block">confirmed XI — from TxLINE</span>
+        <span className="text-[10px] text-gray-500 hidden sm:block">{demo ? 'starting XI — demo squad' : 'confirmed XI — from TxLINE'}</span>
       </div>
 
       {/* team headers */}

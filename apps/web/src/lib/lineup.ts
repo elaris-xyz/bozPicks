@@ -11,6 +11,8 @@
  * record yet, which is how the UI knows to stay hidden.
  */
 
+import { SQUADS } from './squads';
+
 export type PlayerPos = 'GK' | 'DEF' | 'MID' | 'FWD';
 
 const POS_MAP: Record<number, PlayerPos> = { 34: 'GK', 35: 'DEF', 36: 'MID', 37: 'FWD' };
@@ -98,4 +100,23 @@ export function buildMatchLineup(
   // names didn't line up — don't guess which side is which (a swap would be
   // worse than showing nothing)
   return null;
+}
+
+/**
+ * Build a lineup for a DEMO match from the replay squads — so a live demo shows
+ * a starting XI just like a real fixture does (the demo mirror of TxLINE's
+ * lineup record). Returns null if either team isn't in the squad table.
+ */
+export function buildDemoLineup(homeName: string, awayName: string): MatchLineup | null {
+  const h = SQUADS[homeName];
+  const a = SQUADS[awayName];
+  if (!h || !a) return null;
+  const team = (name: string, squad: typeof h): TeamLineup => {
+    const starters: LineupPlayer[] = squad
+      .map(p => ({ number: String(p.num), name: p.name, last: p.name, pos: p.pos, captain: false }))
+      .sort((x, y) => POS_ORDER.indexOf(x.pos) - POS_ORDER.indexOf(y.pos));
+    const line = (pos: PlayerPos) => starters.filter(p => p.pos === pos).length;
+    return { team: name, formation: [line('DEF'), line('MID'), line('FWD')].filter(n => n > 0).join('-'), starters, subs: [] };
+  };
+  return { home: team(homeName, h), away: team(awayName, a) };
 }

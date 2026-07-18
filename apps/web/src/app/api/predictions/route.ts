@@ -51,9 +51,11 @@ export async function GET(req: NextRequest) {
   if (!wallet) return NextResponse.json({ error: 'wallet required' }, { status: 400 });
 
   const { rows } = await db.query(
-    `SELECT p.*, m.home_team, m.away_team, m.home_score, m.away_score, m.status AS match_status
+    `SELECT p.*, m.home_team, m.away_team, m.home_score, m.away_score, m.status AS match_status,
+            mk.label AS market_label, mk.kind AS market_kind
      FROM boz_predictions p
      JOIN boz_matches m ON m.id = p.match_id
+     LEFT JOIN boz_markets mk ON mk.id = p.market_id
      WHERE p.wallet_address = $1
      ORDER BY p.placed_at DESC LIMIT 50`,
     [wallet]

@@ -17,6 +17,7 @@ import { MomentumRecap } from '@/components/ui/MatchMomentum';
 import { Lineup } from '@/components/ui/Lineup';
 import { IconBall, IconChart, IconTrophy, IconBolt } from '@/components/ui/Icons';
 import { useOddsFormat, formatOdds, type OddsFormat } from '@/hooks/useOddsFormat';
+import { signalStyle } from '@/lib/signalStyle';
 
 // Wallet-heavy bet slip is loaded only when an outcome is picked, keeping the
 // Solana wallet adapter out of the match page's initial bundle.
@@ -704,13 +705,9 @@ export default function MatchDetailPage() {
           <h2 className="section-label mb-4">Sharp Signals ({signals.length})</h2>
           <div className="space-y-2">
             {signals.map(s => {
-              const dir = s.deltaPercent > 0 ? '↑' : '↓';
-              // sharp signals are OPPORTUNITY, not danger — orange/amber, never red
-              const cs = {
-                HIGH:   { color: 'var(--orange)', border: 'rgba(249,115,22,0.35)', bg: 'var(--orange-dim)' },
-                MEDIUM: { color: 'var(--amber)',  border: 'rgba(245,158,11,0.3)',  bg: 'rgba(245,158,11,0.1)' },
-                LOW:    { color: '#9ca3af',       border: 'rgba(107,114,128,0.2)', bg: 'rgba(107,114,128,0.08)' },
-              }[s.confidence];
+              const dir = s.deltaPercent > 0 ? '▲' : '▼';
+              // one app-wide standard: gold / blue / slate by confidence (see lib/signalStyle)
+              const cs = signalStyle(s.confidence);
               return (
                 <div key={s.id} className="glass rounded-2xl p-3" style={{ borderColor: cs.border }}>
                   <div className="flex items-center justify-between">
@@ -720,7 +717,7 @@ export default function MatchDetailPage() {
                       </span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
                             style={{ background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>
-                        {s.confidence}
+                        {cs.label}
                       </span>
                       {s.outcomeVerified && (
                         <span className="w-4 h-4 rounded-full flex items-center justify-center"

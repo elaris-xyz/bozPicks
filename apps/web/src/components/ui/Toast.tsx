@@ -18,7 +18,7 @@ const TOAST_TTL_MS = 3800;
 const MAX_VISIBLE = 3;
 
 const KIND_CONFIG: Record<ToastKind, { icon: React.ReactNode; color: string; bg: string; border: string }> = {
-  signal: { icon: <IconBolt size={16} />,  color: 'var(--orange)', bg: 'rgba(11,16,32,0.97)', border: 'rgba(249,115,22,0.4)' },
+  signal: { icon: <IconBolt size={16} />,  color: '#fbbf24', bg: 'rgba(11,16,32,0.97)', border: 'rgba(251,191,36,0.45)' },
   goal:   { icon: <IconBall size={16} />,  color: 'var(--green)',  bg: 'rgba(11,16,32,0.97)', border: 'rgba(16,185,129,0.4)' },
   card:   { icon: <IconCard size={15} />,  color: 'var(--amber)',  bg: 'rgba(11,16,32,0.97)', border: 'rgba(245,158,11,0.4)' },
   warn:   { icon: <IconCard size={15} />,  color: 'var(--red)',    bg: 'rgba(11,16,32,0.97)', border: 'rgba(239,68,68,0.4)' },

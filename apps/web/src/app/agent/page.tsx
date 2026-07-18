@@ -6,6 +6,7 @@ import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import { useSSEContext } from '@/contexts/SSEContext';
 import { IconRadar, IconBolt } from '@/components/ui/Icons';
+import { signalStyle } from '@/lib/signalStyle';
 import { AgentArena } from '@/components/ui/AgentArena';
 import { MarketMaker } from '@/components/ui/MarketMaker';
 import { AgentHero } from '@/components/ui/AgentHero';
@@ -151,7 +152,7 @@ export default function AgentPage() {
         <MarketMaker />
       </div>
 
-      {/* ── Config ── */}
+      {/* ── Config — sits right above the signals it produces (tune, then watch) ── */}
       <div className="glass p-4">
         <button className="w-full flex items-center justify-between"
                 onClick={() => setConfigOpen(o => !o)}>
@@ -342,47 +343,49 @@ export default function AgentPage() {
 }
 
 function SignalRow({ signal, showResult, count = 1 }: { signal: AgentSignal; showResult?: boolean; count?: number }) {
-  const dir = signal.deltaPercent > 0 ? '↑' : '↓';
+  const up = signal.deltaPercent > 0;
   const pct = Math.abs(signal.deltaPercent).toFixed(1);
-  const cs = {
-    HIGH:   { color: 'var(--red)',    border: 'rgba(239,68,68,0.25)',   bg: 'var(--red-dim)' },
-    MEDIUM: { color: 'var(--orange)', border: 'rgba(249,115,22,0.25)',  bg: 'var(--orange-dim)' },
-    LOW:    { color: '#9ca3af',       border: 'rgba(107,114,128,0.2)',  bg: 'rgba(107,114,128,0.08)' },
-  }[signal.confidence];
+  const cs = signalStyle(signal.confidence);
+  // a shift in implied probability drives the outcome's PRICE the other way —
+  // spell it out so the row reads as an action, not a bare number
+  const move = up ? 'firming' : 'drifting';
 
   return (
-    <div className="glass anim-in rounded-2xl p-4" style={{ borderColor: cs.border }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 font-bold text-sm" style={{ color: cs.color }}>
-              <IconBolt size={13} /> {signal.affectedOutcome} {dir}{pct}%
+    <div className="glass anim-in rounded-2xl p-3.5" style={{ borderColor: cs.border, background: cs.bg }}>
+      <div className="flex items-center gap-2.5">
+        {/* confidence-tinted bolt tile */}
+        <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>
+          <IconBolt size={15} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-bold text-sm" style={{ color: cs.color }}>{signal.affectedOutcome}</span>
+            <span className="text-sm font-black tabular-nums" style={{ color: cs.color }}>{up ? '▲' : '▼'} {pct}%</span>
+            <span className="text-[11px] text-gray-500">{move}</span>
+            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style={{ background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>
+              {cs.label}
             </span>
             {count > 1 && (
               <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full tabular-nums"
-                    style={{ background: 'rgba(167,139,250,0.15)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.4)' }}>
-                ×{count}
+                    style={{ background: 'rgba(167,139,250,0.15)', color: 'var(--purple)', border: '1px solid rgba(167,139,250,0.4)' }}
+                    title={`${count} calls on this same stance`}>
+                {count}× this stance
               </span>
             )}
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                  style={{ background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>
-              {signal.confidence}
-            </span>
             {showResult && signal.outcomeVerified && (
-              <span className="w-4 h-4 rounded-full flex items-center justify-center"
+              <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded flex items-center gap-1"
                     style={{ color: signal.wasAccurate ? 'var(--green)' : 'var(--red)',
-                             background: signal.wasAccurate ? 'var(--green-dim)' : 'var(--red-dim)' }}>
-                <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                  {signal.wasAccurate ? <path d="M4 12l5 5L20 6" /> : <path d="M6 6l12 12M18 6L6 18" />}
-                </svg>
+                             background: signal.wasAccurate ? 'var(--green-dim)' : 'var(--red-dim)',
+                             border: `1px solid ${signal.wasAccurate ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}` }}>
+                {signal.wasAccurate ? 'HIT' : 'MISS'}
               </span>
             )}
           </div>
-          {signal.context && (
-            <p className="text-xs text-gray-500 mt-1">{signal.context}</p>
-          )}
-          <p className="text-[10px] text-gray-600 mt-1">
-            {new Date(signal.detectedAt).toLocaleTimeString()} · {signal.matchId}
+          {signal.context && <p className="text-[11px] text-gray-500 mt-0.5 truncate">{signal.context}</p>}
+          <p className="text-[10px] text-gray-600 mt-0.5 tabular-nums">
+            {new Date(signal.detectedAt).toLocaleTimeString()}
           </p>
         </div>
       </div>

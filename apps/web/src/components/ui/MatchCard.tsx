@@ -157,10 +157,10 @@ export function MatchCard({
             {activeSignals > 0 && (
               <span className="h-6 flex items-center gap-1 text-[10px] px-2 rounded-full font-bold"
                     style={{
-                      background: 'rgba(249,115,22,0.13)',
-                      color: '#fb923c',
-                      border: '1px solid rgba(249,115,22,0.5)',
-                      boxShadow: '0 0 12px rgba(249,115,22,0.2)',
+                      background: 'rgba(251,191,36,0.13)',
+                      color: '#fbbf24',
+                      border: '1px solid rgba(251,191,36,0.5)',
+                      boxShadow: '0 0 12px rgba(251,191,36,0.2)',
                     }}>
                 {/* flat bolt — sharp odds move */}
                 <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor" aria-hidden>

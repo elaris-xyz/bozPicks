@@ -136,19 +136,29 @@ export function MarketMaker() {
         })}
       </div>
 
-      {/* live equity curve */}
-      {pnlHist.length > 1 && (
-        <div className="mt-3">
-          <Sparkline data={pnlHist} color={pnl >= 0 ? `rgb(${ACCENT})` : 'var(--red)'} width={300} height={30} />
+      {/* P&L curve — a proper labelled panel, not a squished strip */}
+      <div className="mt-4 rounded-xl p-3" style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid var(--glass-border)' }}>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">P&amp;L curve</span>
+          <span className="text-[10px] tabular-nums font-bold" style={{ color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+            {pnl >= 0 ? '+' : ''}{pnl.toFixed(1)}
+          </span>
         </div>
-      )}
+        {pnlHist.length > 1 ? (
+          <Sparkline data={pnlHist} color={pnl >= 0 ? `rgb(${ACCENT})` : 'var(--red)'} width={560} height={60} />
+        ) : (
+          <div className="h-[60px] flex items-center justify-center text-[11px] text-gray-600">
+            the curve draws itself as the maker books fills
+          </div>
+        )}
+      </div>
 
-      {/* micro-stats row */}
-      <div className="grid grid-cols-4 gap-2 mt-3 text-center">
-        <Stat label="edge" value={`+${mm.edgeCaptured.toFixed(1)}`} color="var(--green)" />
-        <Stat label="fills" value={String(mm.fills)} />
-        <Stat label="volume" value={String(mm.volume)} />
-        <Stat label="spread" value={`${spread.toFixed(1)}%`} />
+      {/* desk stats — full labels, readable */}
+      <div className="grid grid-cols-4 gap-2 mt-3">
+        <Stat label="Spread edge" value={`+${mm.edgeCaptured.toFixed(1)}`} color="var(--green)" />
+        <Stat label="Fills" value={String(mm.fills)} />
+        <Stat label="Volume" value={String(mm.volume)} />
+        <Stat label="Quoted spread" value={`${spread.toFixed(1)}%`} />
       </div>
 
       {/* exposure + career */}
@@ -169,9 +179,9 @@ export function MarketMaker() {
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="rounded-lg py-1.5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
-      <p className="text-[13px] font-black tabular-nums leading-none" style={{ color: color ?? '#e2e8f0' }}>{value}</p>
-      <p className="text-[8px] uppercase tracking-widest text-gray-600 mt-0.5">{label}</p>
+    <div className="rounded-lg py-2 px-1 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+      <p className="text-[15px] font-black tabular-nums leading-none" style={{ color: color ?? '#e2e8f0' }}>{value}</p>
+      <p className="text-[9px] font-semibold tracking-wide text-gray-400 mt-1">{label}</p>
     </div>
   );
 }

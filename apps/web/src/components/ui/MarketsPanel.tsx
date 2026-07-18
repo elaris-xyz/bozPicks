@@ -361,7 +361,20 @@ function MarketCard({ m, onBet, betting, pendingOutcome, mine, onOpenReceipt }: 
   );
 }
 
-type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number; marketId?: string };
+type Activity = { id: string; kind: 'stake' | 'settle'; label: string; outcome: string; amt?: number; source?: string; ts: number; marketId?: string; mine?: boolean };
+
+/** A small gold "you" tag pinned to the end of the player's own order-flow
+    rows — the same gold identity the market cards use for the YOU pick. */
+function MineTag() {
+  return (
+    <span title="Your order" aria-label="Your order"
+      className="flex-shrink-0 flex items-center gap-0.5 text-[8px] font-black uppercase tracking-wide px-1 py-0.5 rounded"
+      style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#3a1e02', boxShadow: '0 0 8px rgba(245,158,11,0.55)' }}>
+      <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="currentColor"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 1.8c-3.3 0-6.5 1.7-6.5 4.2V20h13v-2c0-2.5-3.2-4.2-6.5-4.2z" /></svg>
+      You
+    </span>
+  );
+}
 
 /** Live order flow — stakes trickling into pools + settlements as they resolve.
     h-full + an internal scroll makes the rail exactly as tall as the 6-card
@@ -393,6 +406,7 @@ function ActivityFeed({ items, getMarket, onOpenReceipt }: { items: Activity[]; 
                     <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4M12 3l7 4v5c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </span>
                   <span className="text-[11px] text-gray-300 truncate flex-1 min-w-0">{a.label} → <span className="font-bold" style={{ color: oc }}>{a.outcome}</span></span>
+                  {a.mine && <MineTag />}
                   <span className="text-[8px] font-black uppercase px-1 py-0.5 rounded flex-shrink-0" style={{ color: c, border: `1px solid ${c}` }}>{onchain ? '✓' : 'sim'}</span>
                   {/* opens the SAME full-detail receipt modal as the market card's
                       "Verifiable resolution" button — bigger hit target and a
@@ -417,6 +431,7 @@ function ActivityFeed({ items, getMarket, onOpenReceipt }: { items: Activity[]; 
                 </span>
                 <span className="text-[11px] font-bold tabular-nums flex-shrink-0" style={{ color: oc }}>+{usdcToDisplay(a.amt ?? 0)}</span>
                 <span className="text-[11px] text-gray-400 truncate flex-1 min-w-0">→ {a.outcome} · <span className="text-gray-600">{a.label}</span></span>
+                {a.mine && <MineTag />}
               </div>
             );
           })}
@@ -443,6 +458,13 @@ export function MarketsPanel() {
   const [receiptFor, setReceiptFor] = useState<PropMarket | null>(null);
   const prevSettled = useRef(0);
   const marketsMap = useRef<Record<string, PropMarket>>({}); // last-seen market per id, for diffing
+  // the player's OWN just-placed stakes — lets the SSE echo of a stake be
+  // marked "mine" (icon in the order flow) instead of appearing as an
+  // anonymous duplicate of the entry we already added optimistically
+  const ownStakes = useRef<{ key: string; ts: number }[]>([]);
+  // live mirror of userBets so the SSE closure can tag a settlement as mine
+  const userBetsRef = useRef(userBets);
+  userBetsRef.current = userBets;
 
   const fetchMarkets = useCallback(async (mid?: string | null) => {
     const url = mid ? `/api/markets?matchId=${mid}` : '/api/markets';
@@ -498,14 +520,25 @@ export function MarketsPanel() {
       } else {
         const prevM = prevMap[m.id];
         if (m.status === 'SETTLED' && prevM && prevM.status !== 'SETTLED' && m.winningOutcome) {
-          const entry: Activity = { id: `${m.id}-settle`, kind: 'settle', label: m.label, outcome: m.winningOutcome, source: m.receipt?.source, ts: Date.now(), marketId: m.id };
+          const mine = !!userBetsRef.current[m.id];
+          const entry: Activity = { id: `${m.id}-settle`, kind: 'settle', label: m.label, outcome: m.winningOutcome, source: m.receipt?.source, ts: Date.now(), marketId: m.id, mine };
           setActivity(a => [entry, ...a].slice(0, 24));
         } else if (prevM && m.totalPool > prevM.totalPool) {
           let o = '', d = 0;
           for (const x of m.outcomes) { const g = (m.pools[x] ?? 0) - (prevM.pools[x] ?? 0); if (g > d) { d = g; o = x; } }
           if (o) {
-            const entry: Activity = { id: `${m.id}-${Date.now()}`, kind: 'stake', label: m.label, outcome: o, amt: d, ts: Date.now() };
-            setActivity(a => [entry, ...a].slice(0, 24));
+            // if this is the echo of the player's OWN just-placed stake, we
+            // already added a "mine" entry optimistically in bet() — consume
+            // the signature and skip the duplicate; otherwise it's a bot/sim stake
+            const key = `${m.id}|${o}|${d}`;
+            const now = Date.now();
+            const idx = ownStakes.current.findIndex(s => s.key === key && now - s.ts < 6000);
+            if (idx !== -1) {
+              ownStakes.current.splice(idx, 1);
+            } else {
+              const entry: Activity = { id: `${m.id}-${now}`, kind: 'stake', label: m.label, outcome: o, amt: d, ts: now };
+              setActivity(a => [entry, ...a].slice(0, 24));
+            }
           }
         }
         marketsMap.current = { ...prevMap, [m.id]: m };
@@ -545,10 +578,32 @@ export function MarketsPanel() {
       }
       const data = await res.json();
       if (data.market) setMarkets(ms => ms.map(m => m.id === id ? data.market : m));
-      setUserBets(b => ({ ...b, [id]: { outcome, stake: displayToUsdc(STAKE) } }));
+
+      // already this exact pick → the server changed nothing, so don't
+      // re-charge or add a duplicate order-flow entry
+      if (data.unchanged) {
+        fireToast({ kind: 'info', title: 'Already your pick', body: `${outcome} is already your stake on this market.` });
+        return;
+      }
+
+      const micro = displayToUsdc(STAKE);
+      setUserBets(b => ({ ...b, [id]: { outcome, stake: micro } }));
+
+      // mark this as MY stake in the order flow; the signature lets the SSE echo
+      // of a fresh stake be skipped so it isn't listed twice (a replace keeps
+      // the total flat, so it never echoes — no signature needed there)
+      const label = (data.market as PropMarket | undefined)?.label ?? '';
+      if (!data.replacedFrom) ownStakes.current.push({ key: `${id}|${outcome}|${micro}`, ts: Date.now() });
+      const mineEntry: Activity = { id: `mine-${id}-${Date.now()}`, kind: 'stake', label, outcome, amt: micro, ts: Date.now(), marketId: id, mine: true };
+      setActivity(a => [mineEntry, ...a].slice(0, 24));
+
       refreshVault();
       playSfx('tick');
-      fireToast({ kind: 'info', title: `Staked ${STAKE} USDC from your vault`, body: `${outcome} · instant · no signing` });
+      if (data.replacedFrom && data.replacedFrom !== outcome) {
+        fireToast({ kind: 'info', title: `Switched to ${outcome}`, body: `Moved your pick from ${data.replacedFrom} — old stake refunded.` });
+      } else {
+        fireToast({ kind: 'info', title: `Staked ${STAKE} USDC from your vault`, body: `${outcome} · instant · no signing` });
+      }
     } catch {
       fireToast({ kind: 'warn', title: 'Stake not placed', body: 'Please try again.' });
     } finally { setBetting(null); setPendingOutcome(null); }

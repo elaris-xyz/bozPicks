@@ -96,86 +96,89 @@ export function MatchCard({
           </>
         )}
 
-        {/* competition chip — top-centre. The date lives ONLY in the top-right
-            corner (SOON inside 24h, calendar date further out) — one date, one place. */}
-        {comp && (
-          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
-                style={comp.demo
-                  ? { background: 'rgba(34,211,238,0.14)', color: '#67e8f9', border: '1px solid rgba(34,211,238,0.42)', backdropFilter: 'blur(4px)' }
-                  : comp.wc
-                  ? { background: 'rgba(245,158,11,0.16)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.4)', backdropFilter: 'blur(4px)' }
-                  : { background: 'rgba(11,16,32,0.72)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.28)', backdropFilter: 'blur(4px)' }}>
-            {comp.text}
-          </span>
-        )}
-
-        {/* ── Corner labels ── */}
-        {/* star — top-left */}
-        {onToggleFav && (
-          <button
-            onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleFav(match.id); }}
-            className="absolute top-2.5 left-2.5 z-10 w-7 h-7 flex items-center justify-center rounded-full
-                       transition-all hover:scale-110 active:scale-95"
-            style={{
-              color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.55)',
-              background: 'rgba(11,16,32,0.45)',
-              border: '1px solid rgba(255,255,255,0.10)',
-            }}
-            aria-label="Toggle favorite">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'}
-                 stroke="currentColor" strokeWidth={1.8}>
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                    strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        )}
-
-        {/* status + signals — top-right, same 28px height as the star */}
-        <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
-          {activeSignals > 0 && (
-            <span className="h-7 flex items-center gap-1 text-[10px] px-2.5 rounded-full font-bold"
-                  style={{
-                    background: 'rgba(249,115,22,0.13)',
-                    color: '#fb923c',
-                    border: '1px solid rgba(249,115,22,0.5)',
-                    boxShadow: '0 0 12px rgba(249,115,22,0.2)',
-                  }}>
-              {/* flat bolt — sharp odds move */}
-              <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor" aria-hidden>
-                <path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" />
+        {/* ── Top row: star · competition · status — a single flex row
+            (justify-between) so the three badges never overlap, even on the
+            narrow 2-up poster cards where the centred WORLD CUP chip used to
+            collide with SOON / the date. Wide cards read identically. ── */}
+        <div className="absolute top-2 inset-x-2 z-10 flex items-center justify-between gap-1.5">
+          {/* star (left) — or a spacer, so the competition chip stays centred */}
+          {onToggleFav ? (
+            <button
+              onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleFav(match.id); }}
+              className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95"
+              style={{
+                color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.55)',
+                background: 'rgba(11,16,32,0.45)',
+                border: '1px solid rgba(255,255,255,0.10)',
+              }}
+              aria-label="Toggle favorite">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'}
+                   stroke="currentColor" strokeWidth={1.8}>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                      strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              {activeSignals}
+            </button>
+          ) : <span className="w-6 flex-shrink-0" aria-hidden />}
+
+          {/* competition chip (centre) */}
+          {comp ? (
+            <span className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={comp.demo
+                    ? { background: 'rgba(34,211,238,0.14)', color: '#67e8f9', border: '1px solid rgba(34,211,238,0.42)', backdropFilter: 'blur(4px)' }
+                    : comp.wc
+                    ? { background: 'rgba(245,158,11,0.16)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.4)', backdropFilter: 'blur(4px)' }
+                    : { background: 'rgba(11,16,32,0.72)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.28)', backdropFilter: 'blur(4px)' }}>
+              {comp.text}
             </span>
-          )}
-          {isSoon ? (
-            /* premium SOON — kicks off within 24h. Violet, so it never reads
-               as part of the gold WORLD CUP badge family. */
-            <span className="h-7 flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2.5 rounded-full"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(139,92,246,0.24), rgba(59,130,246,0.14))',
-                    color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.55)',
-                    boxShadow: '0 0 14px rgba(139,92,246,0.3)',
-                  }}>
-              <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: '#a78bfa' }} />
-              SOON
-            </span>
-          ) : farDate ? (
-            /* future fixture — its date, not a fake "soon" */
-            <span className="h-7 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 rounded-full"
-                  style={{ background: 'rgba(148,163,184,0.10)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.3)' }}>
-              <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-                <rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" />
-              </svg>
-              {farDate}
-            </span>
-          ) : (
-            <span className="h-7 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2.5 rounded-full"
-                  style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, boxShadow: cfg.glow }}>
-              {isLive && <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: cfg.color }} />}
-              {cfg.label}
-              {isLive && ` ${match.currentMinute}'`}
-            </span>
-          )}
+          ) : <span aria-hidden />}
+
+          {/* status + signals (right) */}
+          <div className="flex items-center gap-1 justify-end flex-shrink-0">
+            {activeSignals > 0 && (
+              <span className="h-6 flex items-center gap-1 text-[10px] px-2 rounded-full font-bold"
+                    style={{
+                      background: 'rgba(249,115,22,0.13)',
+                      color: '#fb923c',
+                      border: '1px solid rgba(249,115,22,0.5)',
+                      boxShadow: '0 0 12px rgba(249,115,22,0.2)',
+                    }}>
+                {/* flat bolt — sharp odds move */}
+                <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor" aria-hidden>
+                  <path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" />
+                </svg>
+                {activeSignals}
+              </span>
+            )}
+            {isSoon ? (
+              /* premium SOON — kicks off within 24h. Violet, so it never reads
+                 as part of the gold WORLD CUP badge family. */
+              <span className="h-6 flex items-center gap-1.5 text-[10px] font-black tracking-widest px-2 rounded-full"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(139,92,246,0.24), rgba(59,130,246,0.14))',
+                      color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.55)',
+                      boxShadow: '0 0 14px rgba(139,92,246,0.3)',
+                    }}>
+                <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: '#a78bfa' }} />
+                SOON
+              </span>
+            ) : farDate ? (
+              /* future fixture — its date, not a fake "soon" */
+              <span className="h-6 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2 rounded-full"
+                    style={{ background: 'rgba(148,163,184,0.10)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.3)' }}>
+                <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                  <rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" />
+                </svg>
+                {farDate}
+              </span>
+            ) : (
+              <span className="h-6 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-2 rounded-full"
+                    style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, boxShadow: cfg.glow }}>
+                {isLive && <span className="w-1.5 h-1.5 rounded-full badge-live" style={{ background: cfg.color }} />}
+                {cfg.label}
+                {isLive && ` ${match.currentMinute}'`}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* ── Center: score / kickoff ── */}

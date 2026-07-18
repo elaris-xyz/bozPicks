@@ -271,7 +271,7 @@ export function MatchList({ initialMatches }: { initialMatches: MatchState[] }) 
   const renderGridCards = (list: MatchState[]) => (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
       {list.map((m, i) => (
-        <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]} compact
+        <MatchCard key={m.id} index={i} match={m} trend={trends[m.id]} compact denseComp
           activeSignals={signalCounts[m.id] ?? 0} isFav={isFav(m.id)}
           onToggleFav={toggleFav} oddsFormat={oddsFormat} />
       ))}

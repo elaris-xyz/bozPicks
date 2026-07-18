@@ -35,8 +35,28 @@ export function compBadge(competition?: string, id?: string): { text: string; wc
   return { text: competition.toUpperCase().slice(0, 18), wc: false };
 }
 
+/**
+ * The competition-type glyph for the dense grid cards — the SAME icons as the
+ * "All comps" filter dropdown (cup for World Cup, globe for friendlies, play
+ * for demos), so a card's competition reads at a glance without a text badge.
+ */
+function CompGlyph({ comp, className }: { comp: { wc: boolean; demo?: boolean }; className?: string }) {
+  const paths = comp.demo
+    ? <><polygon points="10 8 16 12 10 16 10 8" /><circle cx="12" cy="12" r="9" /></>
+    : comp.wc
+    ? <><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></>
+    : <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></>;
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {paths}
+    </svg>
+  );
+}
+const compGlyphColor = (comp: { wc: boolean; demo?: boolean }) =>
+  comp.demo ? '#67e8f9' : comp.wc ? '#fcd34d' : '#94a3b8';
+
 export function MatchCard({
-  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false,
+  match, activeSignals = 0, isFav = false, onToggleFav, oddsFormat = 'decimal', index = 0, trend, compact = false, denseComp = false,
 }: {
   match: MatchState; activeSignals?: number;
   isFav?: boolean; onToggleFav?: (id: string) => void;
@@ -47,6 +67,9 @@ export function MatchCard({
   trend?: OddsTrend;
   /** dense variant for horizontal rails — smaller type, shorter card */
   compact?: boolean;
+  /** grid view: show the competition as a small icon beside the star instead
+      of a centred text badge (keeps the tiny cards uncluttered) */
+  denseComp?: boolean;
 }) {
   const isLive = match.status === 'LIVE' || match.status === 'HALFTIME';
   const cfg = STATUS_CONFIG[match.status] ?? STATUS_CONFIG.SCHEDULED;
@@ -101,27 +124,36 @@ export function MatchCard({
             narrow 2-up poster cards where the centred WORLD CUP chip used to
             collide with SOON / the date. Wide cards read identically. ── */}
         <div className="absolute top-2 inset-x-2 z-10 flex items-center justify-between gap-1.5">
-          {/* star (left) — or a spacer, so the competition chip stays centred */}
-          {onToggleFav ? (
-            <button
-              onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleFav(match.id); }}
-              className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95"
-              style={{
-                color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.55)',
-                background: 'rgba(11,16,32,0.45)',
-                border: '1px solid rgba(255,255,255,0.10)',
-              }}
-              aria-label="Toggle favorite">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'}
-                   stroke="currentColor" strokeWidth={1.8}>
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                      strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          ) : <span className="w-6 flex-shrink-0" aria-hidden />}
+          {/* left: star (+ competition glyph in grid view) */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {onToggleFav ? (
+              <button
+                onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleFav(match.id); }}
+                className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95"
+                style={{
+                  color: isFav ? '#f59e0b' : 'rgba(255,255,255,0.55)',
+                  background: 'rgba(11,16,32,0.45)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                }}
+                aria-label="Toggle favorite">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isFav ? 'currentColor' : 'none'}
+                     stroke="currentColor" strokeWidth={1.8}>
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                        strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            ) : (!denseComp && <span className="w-6 flex-shrink-0" aria-hidden />)}
+            {/* grid view: competition as a glyph beside the star, no text badge */}
+            {denseComp && comp && (
+              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full" title={comp.text}
+                    style={{ background: 'rgba(11,16,32,0.45)', border: `1px solid ${compGlyphColor(comp)}55`, color: compGlyphColor(comp) }}>
+                <CompGlyph comp={comp} className="w-3.5 h-3.5" />
+              </span>
+            )}
+          </div>
 
-          {/* competition chip (centre) */}
-          {comp ? (
+          {/* competition chip (centre) — poster view only; grid uses the glyph above */}
+          {comp && !denseComp ? (
             <span className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap"
                   style={comp.demo
                     ? { background: 'rgba(34,211,238,0.14)', color: '#67e8f9', border: '1px solid rgba(34,211,238,0.42)', backdropFilter: 'blur(4px)' }

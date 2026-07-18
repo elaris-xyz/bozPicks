@@ -1,99 +1,85 @@
 # 🎬 Video Script — Track 1: bozSettle (Prediction & Settlement)
 
-**Page:** `boz-picks.vercel.app/markets` · **Target length:** 3–4 min · **Tone:** confident, technical, calm.
-**Before you record:** connect the wallet, make sure you have some vault balance, and have the **Command Bridge** (⚡ bottom‑left) ready. Screen at 100% zoom, sound ON (for the settlement chime).
+**Page:** `boz-picks.vercel.app/markets` · **Length:** 3–5 min · **Tone:** confident, technical, calm.
 
-راهنمای فارسی برای تو، جملاتِ 🎙 را انگلیسی بگو، 📝 را به‌صورت text روی ویدیو بیاور.
+## 🎥 پلنِ ضبط — دو فاز
+- **فاز A — حینِ بازیِ واقعی (زنده):** نشان می‌دهی روی بازیِ واقعیِ جام‌جهانی و دادهٔ زندهٔ TxLINE کار می‌کند (مارکت‌های باز + اثباتِ رمزنگارانهٔ نتیجهٔ واقعی). تسویهٔ کامل چون بازی تمام نشده اینجا نیست.
+- **فاز B — بعد از پایانِ بازیِ واقعی، با یک دمو:** یک بازیِ دمو با outcomeِ دلخواه ران می‌کنی تا **چرخهٔ کامل**، مخصوصاً **تسویهٔ خودکار + رسیدِ اثبات** را کنترل‌شده نشان دهی.
+
+> ⚠️ برای فاز A باید سرویسِ ingest روی Railway ری‌دیپلوی و در حال اجرا باشد تا دادهٔ بازیِ واقعی جاری شود. فاز B (دمو) تضمینی کار می‌کند.
+
+راهنماها فارسی، 🎙 را انگلیسی بگو، 📝 را به‌صورت text روی ویدیو بیاور.
 
 ---
 
 ## بخش ۱ — تعریفِ مشکل (The Problem) · ~30s
 
-روی صفحهٔ `/markets` بایست، دوربین روی هیرو.
-
 🎙 **SAY:**
-> "Onchain prediction markets have one hard problem: **settlement**. Who decides the result, and can you trust them? Most markets rely on a human or a centralized oracle to declare the winner — that's a single point of trust and a single point of failure. We built **bozSettle** to remove it: parimutuel prediction markets that settle themselves, trustlessly, straight from **TxLINE's** cryptographically‑signed match data — no oracle, no operator, no 'trust us'."
+> "Onchain prediction markets have one hard problem: **settlement**. Who decides the result, and can you trust them? Almost everyone leans on a human or a centralized oracle to declare the winner — a single point of trust and failure. We built **bozSettle** to remove it: parimutuel markets that settle themselves, trustlessly, straight from **TxLINE's** cryptographically‑signed match data — no oracle, no operator."
 
-📝 **on-screen:** `The settlement problem` · `No oracle. No operator.` · `Trustless settlement from signed data`
+📝 `The settlement problem` · `No oracle. No operator.` · `Trustless settlement from signed data`
 
 ---
 
-## بخش ۲ — Walkthrough (کلیک‌به‌کلیک) · ~2.5min
+## بخش ۲ — Walkthrough
 
-### گام ۱ — یک بازی زنده راه بینداز (Command Bridge)
-- روی آیکنِ ⚡ **پایین‑چپ** کلیک کن (Command Bridge باز می‌شود).
-- یک fixtureِ واقعیِ TxLINE از dropdown انتخاب کن (مثلاً France v England)، یک **outcome** انتخاب کن، و **Runs in: 3m** را بزن، بعد **Run**.
+### 🔴 فاز A — روی بازیِ واقعیِ زنده (اثبات می‌کند واقعی است)
 
+**گام A1 — بگو الان واقعیه.** روی هیرو + بنرِ زندهٔ Pool بایست (اسمِ تیم‌های واقعی + دقیقه).
 🎙 **SAY:**
-> "This is the judge's control panel. I pick a **real TxLINE World Cup fixture**, choose the exact final outcome, and press Run. Every page in the app now reacts to one live data stream — nothing is mocked."
+> "What you're seeing right now is a **live World Cup match**, streaming from TxLINE. The moment it kicked off, our app opened a live **USDC parimutuel pool** on it — automatically, no operator."
+📝 `LIVE World Cup match` · `Auto‑opened USDC parimutuel pool`
 
-📝 **on-screen:** `Command Bridge` · `Real TxLINE fixture` · `One live feed drives every page`
-
-### گام ۲ — بنرِ زندهٔ Pool
-- اسکرول به بالای صفحه، روی **live pool banner** بایست.
-
+**گام A2 — ۸ مارکتِ باز روی بازیِ واقعی.** اسکرول به **Predict & stake**، روی کارت‌ها بایست.
 🎙 **SAY:**
-> "The moment the match kicks off, a live **USDC parimutuel pool** opens. Winners split the whole pool pro‑rata, minus a two‑percent fee. This is the pool everyone stakes into."
+> "Eight parametric prop markets open on this real match — Match Result, Total Goals, Corners, Cards, First‑Half Corners and Cards, Both Teams To Score, First Goal. Each one resolves from a single number in TxLINE's data, so each one is provable. I can stake on any of them right now, live."
+📝 `8 provable prop markets on a REAL match` · `Instant vault stake`
 
-📝 **on-screen:** `USDC parimutuel` · `Winners split the pool · 2% fee`
-
-### گام ۳ — بخشِ «Predict & stake» (کارت‌های مارکت)
-- اسکرول پایین به بخشِ **Predict & stake**. روی کارت‌ها بایست.
-
+**گام A3 — «Verify a real result» (قوی‌ترین لحظهٔ فاز A).** اسکرول به **How settlement works** → کارتِ **Verify a real result**؛ بگذار لود شود (این بازیِ واقعیِ زنده / تمام‌شده را می‌گیرد).
 🎙 **SAY:**
-> "We open **eight parametric prop markets** on every match — Match Result, Total Goals, Total Corners, Total Cards, First‑Half Corners, First‑Half Cards, Both Teams To Score, and First Goal. Every one resolves from a single number in TxLINE's data, so every one is provable."
+> "And here's the proof it's real, not a mock. This card pulls **this fixture's** actual TxLINE **Merkle proof** and re‑folds it right in my browser to reproduce **TxLINE's own committed root**. Green check — the score is proven against real cryptography, live, with no oracle and nothing bundled."
+📝 `Real TxLINE Merkle proof` · `Re‑folded in‑browser` · `Reproduces TxLINE's committed root`
 
-📝 **on-screen:** `8 provable prop markets` · `Goals · Corners · Cards · 1st‑Half · BTTS · First Scorer`
-
-### گام ۴ — یک stake بزن + تغییرِ نظر
-- روی یک outcome (مثلاً OVER در Total Corners) کلیک کن — stake از vault کم می‌شود، تگِ طلاییِ **You** می‌آید.
-- روی یک outcome دیگرِ همان کارت کلیک کن.
-
+**گام A4 — on-chain.** روی نوارِ **On‑chain · Solana devnet** بایست.
 🎙 **SAY:**
-> "I stake instantly from my game vault — no signature per bet, because I signed once at deposit. If I change my mind, the app **refunds the old stake and moves it** — one pick per market, never a double charge. My own orders are tagged in the live **Order Flow** on the right."
+> "Both programs — our parimutuel + USDC escrow, and the TxLINE `validate_stat` verifier — are deployed and live on Solana devnet. One click opens them on the explorer."
+📝 `Live on Solana devnet` · `Parimutuel + USDC escrow · validate_stat verifier`
 
-📝 **on-screen:** `Instant vault stake · no per‑bet signing` · `Change pick = refund + move` · `Live Order Flow`
+🎙 **بستنِ فاز A:**
+> "The one thing I can't show on a live match is the final settlement — because it isn't over yet. So let me run a controlled demo and take you through the whole cycle end to end."
 
-### گام ۵ — تسویهٔ خودکار در پایانِ بازی
-- منتظر بمان تا بازی به full‑time برسد (یا زودتر گرفته باشی). کارت‌ها به **Settled** می‌روند و رسید stamp می‌خورد.
-- روی سه‌نقطهٔ یک کارتِ settled یا دکمهٔ رسید کلیک کن تا **Verifiable Resolution receipt** باز شود.
+### 🎮 فاز B — چرخهٔ کامل روی دمو (بعد از پایانِ بازیِ واقعی)
 
+**گام B1 — دمو را راه بینداز.** روی ⚡ **پایین‑چپ** (Command Bridge)، یک fixtureِ واقعی + یک **outcome** انتخاب کن، **Runs in: 3m**، بعد **Run**.
 🎙 **SAY:**
-> "At full time, every market settles **automatically** — no button, no operator. Open a receipt and you see exactly what decided it: the TxLINE stat key and value, the **Merkle root**, the proof path, and the `validate_stat` transaction. The outcome needs no trusted oracle — you can check the math yourself."
+> "The Command Bridge lets me replay a match deterministically — I choose the exact final outcome so you can watch every market resolve to it. Everything still runs off the same live pipeline."
+📝 `Command Bridge · deterministic replay` · `You pick the outcome`
 
-📝 **on-screen:** `Auto‑settle at full time` · `Verifiable Resolution receipt` · `Stat key · Merkle root · proof path · validate_stat`
-
-### گام ۶ — «Verify a real result» (مهم‌ترین لحظه)
-- اسکرول پایین به بخشِ **How settlement works** → کارتِ **Verify a real result**.
-- بگذار خودش لود شود (یک بازیِ واقعیِ تمام‌شدهٔ TxLINE).
-
+**گام B2 — stake + تغییرِ نظر.** روی یک outcome کلیک کن (تگِ **You** طلایی + Order Flow). بعد روی outcomeِ دیگرِ همان کارت کلیک کن.
 🎙 **SAY:**
-> "This is the strongest part. The demo receipts are simulated — but here we do the **real thing**. We pull a real, finished World Cup fixture's TxLINE **Merkle proof**, and re‑fold it right here in the browser to reproduce **TxLINE's own committed root**. Green check — the result is proven against real cryptography, live, with no oracle and nothing bundled."
+> "I stake instantly from my game vault — no signature per bet, I signed once at deposit. Change my mind and the app **refunds the old stake and moves it** — one pick per market, never a double charge. My orders are tagged in the live Order Flow."
+📝 `Instant vault stake · no per‑bet signing` · `Change pick = refund + move` · `Live Order Flow`
 
-📝 **on-screen:** `Real TxLINE Merkle proof` · `Re‑folded in your browser` · `Reproduces TxLINE's committed root` · `Trustless — no oracle`
-
-### گام ۷ — اثباتِ on-chain
-- روی نوارِ **On‑chain · Solana devnet** بایست (دو برنامهٔ دیپلوی‌شده با لینکِ explorer).
-
+**گام B3 — تسویهٔ خودکار در full‑time.** بگذار بازی به پایان برسد؛ کارت‌ها **Settled** می‌شوند و رسید stamp می‌خورد.
 🎙 **SAY:**
-> "And it's real on devnet: our parimutuel + USDC‑escrow program and the TxLINE `validate_stat` verifier are both deployed and executable — one click opens them on Solana Explorer."
+> "At full time, every market settles **automatically** — no button, no operator, all eight at once."
+📝 `Auto‑settle at full time · no operator`
 
-📝 **on-screen:** `Live on Solana devnet` · `Parimutuel + USDC escrow` · `TxLINE validate_stat verifier`
-
-### گام ۸ — My Predictions (اختیاری، سریع)
-- از منوی **More → My Predictions** برو.
-
+**گام B4 — رسیدِ Verifiable Resolution.** روی رسیدِ یک کارتِ settled کلیک کن.
 🎙 **SAY:**
-> "Every stake lands in the player's on‑chain record — pick, market, stake, result, and payout, with the settlement anchored on devnet."
+> "And every settlement shows its work: the exact TxLINE **stat key and value** that decided it, the **Merkle root**, the proof path, and the `validate_stat` transaction. No trusted oracle — you can re‑check the math yourself."
+📝 `Verifiable Resolution receipt` · `Stat key · Merkle root · proof path · validate_stat`
 
-📝 **on-screen:** `Your record · graded from proofs`
+**گام B5 — My Predictions (سریع).** از **More → My Predictions**.
+🎙 **SAY:**
+> "Every stake lands in the player's record — pick, market, stake, result, payout — anchored on devnet."
+📝 `Your on‑chain record · graded from proofs`
 
 ---
 
 ## بخش ۳ — نقشِ TxLINE
 
 🎙 **SAY:**
-> "TxLINE is the entire backbone of settlement. We take TxLINE's normalized match data — goals, corners, and cards — and settle each market from the exact `Stats` key that decides it, proven at the `game_finalised` record under period 100. For the trustless proof, we fetch TxLINE's `stat-validation` **Merkle proof** and either re‑fold it in the browser or pass it into our on‑chain `validate_stat` CPI. First‑half markets use the same base keys under TxLINE's H1 period prefix. Because the winning number comes from TxLINE's own signed commitment — not from us — the whole market is trustless by construction."
+> "TxLINE is the entire backbone of settlement. We settle each market from the exact `Stats` key that decides it, proven at the `game_finalised` record under period 100. For the trustless proof we fetch TxLINE's `stat-validation` **Merkle proof** and either re‑fold it in the browser — as you saw on the live match — or pass it into our on‑chain `validate_stat` CPI. First‑half markets prove the same base keys under TxLINE's H1 period prefix. Because the deciding number comes from TxLINE's own signed commitment, the whole market is trustless by construction."
 
-**TxLINE endpoints used (بگو یا روی صفحه بیاور):**
-`/api/fixtures/snapshot` · `/api/scores/snapshot` (final goals/corners/cards) · `/api/scores/stat-validation` (Merkle proof for validate_stat) · `game_finalised` record, period 100.
+**Endpoints:** `/api/fixtures/snapshot` · `/api/scores/snapshot` (goals/corners/cards) · `/api/scores/stat-validation` (Merkle proof → validate_stat) · `game_finalised`, period 100.

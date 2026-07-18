@@ -1,87 +1,83 @@
 # 🎬 Video Script — Track 2: bozPicks (Consumer / Fan)
 
-**Page:** `boz-picks.vercel.app/play` (+ a match detail page) · **Target length:** 3–4 min · **Tone:** energetic, fan‑first.
-**Before you record:** sound ON (the AI Pundit speaks!), Command Bridge (⚡) ready. Pick a dramatic outcome (a red card / goal‑fest) so the momentum and pundit have something to react to.
+**Page:** `boz-picks.vercel.app/play` (+ a match detail page) · **Length:** 3–5 min · **Tone:** energetic, fan‑first.
+**Sound ON** — the AI Pundit speaks.
 
-راهنماها فارسی، 🎙 را انگلیسی بگو، 📝 را به‌صورت text روی ویدیو بیاور.
+## 🎥 پلنِ ضبط — دو فاز
+- **فاز A — حینِ بازیِ واقعیِ زنده:** کلِ تجربهٔ فن روی بازیِ واقعیِ جام‌جهانی و دادهٔ زندهٔ TxLINE (این بخشِ اصلی و قوی است — همه‌چیز روی دادهٔ واقعی زنده کار می‌کند).
+- **فاز B — بعد از پایانِ بازیِ واقعی، با دمو:** یک outcomeِ پرحادثه (کارت قرمز / goal‑fest) ران می‌کنی تا **واکنش‌پذیری** (نوسانِ momentum، فریادِ pundit، Hi‑Lo) را on‑demand و فشرده نشان دهی.
+
+> ⚠️ فاز A به جاری‌بودنِ دادهٔ بازیِ واقعی (ری‌دیپلوی ingest) وابسته است؛ فاز B تضمینی کار می‌کند.
+
+راهنماها فارسی، 🎙 انگلیسی بگو، 📝 روی صفحه بیاور.
 
 ---
 
 ## بخش ۱ — تعریفِ مشکل (The Problem) · ~30s
 
-روی `/play` بایست.
-
 🎙 **SAY:**
-> "Watching a match on your phone, the live data is either boring or buried. A tiny score, a flat stats table, numbers that update a minute late. There's granular, real‑time data flowing underneath — possession, threat, the market's own read of who's winning — but fans never get to *feel* it. **bozPicks** turns TxLINE's live feed into something you can read at a glance and play with: a live win‑probability gauge, a momentum wave, a guessing game, and an AI commentator that calls the big moments out loud."
+> "On your phone, live match data is either boring or buried — a tiny score and a flat stats table, a minute late. Underneath there's granular, real‑time data — possession, threat, the market's read of who's winning — but fans never get to *feel* it. **bozPicks** turns TxLINE's live feed into something you read at a glance and play with: a win‑probability gauge, a momentum wave, a guessing game, and an AI commentator that calls the big moments out loud."
 
-📝 **on-screen:** `Live data, but boring` · `Read the match as it happens` · `Powered by TxLINE`
+📝 `Live data, but boring` · `Read the match as it happens` · `Powered by TxLINE`
 
 ---
 
-## بخش ۲ — Walkthrough (کلیک‌به‌کلیک) · ~2.5min
+## بخش ۲ — Walkthrough
 
-### گام ۱ — یک بازیِ زنده راه بینداز
-- روی ⚡ **پایین‑چپ** (Command Bridge) بزن، یک fixtureِ واقعیِ TxLINE + یک outcomeِ پرحادثه (مثلاً red card / goal‑fest) و **Runs in: 3m** انتخاب کن، بعد **Run**.
+### 🔴 فاز A — تجربهٔ فن روی بازیِ واقعیِ زنده (بخشِ اصلی)
 
+**گام A1 — بگو واقعیه.** روی اسکوربورد بایست (تیم‌های واقعی، دقیقه، possession).
 🎙 **SAY:**
-> "I start a live match from real TxLINE data. No wallet, no stakes here — this is pure fan experience, and every number you're about to see updates the instant the ball moves."
+> "This is a **real World Cup match, live from TxLINE right now** — no wallet, no stakes, just the match. Every number here updates the instant the ball moves. That's the real live possession split from TxLINE."
+📝 `LIVE World Cup match` · `Real TxLINE feed` · `Live possession`
 
-📝 **on-screen:** `Real TxLINE feed` · `No wallet · just the match`
-
-### گام ۲ — اسکوربوردِ زنده + possession
-- به بالای صفحه، روی اسکوربورد بایست (اسکور، دقیقه، نوارِ possession، خطِ رویداد مثل red card).
-
+**گام A2 — Match Momentum.** اسکرول به **Match Momentum**؛ روی swing بعد از یک رویدادِ واقعی اشاره کن.
 🎙 **SAY:**
-> "Live score, live minute, and TxLINE's **ball‑possession** split — the one stat that genuinely swings both ways. When a red card or a goal hits, it shows up here immediately."
+> "**Match Momentum** — a broadcast‑style pressure wave built from TxLINE's possession, per‑side **threat state**, and attacking events. Home rises green, away dips blue. Watch it swing on the real events as they happen."
+📝 `Match Momentum` · `Possession · threat · shots — from TxLINE`
 
-📝 **on-screen:** `Live possession` · `Events land instantly`
-
-### گام ۳ — Match Momentum
-- اسکرول به **Match Momentum**. بگذار موج شکل بگیرد؛ روی swingِ بعد از یک رویداد اشاره کن.
-
+**گام A3 — AI Pundit روی رویدادِ واقعی (صدا بلند).** کارتِ **AI Pundit**، دکمهٔ **Voice** روشن؛ منتظرِ یک گل/کارتِ واقعی بمان.
 🎙 **SAY:**
-> "This is **Match Momentum** — a broadcast‑style pressure wave. We don't have an ML model, but we have the same raw inputs TxLINE gives us: possession, the per‑side **threat state**, and attacking events. Home pressure rises green, away dips blue. Watch it swing on a goal or a red card."
+> "The **AI Pundit** watches the same live feed. On a real goal or card, it writes a line with **Claude** and reads it in a natural neural voice — live, on the real match."
+📝 `AI Pundit` · `Claude‑written · neural voice` · `On a REAL event`
 
-📝 **on-screen:** `Match Momentum` · `Possession · threat · shots — from TxLINE`
-
-### گام ۴ — AI Pundit (صدا را بلند کن!)
-- روی کارتِ **AI Pundit** بایست، دکمهٔ **Voice** را روشن کن، بگذار یک گل/کارت اتفاق بیفتد تا صحبت کند.
-
+**گام A4 — Win Probability + آمار روی بازیِ واقعی.** کارتِ **Win Probability**.
 🎙 **SAY:**
-> "Meet the **AI Pundit**. On the big moments — goals, red cards — it calls a line written live by **Claude**, and reads it out loud in a natural neural voice, just like a TV commentator. You can even set its energy from calm to hyped."
+> "The **Win Probability** gauge is the market's own read — implied probability straight from TxLINE's live consensus odds — so it moves the instant the real market reacts. Below: threat, possession, corners, cards, all live."
+📝 `Win Probability` · `Implied from TxLINE odds` · `Live threat · possession · corners · cards`
 
-📝 **on-screen:** `AI Pundit` · `Claude‑written commentary` · `Neural voice · live`
-
-### گام ۵ — Hi‑Lo game
-- روی کارتِ **Hi‑Lo · Possession** بایست. یک بار **Higher** یا **Lower** بزن، بگذار reading بعدی resolve کند، streak را نشان بده.
-
+**گام A5 — Hi‑Lo روی بازیِ واقعی.** کارتِ **Hi‑Lo**؛ یک **Higher/Lower** بزن، بگذار روی reading واقعی resolve شود.
 🎙 **SAY:**
-> "**Hi‑Lo** turns the feed into a game: will the next possession reading go higher or lower? It's never a coin flip — it reads real TxLINE momentum, falls back to a threat‑pressure index when possession is missing, and tracks your streak. Fully shareable."
+> "And it's a game: **Hi‑Lo** — will the next possession reading go higher or lower? It reads real TxLINE momentum, not a coin flip, and it's running on the live match right now."
+📝 `Hi‑Lo · real TxLINE momentum` · `Streaks · shareable`
 
-📝 **on-screen:** `Hi‑Lo · guess the swing` · `Real TxLINE momentum` · `Streaks · shareable`
-
-### گام ۶ — Win Probability + آمار
-- روی کارتِ **Win Probability** بایست (سه‌نوارِ implied prob، متر threat، possession/corners/cards).
-
+**گام A6 — ترکیبِ واقعی.** روی همین بازی کلیک کن → صفحهٔ match → **Starting Lineups**.
 🎙 **SAY:**
-> "The **Win Probability** gauge is the market's own read — the implied probability straight from TxLINE's consensus odds — so it swings the instant the market reacts to a goal or a red card. Below it: threat state, possession, corners, cards — all live."
+> "Open the match and you get the **real confirmed starting eleven and formation**, pulled straight from TxLINE's lineup data and laid out on a pitch."
+📝 `Starting Lineups from TxLINE` · `Real XI + formation`
 
-📝 **on-screen:** `Win Probability` · `Implied from TxLINE odds` · `Threat · possession · corners · cards`
+### 🎮 فاز B — واکنش‌پذیری روی دمو (بعد از بازیِ واقعی)
 
-### گام ۷ — صفحهٔ match: ترکیب + آمارِ عمیق
-- روی هر بازیِ زنده کلیک کن تا صفحهٔ **match detail** باز شود. اسکرول به **Starting Lineups**، بعد **Match Stats**.
-
+**گام B1 — دموی پرحادثه.** ⚡ Command Bridge → outcomeِ **red card / goal‑fest** + **Runs in: 3m** → **Run**.
 🎙 **SAY:**
-> "Open any match and you get the full picture. The **Starting Lineups** — the real confirmed XI and formation pulled from TxLINE, laid out on a pitch. And **Match Stats** with the shot breakdown — on target, off target, blocked — plus goals split by half. Below, a full event **Timeline** and the odds‑movement turning points."
+> "To show the reactivity on demand, I'll replay a dramatic match — a red card and several goals — so you can watch everything respond at once."
+📝 `Command Bridge · dramatic replay`
 
-📝 **on-screen:** `Starting Lineups from TxLINE` · `Real XI + formation` · `Shot breakdown · goals by half` · `Timeline · turning points`
+**گام B2 — واکنشِ هم‌زمان.** روی Momentum + Pundit + Win‑Prob + Hi‑Lo هم‌زمان اشاره کن حین گل/کارت.
+🎙 **SAY:**
+> "There's the goal — the momentum swells, the pundit calls it out loud, the win‑probability jumps, and the whole feed updates in the same instant. One TxLINE stream, every card reacting together."
+📝 `Goal → momentum swings · pundit fires · win‑prob jumps` · `One feed · every card reacts`
+
+**گام B3 — Match Stats عمیق (اختیاری).** صفحهٔ match → **Match Stats** (shot breakdown + goals by half).
+🎙 **SAY:**
+> "And the depth is there too — shots split into on target, off target, blocked, and goals broken down by half."
+📝 `Shot breakdown · goals by half`
 
 ---
 
 ## بخش ۳ — نقشِ TxLINE
 
 🎙 **SAY:**
-> "Every number on this page is TxLINE. The possession split and the danger‑state drive Hi‑Lo and the momentum wave; the consensus odds drive the win‑probability gauge; the score and player‑level events — goals, cards, subs with real player names — drive the feed and the AI Pundit; and the lineup record gives us the confirmed starting eleven and formation. One normalized TxLINE stream fans out to every card in real time — nothing on this page is mocked."
+> "Every number on this page is TxLINE. Possession and danger‑state drive Hi‑Lo and the momentum wave; the consensus odds drive the win‑probability gauge; the score and player‑level events — goals, cards, subs with real player names — drive the feed and the AI Pundit; and the lineup record gives the confirmed eleven and formation. One normalized TxLINE stream fans out to every card in real time — as you saw, live, on a real World Cup match."
 
-**TxLINE endpoints used (بگو یا روی صفحه بیاور):**
-`/api/fixtures/snapshot` · `/api/scores/updates` & `/api/scores/snapshot` (goals, cards, corners, possession, danger, lineups, player IDs) · `/api/odds/snapshot` (consensus 1X2 → implied probability).
+**Endpoints:** `/api/fixtures/snapshot` · `/api/scores/updates` & `/api/scores/snapshot` (goals, cards, corners, possession, danger, lineups, player IDs) · `/api/odds/snapshot` (consensus 1X2 → implied probability).

@@ -3,12 +3,14 @@ import type { BozEvent, OddsSnapshot } from '@bozpicks/shared';
 import { detectSharpMove, DEFAULT_THRESHOLD, DEFAULT_WINDOW_MS } from './detector';
 import { saveSignal, verifySignals } from './tracker';
 import { Arena } from './arena';
+import { MarketMaker } from './marketmaker';
 import { txlineRest } from '@bozpicks/txline-client';
 
 const sub = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
 const arena = new Arena(redis);
+const maker = new MarketMaker(redis);
 const startTime = Date.now();
 let signalCount = 0;
 
@@ -28,8 +30,9 @@ async function pollConfig(): Promise<void> {
   } catch { /* keep last known-good config */ }
 }
 
-console.log('[boz-agent] starting event-driven sharp move detector + arena...');
+console.log('[boz-agent] starting event-driven sharp move detector + arena + market maker...');
 void arena.init();
+void maker.init();
 void pollConfig();
 setInterval(() => { void pollConfig(); }, 5_000);
 
@@ -44,6 +47,9 @@ sub.on('pmessage', async (_pattern: string, channel: string, message: string) =>
 
   // the two arena agents paper-trade every event autonomously
   await arena.onEvent(event);
+  // the market maker quotes + books fills off the same feed (isolated so a
+  // maker error can never take down the detector/arena)
+  await maker.onEvent(event).catch(err => console.error('[boz-mm] event error:', (err as Error).message));
 
   if (event.type === 'ODDS_UPDATE' && event.odds) {
     await handleOddsUpdate(matchId, event);

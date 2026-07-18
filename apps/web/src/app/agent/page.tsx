@@ -7,6 +7,7 @@ import { useLiveMatch } from '@/hooks/useLiveMatch';
 import { useSSEContext } from '@/contexts/SSEContext';
 import { IconRadar, IconBolt } from '@/components/ui/Icons';
 import { AgentArena } from '@/components/ui/AgentArena';
+import { MarketMaker } from '@/components/ui/MarketMaker';
 import { AgentHero } from '@/components/ui/AgentHero';
 import { AgentBanner } from '@/components/ui/AgentBanner';
 import { AgentPipeline } from '@/components/ui/AgentPipeline';
@@ -130,7 +131,7 @@ export default function AgentPage() {
       {/* ── Signal context: pitch pressure with the detector's calls on top ── */}
       <AgentMomentum />
 
-      {/* ── Agent-vs-Agent Arena ── */}
+      {/* ── Three autonomous agents, one TxLINE feed ── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2.5">
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--purple)', boxShadow: '0 0 10px rgba(167,139,250,0.5)' }} />
@@ -138,6 +139,16 @@ export default function AgentPage() {
           <span className="text-[10px] text-gray-600">two strategies · one feed</span>
         </div>
         <AgentArena />
+      </div>
+
+      {/* ── In-Play Market Maker — the third autonomous strategy ── */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgb(6,182,212)', boxShadow: '0 0 10px rgba(6,182,212,0.5)' }} />
+          <h2 className="text-sm font-bold tracking-tight" style={{ color: 'rgb(6,182,212)' }}>In-Play Market Maker</h2>
+          <span className="text-[10px] text-gray-600">quotes both sides · books the spread</span>
+        </div>
+        <MarketMaker />
       </div>
 
       {/* ── Config ── */}

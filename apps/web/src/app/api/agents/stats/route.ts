@@ -11,8 +11,10 @@ export const dynamic = 'force-dynamic';
  *     inflated activeSignals. Grade it here from the final score, using the SAME
  *     rule as the agent's verifySignals: accurate ⇔ (moved‑up) == (backed the
  *     winner). This keeps it in the accuracy track record.
- *  2) ORPHANS: a signal whose match no longer exists (a purged demo) is pure
- *     garbage — delete it.
+ *  2) STALE / ORPHANS: a signal whose match is no longer live (purged, or a
+ *     fixture stuck SCHEDULED after a flaky feed briefly published in-running
+ *     odds) can never be graded — once it's past a short grace window, delete
+ *     it. Seen live: 36 "active" signals sitting on a SCHEDULED friendly.
  * After this, the only unverified signals left belong to matches still in play.
  */
 async function reconcileSignals(): Promise<void> {
@@ -27,11 +29,17 @@ async function reconcileSignals(): Promise<void> {
     FROM boz_matches m
     WHERE s.match_id = m.id AND m.status = 'FINISHED' AND s.outcome_verified = FALSE
   `).catch(() => {});
-  // 2) delete orphaned unverified signals (their match was purged)
+  // 2) delete stale unverified signals whose match is no longer live (SCHEDULED-
+  //    stuck, purged, or ungradeable), older than a 15-min grace window so a
+  //    match mid-transition is never touched. FINISHED ones were graded above.
   await db.query(`
     DELETE FROM boz_signals s
     WHERE s.outcome_verified = FALSE
-      AND NOT EXISTS (SELECT 1 FROM boz_matches m WHERE m.id = s.match_id)
+      AND s.detected_at < NOW() - interval '15 minutes'
+      AND NOT EXISTS (
+        SELECT 1 FROM boz_matches m
+        WHERE m.id = s.match_id AND m.status IN ('LIVE','HALFTIME')
+      )
   `).catch(() => {});
 }
 

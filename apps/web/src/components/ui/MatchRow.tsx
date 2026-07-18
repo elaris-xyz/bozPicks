@@ -5,7 +5,7 @@ import type { MatchState } from '@bozpicks/shared';
 import { formatOdds, type OddsFormat } from '@/hooks/useOddsFormat';
 import { Flag } from './Flag';
 import { Countdown } from './Countdown';
-import { compBadge, type OddsTrend } from './MatchCard';
+import { compBadge, CompGlyph, compGlyphColor, type OddsTrend } from './MatchCard';
 
 /**
  * Compact scan row — the dense counterpart to the poster MatchCard.
@@ -61,6 +61,16 @@ export function MatchRow({
           </button>
         )}
 
+        {/* competition glyph beside the star — cup (WC) / globe (friendly) /
+            play (demo), the same icons as the "All comps" filter; replaces the
+            old inline FRIENDLY/DEMO text next to the away team */}
+        {comp && (
+          <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center" title={comp.text}
+                style={{ color: compGlyphColor(comp) }}>
+            <CompGlyph comp={comp} className="w-3.5 h-3.5" />
+          </span>
+        )}
+
         {/* status / time — fixed column */}
         <div className={`flex-shrink-0 flex flex-col items-center justify-center ${large ? 'w-16 sm:w-20' : 'w-12 sm:w-14'}`}>
           {isLive ? (
@@ -98,15 +108,6 @@ export function MatchRow({
           <div className={`flex items-center justify-between gap-2 ${large ? '' : 'mt-0.5'}`}>
             <span className={`flex items-center min-w-0 font-semibold truncate ${large ? 'gap-2.5 text-base sm:text-lg' : 'gap-2 text-[13px]'}`}>
               <Flag team={match.awayTeam} size={large ? 'md' : 'xs'} /> <span className="truncate">{match.awayTeam}</span>
-              {/* friendlies + demo replays must say so — this is a World Cup product */}
-              {comp && !comp.wc && (
-                <span className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                      style={comp.demo
-                        ? { background: 'rgba(34,211,238,0.12)', color: '#67e8f9', border: '1px solid rgba(34,211,238,0.35)' }
-                        : { background: 'rgba(148,163,184,0.10)', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.22)' }}>
-                  {comp.text}
-                </span>
-              )}
             </span>
             {showScore && (
               <span className={`font-display font-bold tabular-nums flex-shrink-0 ${large ? 'text-2xl sm:text-3xl' : 'text-sm'}`}

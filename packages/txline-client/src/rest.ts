@@ -113,6 +113,10 @@ export interface TxLineupPlayer {
   fixturePlayerId?: number;
   rosterNumber?: string;
   starter?: boolean;
+  positionId?: number;   // 34 = GK, 35 = DEF, 36 = MID, 37 = FWD (confirmed live)
+  unitId?: number;
+  statusId?: number;
+  starred?: boolean;     // captain / featured
   player?: { id?: string; normativeId?: number; preferredName?: string; country?: string; team?: string };
 }
 export interface TxLineup {

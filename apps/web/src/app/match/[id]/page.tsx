@@ -14,6 +14,7 @@ import { ShareModal } from '@/components/ui/ShareModal';
 import { Flag, FlagBleed, FlagCorner, FlagWash } from '@/components/ui/Flag';
 import { TwoSidedTimeline } from '@/components/ui/TwoSidedTimeline';
 import { MomentumRecap } from '@/components/ui/MatchMomentum';
+import { Lineup } from '@/components/ui/Lineup';
 import { IconBall, IconChart, IconTrophy, IconBolt } from '@/components/ui/Icons';
 import { useOddsFormat, formatOdds, type OddsFormat } from '@/hooks/useOddsFormat';
 
@@ -382,6 +383,9 @@ export default function MatchDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Starting Lineups — self-hides unless TxLINE has published the XI ── */}
+      <Lineup fixtureId={id} home={match.homeTeam} away={match.awayTeam} />
 
       {/* ── Match Odds — interactive selector when a pool is open ── */}
       {currentOdds && (() => {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSSE } from '@/hooks/useSSE';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
-import type { SSEMessage, BozEvent, MatchStats, OddsSnapshot, DangerLevel } from '@bozpicks/shared';
+import type { SSEMessage, BozEvent, MatchStats, OddsSnapshot, DangerLevel, MatchState } from '@bozpicks/shared';
 import { CountUp } from './CountUp';
 
 /**
@@ -53,6 +53,25 @@ export function LiveStatsPanel() {
   useEffect(() => {
     if (!isLive) { setStats(null); setOdds(null); }
   }, [isLive]);
+
+  // Seed odds + stats from the live match on mount. Without this the gauge only
+  // fills on a live ODDS_UPDATE tick — and the demo emits those at intervals, so
+  // landing on the page (or any gap between ticks) left "live odds appear at
+  // kick-off" showing mid-match. `prev ?? …` means a live tick always wins.
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/matches', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((list: MatchState[]) => {
+        if (!alive || !Array.isArray(list)) return;
+        const m = list.find(x => x.status === 'LIVE' || x.status === 'HALFTIME');
+        if (!m) return;
+        if (m.currentOdds) setOdds(prev => prev ?? m.currentOdds!);
+        if (m.stats) setStats(prev => prev ?? m.stats!);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const ip = isLive ? odds?.impliedProb : undefined;
   const pHome = ip ? Math.round(ip.home * 100) : 0;

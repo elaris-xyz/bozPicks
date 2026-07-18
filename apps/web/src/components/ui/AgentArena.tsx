@@ -6,6 +6,7 @@ import { useLiveMatch } from '@/hooks/useLiveMatch';
 import type { SSEMessage, BozEvent, OddsSnapshot } from '@bozpicks/shared';
 import {
   initAgent, evaluate, settleAgent, resultFrom, avgClv, winRate, markToMarket,
+  roi, maxDrawdown,
   type AgentState, type AgentId,
 } from '@/lib/arena';
 import { CountUp } from './CountUp';
@@ -31,6 +32,8 @@ function AgentColumn({ agent, career, live, history }: { agent: AgentState; care
   const m = META[agent.id];
   const clv = avgClv(agent);
   const wr = winRate(agent);
+  const roiPct = roi(agent);
+  const dd = maxDrawdown(history);
   return (
     <div className="glass sheen p-4 flex-1" style={{ borderColor: `${m.color}44` }}>
       <div className="flex items-center justify-between mb-3">
@@ -67,6 +70,11 @@ function AgentColumn({ agent, career, live, history }: { agent: AgentState; care
         <span>open <span className="text-gray-300 font-bold">{agent.open.length}</span></span>
         <span>win% <span className="text-gray-300 font-bold">{wr.toFixed(0)}</span></span>
         <span>CLV <span className="font-bold" style={{ color: clv >= 0 ? 'var(--green)' : 'var(--red)' }}>{clv >= 0 ? '+' : ''}{clv.toFixed(1)}%</span></span>
+      </div>
+      {/* desk risk stats — ROI on staked capital + worst peak-to-trough drop */}
+      <div className="flex justify-between mt-1.5 text-[11px] text-gray-500">
+        <span>ROI <span className="font-bold" style={{ color: roiPct >= 0 ? 'var(--green)' : 'var(--red)' }}>{roiPct >= 0 ? '+' : ''}{roiPct.toFixed(1)}%</span></span>
+        <span>max DD <span className="font-bold" style={{ color: dd < -0.01 ? 'var(--amber)' : '#9ca3af' }}>{dd.toFixed(1)}</span></span>
       </div>
 
       {agent.open.length > 0 && (

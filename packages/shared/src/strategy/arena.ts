@@ -126,3 +126,24 @@ export function winRate(agent: AgentState): number {
   if (agent.settled.length === 0) return 0;
   return (agent.settled.filter(b => b.won).length / agent.settled.length) * 100;
 }
+
+/** Return on staked capital: realized P&L over total units risked. */
+export function roi(agent: AgentState): number {
+  const staked = agent.settled.reduce((s, b) => s + b.stake, 0);
+  return staked > 0 ? (agent.realizedPnl / staked) * 100 : 0;
+}
+
+/**
+ * Max drawdown of an equity curve — the largest peak-to-trough drop, in the same
+ * units as the curve (≤ 0). A core risk stat: how deep a hole the strategy dug
+ * before recovering, which win-rate and P&L alone never show.
+ */
+export function maxDrawdown(equity: number[]): number {
+  let peak = -Infinity;
+  let maxDD = 0;
+  for (const v of equity) {
+    if (v > peak) peak = v;
+    if (v - peak < maxDD) maxDD = v - peak;
+  }
+  return maxDD;
+}

@@ -5,5 +5,6 @@
  */
 export {
   initAgent, evaluate, settleAgent, resultFrom, avgClv, winRate, markToMarket,
+  roi, maxDrawdown,
   type AgentId, type AgentState, type Position, type SettledBet,
 } from '@bozpicks/shared';

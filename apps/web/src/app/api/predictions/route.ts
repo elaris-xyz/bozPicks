@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
   const { rows } = await db.query(
     `SELECT p.*, m.home_team, m.away_team, m.home_score, m.away_score, m.status AS match_status,
-            mk.label AS market_label, mk.kind AS market_kind
+            mk.label AS market_label, mk.kind AS market_kind, mk.winning_outcome AS market_result
      FROM boz_predictions p
      JOIN boz_matches m ON m.id = p.match_id
      LEFT JOIN boz_markets mk ON mk.id = p.market_id

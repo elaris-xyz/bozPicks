@@ -24,7 +24,23 @@ type Prediction = {
   match_status: string;
   market_label?: string | null; // prop-market name, e.g. "Total Corners 9.5"
   market_kind?: string | null;
+  market_result?: string | null; // the outcome that actually won, once settled
 };
+
+/**
+ * Postgres returns numeric/bigint columns as STRINGS. Summing them with `+`
+ * concatenates ("0"+"5000000"+… → a 5e+21 monster in Total staked), so coerce
+ * every numeric field to a real number the moment the data lands.
+ */
+function normalizePred(p: Prediction): Prediction {
+  return {
+    ...p,
+    amount_usdc: Number(p.amount_usdc),
+    payout_amount: p.payout_amount == null ? null : Number(p.payout_amount),
+    home_score: Number(p.home_score),
+    away_score: Number(p.away_score),
+  };
+}
 
 const OUTCOME: Record<string, { label: string; color: string }> = {
   HOME: { label: 'Home Win', color: 'var(--green)' },
@@ -60,7 +76,7 @@ export default function PredictionsPage() {
     setLoading(true);
     fetch(`/api/predictions?wallet=${publicKey.toBase58()}`)
       .then(r => r.json())
-      .then(d => setPreds(Array.isArray(d) ? d : []))
+      .then(d => setPreds(Array.isArray(d) ? d.map(normalizePred) : []))
       .catch(() => setPreds([]))
       .finally(() => setLoading(false));
   }, [publicKey]);
@@ -209,14 +225,35 @@ export default function PredictionsPage() {
                             <span className="text-gray-600"> · staked </span>
                             <span className="text-gray-400 font-mono">{usdc(p.amount_usdc)} USDC</span>
                           </p>
+                          {/* once settled, spell out what actually won */}
+                          {p.status !== 'ACTIVE' && p.market_result && (
+                            <p className="text-[10px] mt-0.5 text-gray-600">
+                              resolved{' '}
+                              <span className="font-semibold" style={{ color: outcomeMeta(p.market_result).color }}>
+                                {outcomeMeta(p.market_result).label}
+                              </span>
+                              {p.status === 'WON' ? ' — your pick hit ✓' : ' — your pick missed'}
+                            </p>
+                          )}
                         </div>
-                        {/* status + payout */}
+                        {/* status + payout / loss */}
                         <div className="text-right flex-shrink-0">
                           <span className={`chip-glass ${st.cls}`}>{st.label}</span>
                           {p.status === 'WON' && p.payout_amount != null && (
-                            <p className="text-xs font-bold mt-1.5" style={{ color: 'var(--green)' }}>
-                              +{usdc(p.payout_amount)} USDC
+                            <>
+                              <p className="text-xs font-bold mt-1.5" style={{ color: 'var(--green)' }}>
+                                +{usdc(p.payout_amount)} USDC
+                              </p>
+                              <p className="text-[10px] text-gray-500">net +{usdc(p.payout_amount - p.amount_usdc)}</p>
+                            </>
+                          )}
+                          {p.status === 'LOST' && (
+                            <p className="text-xs font-bold mt-1.5" style={{ color: 'var(--red)' }}>
+                              −{usdc(p.amount_usdc)} USDC
                             </p>
+                          )}
+                          {p.status === 'ACTIVE' && (
+                            <p className="text-[10px] text-gray-600 mt-1.5">awaiting full time</p>
                           )}
                         </div>
                       </div>

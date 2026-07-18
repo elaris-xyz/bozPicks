@@ -138,11 +138,13 @@ export async function finalStatsFromDb(matchId: string): Promise<FinalStats | nu
   // first RUNNING-SCORE increment, which survives a missed/misclassified goal
   // record (e.g. penalty_outcome).
   let cCorners = 0, cCards = 0, nCorners = 0, nCards = 0;
+  let corners1H = 0, cards1H = 0; // 1st-half (≤45') counts, event-derived by minute
   let firstScorer: 'HOME' | 'AWAY' | 'NONE' = 'NONE';
   let prevH = 0, prevA = 0;
   for (const e of evs) {
-    if (e.type === 'CORNER') nCorners++;
-    else if (e.type === 'YELLOW_CARD' || e.type === 'RED_CARD') nCards++;
+    const min = Number(e.match_minute ?? 0);
+    if (e.type === 'CORNER') { nCorners++; if (min <= 45) corners1H++; }
+    else if (e.type === 'YELLOW_CARD' || e.type === 'RED_CARD') { nCards++; if (min <= 45) cards1H++; }
     const st = e.payload?.stats as { cornersHome?: number; cornersAway?: number; yellowHome?: number; yellowAway?: number; redHome?: number; redAway?: number } | undefined;
     if (st) {
       cCorners = Math.max(cCorners, (st.cornersHome ?? 0) + (st.cornersAway ?? 0));
@@ -162,6 +164,7 @@ export async function finalStatsFromDb(matchId: string): Promise<FinalStats | nu
     totalGoals: homeScore + awayScore,
     totalCorners: Math.max(cCorners, nCorners),
     totalCards: Math.max(cCards, nCards),
+    corners1H, cards1H,
     btts: homeScore > 0 && awayScore > 0,
     firstScorer,
   };

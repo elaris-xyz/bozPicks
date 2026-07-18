@@ -204,12 +204,15 @@ export type MarketKind =
   | 'TOTAL_GOALS'     // outcomes: OVER | UNDER  (needs line)
   | 'TOTAL_CORNERS'   // outcomes: OVER | UNDER  (needs line)
   | 'TOTAL_CARDS'     // outcomes: OVER | UNDER  (needs line)
+  | 'CORNERS_1H'      // outcomes: OVER | UNDER  — 1st-half corners (period-H1 proof)
+  | 'CARDS_1H'        // outcomes: OVER | UNDER  — 1st-half cards   (period-H1 proof)
   | 'BTTS'            // outcomes: YES | NO
   | 'FIRST_SCORER';   // outcomes: HOME | AWAY | NONE
 
 /** The TxLINE stat a market resolves against (used as the validate_stat key). */
 export type StatKey =
   | 'GOALS_TOTAL' | 'CORNERS_TOTAL' | 'CARDS_TOTAL'
+  | 'CORNERS_1H' | 'CARDS_1H'
   | 'GOALS_HOME' | 'GOALS_AWAY' | 'RESULT' | 'FIRST_SCORER';
 
 export type MarketStatus = 'OPEN' | 'LOCKED' | 'SETTLED' | 'VOID';

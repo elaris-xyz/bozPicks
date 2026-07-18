@@ -25,6 +25,8 @@ const KIND: Record<string, { color: string; icon: ReactNode }> = {
   TOTAL_GOALS:   { color: '#3b82f6', icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7.5l4 2.9-1.5 4.6h-5L8 10.4z" strokeLinejoin="round" /></> },
   TOTAL_CORNERS: { color: '#f59e0b', icon: <path d="M6 3v18M6 4h11l-3 3 3 3H6" strokeLinecap="round" strokeLinejoin="round" /> },
   TOTAL_CARDS:   { color: '#eab308', icon: <rect x="7" y="4" width="10" height="16" rx="1.5" /> },
+  CORNERS_1H:    { color: '#fbbf24', icon: <path d="M6 3v18M6 4h11l-3 3 3 3H6" strokeLinecap="round" strokeLinejoin="round" /> },
+  CARDS_1H:      { color: '#facc15', icon: <rect x="7" y="4" width="10" height="16" rx="1.5" /> },
   BTTS:          { color: '#a78bfa', icon: <><circle cx="8" cy="12" r="3" /><circle cx="16" cy="12" r="3" /></> },
   FIRST_SCORER:  { color: '#06b6d4', icon: <><circle cx="12" cy="12" r="9" /><path d="M11 8.5l2-1V16M10 16h4" strokeLinecap="round" strokeLinejoin="round" /></> },
 };
@@ -691,7 +693,7 @@ export function MarketsPanel() {
   if (markets.length === 0) {
     return (
       <div className="glass rounded-2xl p-6 text-center" style={{ borderStyle: 'dashed' }}>
-        <p className="text-sm text-gray-500">Six prop markets — Match Result, Total Goals/Corners/Cards, BTTS, First Goal —</p>
+        <p className="text-sm text-gray-500">Eight prop markets — Match Result, Total Goals/Corners/Cards, 1st-Half Corners/Cards, BTTS, First Goal —</p>
         <p className="text-sm text-gray-500">open here the moment a match kicks off.</p>
       </div>
     );

@@ -60,7 +60,7 @@ export function MarketsBanner() {
             <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="#fff"><path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z" /></svg>
           </span>{' '}
           <span className="font-bold text-[var(--blue)]">Command Bridge</span> (bottom-left) to run a match —
-          six prop markets open instantly and settle from a TxLINE proof at full time.
+          eight prop markets open instantly and settle from a TxLINE proof at full time.
         </p>
       </div>
     );

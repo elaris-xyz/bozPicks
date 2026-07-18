@@ -11,6 +11,7 @@ import { statKey } from '@bozpicks/txline-client';
 export interface FinalStats {
   homeScore: number; awayScore: number;
   totalGoals: number; totalCorners: number; totalCards: number;
+  corners1H: number; cards1H: number; // 1st-half counters (period-H1 proof)
   btts: boolean; firstScorer: 'HOME' | 'AWAY' | 'NONE';
 }
 
@@ -31,6 +32,10 @@ const TEMPLATES: Template[] = [
     label: (_h, _a, l) => `Total Corners Over/Under ${l}` },
   { kind: 'TOTAL_CARDS',   statKey: 'CARDS_TOTAL',   line: 4.5, outcomes: ['OVER', 'UNDER'],
     label: (_h, _a, l) => `Total Cards Over/Under ${l}` },
+  { kind: 'CORNERS_1H',    statKey: 'CORNERS_1H',    line: 4.5, outcomes: ['OVER', 'UNDER'],
+    label: (_h, _a, l) => `1st-Half Corners Over/Under ${l}` },
+  { kind: 'CARDS_1H',      statKey: 'CARDS_1H',      line: 1.5, outcomes: ['OVER', 'UNDER'],
+    label: (_h, _a, l) => `1st-Half Cards Over/Under ${l}` },
   { kind: 'BTTS',          statKey: 'GOALS_HOME',    outcomes: ['YES', 'NO'],
     label: () => `Both Teams To Score` },
   { kind: 'FIRST_SCORER',  statKey: 'FIRST_SCORER',  outcomes: ['HOME', 'AWAY', 'NONE'],
@@ -55,6 +60,9 @@ export const TXLINE_STAT_KEYS: Record<MarketKind, number[]> = {
   FIRST_SCORER:  G,                                            // anchored by goals (order from goal events)
   TOTAL_CORNERS: [statKey('CORNERS', 1), statKey('CORNERS', 2)],                     // [7, 8]
   TOTAL_CARDS:   [statKey('YELLOW', 1), statKey('YELLOW', 2), statKey('RED', 1), statKey('RED', 2)], // [3,4,5,6]
+  // 1st-half markets prove the SAME base keys under the H1 period prefix (1000)
+  CORNERS_1H:    [statKey('CORNERS', 1, 'H1'), statKey('CORNERS', 2, 'H1')],          // [1007, 1008]
+  CARDS_1H:      [statKey('YELLOW', 1, 'H1'), statKey('YELLOW', 2, 'H1'), statKey('RED', 1, 'H1'), statKey('RED', 2, 'H1')], // [1003,1004,1005,1006]
 };
 
 export function buildMarketsForMatch(matchId: string, home: string, away: string, escrowPda: string): PropMarket[] {
@@ -87,6 +95,10 @@ export function resolveMarket(m: PropMarket, f: FinalStats): { winningOutcome: s
       return { winningOutcome: f.totalCorners > (m.line ?? 9.5) ? 'OVER' : 'UNDER', statValue: f.totalCorners };
     case 'TOTAL_CARDS':
       return { winningOutcome: f.totalCards > (m.line ?? 4.5) ? 'OVER' : 'UNDER', statValue: f.totalCards };
+    case 'CORNERS_1H':
+      return { winningOutcome: f.corners1H > (m.line ?? 4.5) ? 'OVER' : 'UNDER', statValue: f.corners1H };
+    case 'CARDS_1H':
+      return { winningOutcome: f.cards1H > (m.line ?? 1.5) ? 'OVER' : 'UNDER', statValue: f.cards1H };
     case 'BTTS':
       return { winningOutcome: f.btts ? 'YES' : 'NO', statValue: f.btts ? 1 : 0 };
     case 'FIRST_SCORER':

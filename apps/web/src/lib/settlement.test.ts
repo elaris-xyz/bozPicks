@@ -37,15 +37,27 @@ for (const s of SCENARIO_LIST) {
     assert.equal(final.firstScorer, s.firstScorer, 'first scorer');
   });
 
-  test(`scenario "${s.key}" → all 6 markets resolve to the expected outcome`, () => {
+  test(`scenario "${s.key}" → all markets resolve to a valid outcome`, () => {
     const { final } = generateMatchReplay('m1', HOME, AWAY, { scenario: s });
     const markets = buildMarketsForMatch('m1', HOME, AWAY, 'EscrowPda11111111111111111111111111111111');
-    assert.equal(markets.length, 6, 'six markets');
+    assert.equal(markets.length, 8, 'eight markets');
     for (const m of markets) {
       const { winningOutcome } = resolveMarket(m, final);
-      assert.equal(winningOutcome, EXPECTED[s.key][m.kind], `${s.key} · ${m.kind}`);
       assert.ok(m.outcomes.includes(winningOutcome), 'winner is a valid outcome');
+      const expected = EXPECTED[s.key][m.kind]; // 1st-half markets aren't in the fixed map
+      if (expected) assert.equal(winningOutcome, expected, `${s.key} · ${m.kind}`);
     }
+  });
+
+  test(`scenario "${s.key}" → 1st-half counts are ≤ totals and resolve consistently`, () => {
+    const { final } = generateMatchReplay('m1', HOME, AWAY, { scenario: s });
+    assert.ok(final.corners1H <= final.totalCorners, '1H corners ≤ total');
+    assert.ok(final.cards1H <= final.totalCards, '1H cards ≤ total');
+    const markets = buildMarketsForMatch('m1', HOME, AWAY, 'EscrowPda11111111111111111111111111111111');
+    const c1h = markets.find(m => m.kind === 'CORNERS_1H')!;
+    const k1h = markets.find(m => m.kind === 'CARDS_1H')!;
+    assert.equal(resolveMarket(c1h, final).winningOutcome, final.corners1H > (c1h.line ?? 4.5) ? 'OVER' : 'UNDER');
+    assert.equal(resolveMarket(k1h, final).winningOutcome, final.cards1H > (k1h.line ?? 1.5) ? 'OVER' : 'UNDER');
   });
 }
 

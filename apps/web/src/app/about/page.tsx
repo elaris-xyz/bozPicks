@@ -148,7 +148,7 @@ export default function AboutPage() {
           {[
             { n: '1', title: 'Open the Command Bridge', desc: 'The ⚡ icon, bottom-left on every page — pick a REAL TxLINE fixture and the exact outcome you want.', color: '#3b82f6' },
             { n: '2', title: 'Run the match', desc: 'Every page reacts live: feed, Hi-Lo, pundit voice, markets, agents — all off one SSE stream.', color: '#10b981' },
-            { n: '3', title: 'Verify the settlement', desc: 'All six markets resolve to your chosen outcome with proof receipts. Or run `pnpm --filter=web test` — 47 deterministic tests.', color: '#a78bfa' },
+            { n: '3', title: 'Verify the settlement', desc: 'All eight markets resolve to your chosen outcome with proof receipts. Or run `pnpm --filter=web test` — 47 deterministic tests.', color: '#a78bfa' },
           ].map(s => (
             <div key={s.n} className="rounded-xl p-3.5" style={{ background: `${s.color}0d`, border: `1px solid ${s.color}33` }}>
               <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black mb-2"

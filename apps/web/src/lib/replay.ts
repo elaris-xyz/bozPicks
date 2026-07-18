@@ -26,6 +26,7 @@ export interface ReplayResult {
   final: {
     homeScore: number; awayScore: number;
     totalGoals: number; totalCorners: number; totalCards: number;
+    corners1H: number; cards1H: number;
     btts: boolean; firstScorer: 'HOME' | 'AWAY' | 'NONE';
   };
 }
@@ -168,6 +169,7 @@ export function generateMatchReplay(
 
   // accumulators
   let hScore = 0, aScore = 0, hCorners = 0, aCorners = 0, hY = 0, aY = 0, hR = 0, aR = 0;
+  let cornersH1 = 0, cardsH1 = 0; // 1st-half (≤45') counters for the H1 markets
   let possession = 50, firstScorer: 'HOME' | 'AWAY' | 'NONE' = 'NONE';
   const steps: ReplayStep[] = [];
 
@@ -188,16 +190,19 @@ export function generateMatchReplay(
       case 'CORNER':
         type = 'CORNER';
         if (a.side === 'home') hCorners++; else aCorners++;
+        if (minute <= 45) cornersH1++;
         ev.team = a.side === 'home' ? homeTeam : awayTeam;
         break;
       case 'YELLOW_CARD':
         type = 'YELLOW_CARD';
         if (a.side === 'home') hY++; else aY++;
+        if (minute <= 45) cardsH1++;
         ev.team = a.side === 'home' ? homeTeam : awayTeam; ev.player = a.player;
         break;
       case 'RED_CARD':
         type = 'RED_CARD';
         if (a.side === 'home') hR++; else aR++;
+        if (minute <= 45) cardsH1++;
         ev.team = a.side === 'home' ? homeTeam : awayTeam; ev.player = a.player;
         break;
       case 'SUBSTITUTION':
@@ -267,6 +272,7 @@ export function generateMatchReplay(
       totalGoals: hScore + aScore,
       totalCorners: hCorners + aCorners,
       totalCards: hY + aY + hR + aR,
+      corners1H: cornersH1, cards1H: cardsH1,
       btts: hScore > 0 && aScore > 0,
       firstScorer,
     },

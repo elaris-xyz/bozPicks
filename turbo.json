@@ -9,8 +9,14 @@
     "SHARP_WINDOW_MS",
     "LOG_EVENTS",
     "NEXT_PUBLIC_SOLANA_NETWORK",
+    "NEXT_PUBLIC_RPC_URL",
     "BOZPICKS_PROGRAM_ID",
-    "SETTLEMENT_KEEPER_KEYPAIR"
+    "SETTLEMENT_KEEPER_KEYPAIR",
+    "SOLANA_RPC",
+    "TREASURY_SECRET_KEY",
+    "TREASURY_LAMPORTS_PER_USD",
+    "NEXT_PUBLIC_TREASURY_ADDRESS",
+    "NEXT_PUBLIC_LAMPORTS_PER_USD"
   ],
   "tasks": {
     "build": {
@@ -28,6 +34,7 @@
     "lint": {},
     "type-check": {
       "dependsOn": ["^build"]
-    }
+    },
+    "test": {}
   }
 }

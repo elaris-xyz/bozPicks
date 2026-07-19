@@ -4,15 +4,20 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
-    "lint": "turbo lint",
+    "lint": "eslint .",
     "type-check": "turbo type-check",
+    "test": "turbo test",
     "ingest": "pnpm --filter=ingest start",
     "agent": "pnpm --filter=agent start"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^20.0.0",
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0",
     "turbo": "^2.0.0",
     "typescript": "^5.4.0",
-    "@types/node": "^20.0.0"
+    "typescript-eslint": "^8.64.0"
   },
   "packageManager": "pnpm@9.15.9",
   "engines": {

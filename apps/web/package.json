@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src",
     "type-check": "tsc --noEmit",
     "test": "tsx --test src/lib/settlement.test.ts src/lib/hilo.test.ts src/lib/statkeys.test.ts src/lib/statproof.test.ts src/lib/momentum.test.ts src/lib/marketmaker.test.ts src/lib/arena.test.ts src/lib/solana.test.ts src/lib/clv.test.ts"
   },

@@ -102,7 +102,7 @@ every widget on every page can be shown reacting live, on demand.
   | 1st-Half Corners O/U | 4.5 | corners, period H1 |
   | 1st-Half Cards O/U | 1.5 | cards, period H1 |
   | Both Teams To Score | — | goals home & away |
-  | First Goal Scorer | — | first goal event |
+  | First Goal | — | first goal event |
 
 - **Parimutuel pools in USDC** — stakes pooled, winners split the pot pro-rata
   minus a fee (`packages/shared/src/utils/parimutuel.ts`).
@@ -115,8 +115,12 @@ every widget on every page can be shown reacting live, on demand.
   winning outcome, the exact stat, the Merkle proof, and a link to the on-chain
   validation tx. Results labelled **Verified** carry a real proof; upcoming
   fixtures show **Simulated** so nothing is ever over-claimed.
-- **Live real-proof verifier** (`/markets` → *Verify a real result*): fetch and
-  verify a genuine finished-match proof end-to-end, nothing bundled.
+- **Live real-proof verifier** (`/markets` → *Verify a real result*): fetch a
+  genuine finished-match proof and re-fold TxLINE's Merkle path **in your browser**
+  to reproduce their committed root — trustless verification against real
+  cryptography, nothing bundled. (Confirmed live on **England 1–2 Argentina**,
+  fixture `#18241006`, `game_finalised` seq 962 — each ScoreStat leaf hashed with
+  `sha256(key | value | period=100)` and matched to TxLINE's own `eventStatRoot`.)
 
 Related: [`apps/web/src/lib/markets.ts`](apps/web/src/lib/markets.ts),
 [`settle.ts`](apps/web/src/lib/settle.ts),
@@ -412,23 +416,53 @@ mid-video); and the vault plainly states it moves no real tokens.
 
 ## Screenshots
 
-> _Add images here._ Drop files into `docs/assets/` and reference them below.
-> Suggested set (send me these and I'll wire them in):
+### Track 2 · Fan experience — [`/play`](https://boz-picks.vercel.app/play)
 
-| File | Shot |
-|---|---|
-| `docs/assets/play.png` | `/play` — Hi-Lo + momentum + pundit during a live match |
-| `docs/assets/markets.png` | `/markets` — the 8 prop markets |
-| `docs/assets/receipt.png` | a settled market's verifiable-resolution receipt |
-| `docs/assets/agent.png` | `/agent` — the arena + sharp-move accuracy dashboard |
-| `docs/assets/command-bridge.png` | the Command Bridge fixture/scenario picker |
-| `docs/assets/vault.png` | the vault modal (deposit → stake → cash out) |
+![bozPicks fan experience — live Brazil vs Argentina](docs/assets/play.png)
 
-<!--
-Example once files are added:
-![Fan game](docs/assets/play.png)
-![Markets](docs/assets/markets.png)
--->
+_"Read the game as it happens."_ — the broadcast **Match Momentum** curve, the
+**AI Pundit** calling the big moments with neural voice, **Hi-Lo** stat streaks,
+and a **win-probability gauge** that swings on every goal. Every number updates the
+instant the ball does.
+
+### Track 1 · Markets & settlement — [`/markets`](https://boz-picks.vercel.app/markets)
+
+![bozSettle markets — 8 prop markets settled by proof](docs/assets/markets.png)
+
+_"Back the call. Settled by proof."_ — all **8 USDC parimutuel prop markets**, the
+live **order-flow** rail, and the trustless settlement pipeline
+(**Full time → Merkle proof → `validate_stat` → payout**). No trusted oracle.
+
+![Verifiable resolution receipt](docs/assets/receipt.png)
+
+Every settled market opens a **Verifiable Resolution** receipt: the resolving stat,
+the TxLINE stat keys, the fixture + record, the **Merkle root** and the proof path —
+each field checkable by hand. _"Decided by ONE number from TxLINE's own data — not
+by us."_
+
+### Track 3 · Agents — [`/agent`](https://boz-picks.vercel.app/agent)
+
+![bozAgent — headless trading agents](docs/assets/agent.png)
+
+_"Read the market. Act on the move."_ — the **Sharp-Move Detector** scorecard
+(signals · accuracy · self-graded), the **Momentum-vs-Contrarian Arena**, and the
+**In-Play Market Maker** quoting both sides. All headless, no human in the loop.
+
+### Command Bridge & Game Vault
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/command-bridge.png" alt="Command Bridge" /></td>
+<td width="50%"><img src="docs/assets/vault.png" alt="Game Vault" /></td>
+</tr>
+<tr>
+<td align="center"><em>Replay any real TxLINE fixture with a chosen outcome + speed — the demo driver.</em></td>
+<td align="center"><em>The one-signature devnet vault, honestly labelled as a simulated balance.</em></td>
+</tr>
+</table>
+
+> Save the image files into [`docs/assets/`](docs/assets) with the exact names
+> above and they render here automatically.
 
 ---
 

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import type { PoolClient } from 'pg';
 import { db } from '@/lib/db';
 
 /**
@@ -133,57 +134,73 @@ export async function reconcileVault(wallet: string): Promise<number> {
  * that would overdraw throws InsufficientFunds (nothing is written). Deposits
  * bump lifetime `deposited`; wins bump lifetime `won`. Returns the new balance.
  */
-export async function moveVault(opts: {
+export interface MoveVaultOpts {
   wallet: string;
   delta: number;         // signed micro
   kind: LedgerKind;
   ref?: string;
   txSig?: string;
   requireExisting?: boolean; // WIN/REFUND: only touch wallets that actually have a vault (skip bots)
-}): Promise<number> {
+}
+
+/**
+ * Core movement — MUST run inside a transaction the caller already opened on
+ * `client` (the caller owns BEGIN/COMMIT/ROLLBACK and should have set a
+ * lock_timeout). Use this to fold a vault movement into a larger atomic unit
+ * of work — e.g. the predict route debits the vault, grows the pool and writes
+ * the prediction row in ONE transaction, so a mid-flight failure can never
+ * leave the player charged with no stake recorded. Throws InsufficientFunds on
+ * a debit that would overdraw (nothing written); the caller's ROLLBACK undoes
+ * everything else in the same transaction. Standalone callers want moveVault().
+ */
+export async function moveVaultTx(client: PoolClient, opts: MoveVaultOpts): Promise<number> {
   const { wallet, delta, kind, ref, txSig, requireExisting } = opts;
+  const cur = await client.query(
+    `SELECT balance_micro FROM boz_vault WHERE wallet_address=$1 FOR UPDATE`,
+    [wallet]
+  );
+  if (cur.rows.length === 0 && requireExisting) {
+    return 0; // e.g. a bot won — no player vault to credit
+  }
+  const before = cur.rows.length ? Number(cur.rows[0].balance_micro) : 0;
+  const after = before + delta;
+  if (after < 0) throw new InsufficientFunds(before);
+
+  const depBump   = kind === 'DEPOSIT'  ? delta : 0;
+  const wonBump   = kind === 'WIN'      ? delta : 0;
+  // STAKE (delta<0) grows the lifetime staked total; REFUND (delta>0) shrinks
+  // it back — "staked" is NET, so the on-screen equation
+  // deposited − staked + won − withdrawn = balance holds through refunds too.
+  const stakeBump = kind === 'STAKE' || kind === 'REFUND' ? -delta : 0;
+  const wdBump    = kind === 'WITHDRAW' ? -delta : 0;
+  await client.query(
+    `INSERT INTO boz_vault (wallet_address, balance_micro, deposited_micro, won_micro, staked_micro, withdrawn_micro, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,NOW())
+     ON CONFLICT (wallet_address) DO UPDATE SET
+       balance_micro   = $2,
+       deposited_micro = boz_vault.deposited_micro + $3,
+       won_micro       = boz_vault.won_micro + $4,
+       staked_micro    = boz_vault.staked_micro + $5,
+       withdrawn_micro = boz_vault.withdrawn_micro + $6,
+       updated_at = NOW()`,
+    [wallet, after, depBump, wonBump, stakeBump, wdBump]
+  );
+  await client.query(
+    `INSERT INTO boz_vault_ledger (id, wallet_address, kind, amount_micro, balance_after, ref, tx_sig)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [randomUUID(), wallet, kind, delta, after, ref ?? null, txSig ?? null]
+  );
+  return after;
+}
+
+export async function moveVault(opts: MoveVaultOpts): Promise<number> {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
     // never wait forever on a contended row lock — settlement calls this in a
     // loop and must not hang if a row is momentarily locked
     await client.query(`SET LOCAL lock_timeout = '5s'`);
-    const cur = await client.query(
-      `SELECT balance_micro FROM boz_vault WHERE wallet_address=$1 FOR UPDATE`,
-      [wallet]
-    );
-    if (cur.rows.length === 0 && requireExisting) {
-      await client.query('ROLLBACK');
-      return 0; // e.g. a bot won — no player vault to credit
-    }
-    const before = cur.rows.length ? Number(cur.rows[0].balance_micro) : 0;
-    const after = before + delta;
-    if (after < 0) { await client.query('ROLLBACK'); throw new InsufficientFunds(before); }
-
-    const depBump   = kind === 'DEPOSIT'  ? delta : 0;
-    const wonBump   = kind === 'WIN'      ? delta : 0;
-    // STAKE (delta<0) grows the lifetime staked total; REFUND (delta>0) shrinks
-    // it back — "staked" is NET, so the on-screen equation
-    // deposited − staked + won − withdrawn = balance holds through refunds too.
-    const stakeBump = kind === 'STAKE' || kind === 'REFUND' ? -delta : 0;
-    const wdBump    = kind === 'WITHDRAW' ? -delta : 0;
-    await client.query(
-      `INSERT INTO boz_vault (wallet_address, balance_micro, deposited_micro, won_micro, staked_micro, withdrawn_micro, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,NOW())
-       ON CONFLICT (wallet_address) DO UPDATE SET
-         balance_micro   = $2,
-         deposited_micro = boz_vault.deposited_micro + $3,
-         won_micro       = boz_vault.won_micro + $4,
-         staked_micro    = boz_vault.staked_micro + $5,
-         withdrawn_micro = boz_vault.withdrawn_micro + $6,
-         updated_at = NOW()`,
-      [wallet, after, depBump, wonBump, stakeBump, wdBump]
-    );
-    await client.query(
-      `INSERT INTO boz_vault_ledger (id, wallet_address, kind, amount_micro, balance_after, ref, tx_sig)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [randomUUID(), wallet, kind, delta, after, ref ?? null, txSig ?? null]
-    );
+    const after = await moveVaultTx(client, opts);
     await client.query('COMMIT');
     return after;
   } catch (e) {

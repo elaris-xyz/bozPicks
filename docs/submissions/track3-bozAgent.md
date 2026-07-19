@@ -66,11 +66,3 @@ TxLINE event stream over Redis pub/sub, no browser and no human input:
 - **Friction:** for cross-book "steam" detection we'd want the per-`Bookmaker`
   breakdown on the stream (not only snapshots), and a documented rate cadence for
   the 60s free tier so agents can align their windows exactly.
-
-## API feedback
-- **Loved:** the demargined **StablePrice** consensus odds + implied `Pct` — a
-  clean, single-source probability that makes move detection and CLV trustworthy
-  without stitching bookmakers together.
-- **Friction:** for cross-book "steam" detection we'd want the per-`Bookmaker`
-  breakdown surfaced on the stream (not only snapshots), and a documented rate
-  cadence for the 60s free tier so agents can align their windows exactly.

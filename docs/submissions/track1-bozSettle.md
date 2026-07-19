@@ -12,9 +12,10 @@ carries an on-chain Merkle proof receipt, so no one has to trust an oracle.
   ([Explorer](https://explorer.solana.com/address/GxH4pi5NY8qKd9vNuYqYT6UWW7jTsjaCFFy233KFTNYh?cluster=devnet))
 
 ## Core idea
-Six market kinds are auto-generated for every fixture from the TxLINE stat feed:
-Match Result, Total Goals O/U, **Total Corners O/U**, Total Cards O/U, BTTS, and
-First Scorer. Each is a **USDC parimutuel pool** (winners split the pot minus a
+Eight market kinds are auto-generated for every fixture from the TxLINE stat feed:
+Match Result, Total Goals O/U, **Total Corners O/U**, Total Cards O/U, **1st-Half
+Corners O/U**, **1st-Half Cards O/U**, BTTS, and First Goal. Each is a **USDC
+parimutuel pool** (winners split the pot minus a
 2% fee). When the match reaches full-time, a keeper reads the final SoccerScore,
 resolves each market **deterministically**, pulls the TxLINE **Merkle proof** for
 the deciding stat, and CPIs into TxLINE's `validate_stat` — releasing USDC to
@@ -45,11 +46,11 @@ receipt** for every market (stat key/value, Merkle root, proof nodes, and the
 - **Vault-backed stakes:** users deposit devnet SOL once into the vault and
   stake instantly (Postgres ledger + on-chain reconciliation) — no per-bet
   wallet friction, clean cash-out path.
-- **Judge-runnable proof:** `pnpm --filter=web test` — 35 deterministic tests
+- **Judge-runnable proof:** `pnpm --filter=web test` — 38 deterministic tests
   covering every Command-Bridge scenario → market resolution → parimutuel payout
   (pool conservation, refunds, odds/implied consistency). Zero mocks.
 - **Command Bridge** (bottom-left ⚡ on every page): pick a real TxLINE fixture,
-  choose the exact outcome, run — all six markets settle to it, verifiably.
+  choose the exact outcome, run — all eight markets settle to it, verifiably.
 
 ## Settlement path (the real one)
 1. Select the decisive record: `Action = game_finalised` (statusId 100; the

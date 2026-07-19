@@ -108,6 +108,11 @@ export function CinematicFX() {
   const [burst, setBurst] = useState<Burst | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFire = useRef(0);
+  // The REST snapshot poller shares no dedup state with the scores SSE, so a
+  // goal/card the SSE already delivered gets re-published minutes later. Fire
+  // each event id exactly once — otherwise the ball + sound replay as if a
+  // fresh goal was just scored.
+  const fired = useRef<Set<string>>(new Set());
 
   const fire = useCallback((b: BurstInput) => {
     // debounce rapid duplicates (SSE catch-up can replay recent events)
@@ -124,6 +129,9 @@ export function CinematicFX() {
       if (msg.type !== 'event' || !msg.data) return;
       const e = msg.data as BozEvent;
       if (msg.catchup) return; // history replay, not a live moment
+      if (e.type !== 'GOAL' && e.type !== 'RED_CARD' && e.type !== 'MATCH_START' && e.type !== 'MATCH_END') return;
+      if (e.id && fired.current.has(e.id)) return; // already fired — re-delivery
+      if (e.id) fired.current.add(e.id);
       if (e.type === 'GOAL') { fire({ kind: 'GOAL', team: e.team, score: e.score }); playSfx('goal'); }
       else if (e.type === 'RED_CARD') { fire({ kind: 'RED', team: e.team }); playSfx('red'); }
       else if (e.type === 'MATCH_START') { fire({ kind: 'START' }); playSfx('settle'); }

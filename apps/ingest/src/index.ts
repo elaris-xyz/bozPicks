@@ -56,6 +56,12 @@ async function start() {
     };
   }
 
+  // Highest scores-record Seq published per fixture — SHARED between the live
+  // scores SSE and the REST snapshot poller so neither re-publishes a record the
+  // other already delivered. Without this the poller would re-emit a goal the
+  // SSE showed in real time, replaying the ball + goal sound minutes later.
+  const lastSeqByFixture: Record<string, number> = {};
+
   // Per-fixture PlayerId → name/number map, built lazily from the fixture's
   // lineup records (which arrive in the scores snapshot). Resolving a goal/card/
   // sub's numeric PlayerId to "Mbappé · #10" needs these; without them the
@@ -80,8 +86,13 @@ async function start() {
   const stopScores = connectScoresStream(undefined, {
     onMessage: async (scores: TxScores) => {
       const fid = String((scores as unknown as { FixtureId?: number }).FixtureId);
+      // dedup against the REST poller: skip a record it already published, and
+      // claim this Seq so the poller skips it in turn.
+      const seq = (scores as unknown as { Seq?: number }).Seq ?? 0;
+      if (seq && seq <= (lastSeqByFixture[fid] ?? 0)) return;
       const event = scoresEventToBozEvent(scores, fixtureNames[fid], await ensurePlayers(fid));
       if (!event) return;
+      if (seq) lastSeqByFixture[fid] = Math.max(lastSeqByFixture[fid] ?? 0, seq);
       await Promise.all([publish(event), record(event)]);
       if (process.env.LOG_EVENTS === 'true') {
         console.log(`[SCORE] ${event.type} match=${event.matchId} min=${event.matchMinute}`);
@@ -120,7 +131,6 @@ async function start() {
   // over plain REST (the auth path we know works — it loaded the fixtures) for
   // any match whose kickoff has passed and isn't finished, and feed the new
   // records through the same normalizer/publisher. Dedupe by highest seq.
-  const lastSeqByFixture: Record<string, number> = {};
   const kickoffMs: Record<string, number> = {};
   for (const f of fixtures) kickoffMs[String(f.FixtureId)] = new Date(f.StartTime).getTime();
 
@@ -155,7 +165,8 @@ async function start() {
           const event = scoresEventToBozEvent(s, fixtureNames[id], fixturePlayers[id]);
           if (event) await Promise.all([publish(event), record(event)]);
         }
-        lastSeqByFixture[id] = maxSeq;
+        // the SSE may have advanced this while we awaited — never rewind it
+        lastSeqByFixture[id] = Math.max(lastSeqByFixture[id] ?? 0, maxSeq);
         if (maxSeq > seen && process.env.LOG_EVENTS === 'true') {
           console.log(`[SNAPSHOT] ${id} caught up to seq=${maxSeq}`);
         }

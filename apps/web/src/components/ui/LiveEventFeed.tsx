@@ -85,6 +85,21 @@ export function LiveEventFeed() {
   // feed emits dozens per minute) — they carry nothing a viewer can read, so
   // they never become cards; every card's footer already shows the live score.
   const [events, setEvents] = useState<BozEvent[]>(() => recentEvents().filter(e => e.type !== 'SCORE_UPDATE'));
+  // Current score per match, harvested from EVERY event that carries one —
+  // including the routine SCORE_UPDATE ticks we never render as cards. The card
+  // footer is a match-identity strip (flag · score · vs · score · flag), so it
+  // must show the match's live score, not each card's frozen `e.score` (odds
+  // cards carry none → they used to read a stale 0–0).
+  const [scores, setScores] = useState<Record<string, { home: number; away: number; ts: number }>>(() => {
+    const m: Record<string, { home: number; away: number; ts: number }> = {};
+    for (const e of recentEvents()) {
+      if (!e.score) continue;
+      const t = new Date(e.timestamp).getTime();
+      const cur = m[e.matchId];
+      if (!cur || t >= cur.ts) m[e.matchId] = { home: e.score.home, away: e.score.away, ts: t };
+    }
+    return m;
+  });
   const [connected, setConnected] = useState(false);
   const [meta, setMeta] = useState<Record<string, Meta>>({});
   const [finished, setFinished] = useState<Set<string>>(new Set());
@@ -122,6 +137,17 @@ export function LiveEventFeed() {
       }
       if (msg.type === 'event' && msg.data) {
         const e = msg.data as BozEvent;
+        // keep the live score fresh from every score-bearing event (incl. the
+        // routine SCORE_UPDATE ticks we drop as cards) — guard by timestamp so a
+        // record re-delivered late by the REST poller can't rewind the score.
+        if (e.score) {
+          const t = new Date(e.timestamp).getTime();
+          setScores(prev => {
+            const cur = prev[e.matchId];
+            if (cur && t < cur.ts) return prev;
+            return { ...prev, [e.matchId]: { home: e.score!.home, away: e.score!.away, ts: t } };
+          });
+        }
         if (e.type === 'SCORE_UPDATE') return; // routine stat tick — not a feed moment
         if (e.type === 'MATCH_START') { activeMatch.current = e.matchId; loadMeta.current(); }
         if (e.type === 'MATCH_END') setFinished(f => new Set(f).add(e.matchId));
@@ -182,6 +208,7 @@ export function LiveEventFeed() {
               const newest = idx === 0 && !dead;
               const c = dead ? '#64748b' : cfg.color;
               const m = meta[e.matchId];
+              const sc = scores[e.matchId] ?? e.score ?? { home: 0, away: 0 };
               const detail = detailOf(e);
 
               return (
@@ -229,9 +256,9 @@ export function LiveEventFeed() {
                   <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 flex-shrink-0"
                        style={{ background: 'rgba(3,7,18,0.55)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                     <Flag team={m?.home} size="xs" />
-                    <span className="text-[11px] font-black tabular-nums" style={{ color: dead ? '#94a3b8' : '#f8fafc' }}>{e.score?.home ?? 0}</span>
+                    <span className="text-[11px] font-black tabular-nums" style={{ color: dead ? '#94a3b8' : '#f8fafc' }}>{sc.home}</span>
                     <span className="text-[8px] text-gray-500 font-bold">VS</span>
-                    <span className="text-[11px] font-black tabular-nums" style={{ color: dead ? '#94a3b8' : '#f8fafc' }}>{e.score?.away ?? 0}</span>
+                    <span className="text-[11px] font-black tabular-nums" style={{ color: dead ? '#94a3b8' : '#f8fafc' }}>{sc.away}</span>
                     <Flag team={m?.away} size="xs" />
                   </div>
                 </div>

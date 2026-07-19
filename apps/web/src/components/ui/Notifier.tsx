@@ -1,10 +1,15 @@
 'use client';
 
+import { useRef } from 'react';
 import { useSSESubscription } from '@/contexts/SSEContext';
 import { fireToast } from './Toast';
 import type { BozEvent, AgentSignal, SSEMessage } from '@bozpicks/shared';
 
 export function Notifier() {
+  // A goal/card can be re-published minutes later by the REST snapshot poller
+  // (no shared dedup with the SSE) — toast each event id only once so it never
+  // re-announces "Goal!" as if it just happened.
+  const notified = useRef<Set<string>>(new Set());
   useSSESubscription((msg: SSEMessage) => {
     if (msg.type === 'event' && msg.data) {
       const ev = msg.data as BozEvent;
@@ -12,6 +17,10 @@ export function Notifier() {
       // an already-finished demo match. Firing "Goal!"/"Red Card" toasts for a
       // match that's over is confusing — only notify on genuinely live events.
       if (msg.catchup) return;
+      if ((ev.type === 'GOAL' || ev.type === 'RED_CARD')) {
+        if (ev.id && notified.current.has(ev.id)) return;
+        if (ev.id) notified.current.add(ev.id);
+      }
       if (ev.type === 'GOAL') {
         fireToast({
           kind: 'goal',

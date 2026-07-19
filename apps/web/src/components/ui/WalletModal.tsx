@@ -60,18 +60,43 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
     setError(null);
     const w = wallets.find(x => x.adapter.name === name);
     if (!w) return;
+    const a = w.adapter;
     setPending(name);
+    // Never let the spinner (which disables every wallet button) get stuck if the
+    // adapter's connect promise never settles — a dismissed extension popup can
+    // leave it pending forever. Releasing here doesn't cancel the connect: a late
+    // approval still lands via the provider's `connect` event and closes the modal.
+    const release = window.setTimeout(
+      () => setPending(cur => (cur === name ? null : cur)), 45_000);
     try {
       // select so the provider tracks this adapter, then connect the adapter
-      // DIRECTLY inside the click gesture → the approval popup actually opens
+      // DIRECTLY inside the click gesture → the approval popup actually opens.
       if (wallet?.adapter.name !== name) select(name);
-      await w.adapter.connect();
+      // Re-picking an ALREADY-selected wallet is the trap: select() is a no-op
+      // for the same name, so the only action is connect() — and if the adapter
+      // is half-open (connected at the adapter level but not surfaced, or wedged
+      // from a prior dismissed popup) connect() hits its internal
+      // `if (connected || connecting) return` guard and silently does nothing.
+      // That was the "click Solflare, nothing happens" bug — the workaround was
+      // to switch wallets and back (which disconnects the adapter). Do that reset
+      // here so a plain re-click always reaches a clean connect().
+      if (a.connected || a.connecting) {
+        await a.disconnect().catch(() => {});
+      }
+      await a.connect();
     } catch (e) {
       const err = e as Error;
-      setError(err.name === 'WalletNotReadyError'
-        ? 'Wallet not ready — is the extension unlocked?'
-        : err.message || 'Connection failed — try again.');
+      // The user closing/declining the approval popup isn't a failure worth a
+      // red banner — only surface genuine problems.
+      const benign = err.name === 'WalletWindowClosedError'
+        || /reject|declin|cancel|clos|denied|user/i.test(err.message || '');
+      if (!benign) {
+        setError(err.name === 'WalletNotReadyError'
+          ? 'Wallet not ready — is the extension unlocked?'
+          : err.message || 'Connection failed — try again.');
+      }
     } finally {
+      window.clearTimeout(release);
       setPending(null);
     }
   };

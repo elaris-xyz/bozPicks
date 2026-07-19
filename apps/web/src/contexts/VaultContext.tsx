@@ -5,7 +5,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
+import { Transaction, TransactionInstruction, PublicKey, SystemProgram } from '@solana/web3.js';
 import { playSfx } from '@/lib/sfx';
 
 /**
@@ -17,6 +17,12 @@ import { playSfx } from '@/lib/sfx';
  */
 
 const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
+// Real-vault mode: when a treasury address is published, a deposit moves real
+// devnet SOL to it (the server verifies the transfer before crediting) instead
+// of just signing a memo. Peg must match the server's TREASURY_LAMPORTS_PER_USD.
+const TREASURY_ADDRESS = process.env.NEXT_PUBLIC_TREASURY_ADDRESS;
+const LAMPORTS_PER_USD = Number(process.env.NEXT_PUBLIC_LAMPORTS_PER_USD ?? 1_000_000);
 
 export interface LedgerEntry {
   id: string; kind: 'DEPOSIT' | 'STAKE' | 'WIN' | 'REFUND' | 'WITHDRAW';
@@ -115,11 +121,40 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     return sig;
   }, [publicKey, connection, sendTransaction]);
 
+  // A deposit signature: in real-vault mode a SOL transfer to the treasury
+  // (awaited to confirmation so the server can verify it); otherwise the memo
+  // anchor. Kept separate from signAnchor so withdraw stays a cheap memo.
+  const signDeposit = useCallback(async (amountUsdc: number): Promise<string> => {
+    if (!publicKey) throw new Error('Connect a wallet first');
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    const tx = new Transaction();
+    if (TREASURY_ADDRESS) {
+      tx.add(SystemProgram.transfer({
+        fromPubkey: publicKey,
+        toPubkey: new PublicKey(TREASURY_ADDRESS),
+        lamports: Math.round(amountUsdc * LAMPORTS_PER_USD),
+      }));
+    } else {
+      tx.add(new TransactionInstruction({
+        keys: [{ pubkey: publicKey, isSigner: true, isWritable: false }],
+        programId: MEMO_PROGRAM,
+        data: Buffer.from(JSON.stringify({ bozVault: 'deposit', amountUsdc }), 'utf-8'),
+      }));
+    }
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = publicKey;
+    const sig = await sendTransaction(tx, connection);
+    const conf = connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight });
+    // real deposits must be on-chain before the server verifies; memo can be lazy
+    if (TREASURY_ADDRESS) await conf.catch(() => {}); else void conf.catch(() => {});
+    return sig;
+  }, [publicKey, connection, sendTransaction]);
+
   const deposit = useCallback(async (amountUsdc: number): Promise<boolean> => {
     if (!wallet) return false;
     setBusy(true);
     try {
-      const txSig = await signAnchor({ bozVault: 'deposit', amountUsdc });
+      const txSig = await signDeposit(amountUsdc);
       const r = await fetch('/api/vault/deposit', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wallet, amountUsdc, txSig }),
@@ -130,7 +165,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       return r.ok === true;
     } catch { return false; }
     finally { setBusy(false); }
-  }, [wallet, signAnchor, refresh]);
+  }, [wallet, signDeposit, refresh]);
 
   const withdraw = useCallback(async (amountUsdc: number): Promise<boolean> => {
     if (!wallet) return false;

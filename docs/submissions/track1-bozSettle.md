@@ -46,7 +46,7 @@ receipt** for every market (stat key/value, Merkle root, proof nodes, and the
 - **Vault-backed stakes:** users deposit devnet SOL once into the vault and
   stake instantly (Postgres ledger + on-chain reconciliation) — no per-bet
   wallet friction, clean cash-out path.
-- **Judge-runnable proof:** `pnpm --filter=web test` — 38 deterministic tests
+- **Judge-runnable proof:** `pnpm --filter=web test` — 53 deterministic tests
   covering every Command-Bridge scenario → market resolution → parimutuel payout
   (pool conservation, refunds, odds/implied consistency). Zero mocks.
 - **Command Bridge** (bottom-left ⚡ on every page): pick a real TxLINE fixture,

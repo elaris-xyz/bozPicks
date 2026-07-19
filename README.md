@@ -74,7 +74,7 @@ every widget on every page can be shown reacting live, on demand.
    at full time all **8 prop markets** settle to your chosen outcome with
    verifiable-resolution receipts, honestly labelled **Simulated** (upcoming
    fixture) vs **Verified** (real on-chain proof).
-4. Prove determinism offline: `pnpm --filter=web test` — **38 tests, no mocks** —
+4. Prove determinism offline: `pnpm --filter=web test` — **53 tests, no mocks** —
    the exact pure functions the demo, the markets, and the keeper all run.
 
 > **Two-phase live demo:** each track's video records **Phase A** on a *real*
@@ -369,7 +369,7 @@ pnpm --filter=agent dev      # headless agents
 pnpm --filter=keeper start   # Merkle-proof settlement (needs a funded keeper key)
 
 # 3. prove the logic deterministically (no mocks)
-pnpm --filter=web test       # 38 tests
+pnpm --filter=web test       # 53 tests
 ```
 
 For a **fully live** (non-replay) run you also need `ingest` (and `keeper` for

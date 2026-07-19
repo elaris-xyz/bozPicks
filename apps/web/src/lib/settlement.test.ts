@@ -8,7 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMarketsForMatch, resolveMarket, payoutFor, poolOdds, impliedFromPool } from './markets';
+import { buildMarketsForMatch, resolveMarket, payoutFor, poolOdds, impliedFromPool, skipUnreliable1H, type FinalStats } from './markets';
 import { generateMatchReplay } from './replay';
 import { SCENARIO_LIST, SCENARIOS } from './scenarios';
 
@@ -60,6 +60,27 @@ for (const s of SCENARIO_LIST) {
     assert.equal(resolveMarket(k1h, final).winningOutcome, final.cards1H > (k1h.line ?? 1.5) ? 'OVER' : 'UNDER');
   });
 }
+
+test('skipUnreliable1H only trips on 1H markets with an explicit false flag', () => {
+  const base: FinalStats = {
+    homeScore: 1, awayScore: 1, totalGoals: 2, totalCorners: 8, totalCards: 3,
+    corners1H: 3, cards1H: 1, btts: true, firstScorer: 'HOME',
+  };
+  // undefined (demo / deterministic) → always settle
+  assert.equal(skipUnreliable1H('CORNERS_1H', base), false);
+  assert.equal(skipUnreliable1H('CARDS_1H', base), false);
+  // explicit false (gappy real stream) → skip the matching 1H market only
+  const gappy: FinalStats = { ...base, corners1HReliable: false, cards1HReliable: false };
+  assert.equal(skipUnreliable1H('CORNERS_1H', gappy), true);
+  assert.equal(skipUnreliable1H('CARDS_1H', gappy), true);
+  // whole-match markets are never skipped, even on a gappy stream
+  assert.equal(skipUnreliable1H('TOTAL_CORNERS', gappy), false);
+  assert.equal(skipUnreliable1H('MATCH_WINNER', gappy), false);
+  // a reliable corners stream doesn't skip corners, even if cards are unreliable
+  const mixed: FinalStats = { ...base, corners1HReliable: true, cards1HReliable: false };
+  assert.equal(skipUnreliable1H('CORNERS_1H', mixed), false);
+  assert.equal(skipUnreliable1H('CARDS_1H', mixed), true);
+});
 
 test('replay is deterministic — identical input yields identical final stats', () => {
   const a = generateMatchReplay('m1', HOME, AWAY, { scenario: SCENARIOS['goal-fest'] }).final;

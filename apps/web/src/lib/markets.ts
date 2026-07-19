@@ -13,6 +13,28 @@ export interface FinalStats {
   totalGoals: number; totalCorners: number; totalCards: number;
   corners1H: number; cards1H: number; // 1st-half counters (period-H1 proof)
   btts: boolean; firstScorer: 'HOME' | 'AWAY' | 'NONE';
+  // 1st-half counters are event-COUNTED (no cumulative H1 snapshot exists in the
+  // feed), so on a real match with ingest gaps they can undercount. These flags
+  // say whether the whole-match event stream reconciled with the cumulative
+  // totals — a proxy for whether the H1 subset can be trusted. Undefined = treat
+  // as reliable (deterministic demo matches never have gaps).
+  corners1HReliable?: boolean;
+  cards1HReliable?: boolean;
+}
+
+/**
+ * A 1st-half market must NOT auto-settle when its underlying event stream had
+ * gaps — settling CORNERS_1H at 3 when the real H1 total was 6 would pay the
+ * wrong side. We can't back-fill (the feed has no cumulative H1 snapshot), so
+ * the safe move is to leave it unsettled rather than settle it wrong. Only the
+ * explicit `false` from finalStatsFromDb trips this; demo stats (undefined)
+ * always settle. Whole-match markets are unaffected — they already fall back to
+ * the cumulative total via max(cumulative, count).
+ */
+export function skipUnreliable1H(kind: MarketKind, f: FinalStats): boolean {
+  if (kind === 'CORNERS_1H') return f.corners1HReliable === false;
+  if (kind === 'CARDS_1H') return f.cards1HReliable === false;
+  return false;
 }
 
 interface Template {

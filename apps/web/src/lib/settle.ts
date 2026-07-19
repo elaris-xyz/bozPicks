@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { db } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import type { PropMarket, SettlementReceipt } from '@bozpicks/shared';
-import { resolveMarket, payoutFor, TXLINE_STAT_KEYS, type FinalStats } from '@/lib/markets';
+import { resolveMarket, payoutFor, skipUnreliable1H, TXLINE_STAT_KEYS, type FinalStats } from '@/lib/markets';
 import { moveVault } from '@/lib/vault';
 
 /**
@@ -39,6 +39,12 @@ export function buildReceipt(m: PropMarket, fixtureId: string, statValue: number
  * Shared by the settle API route and the demo's auto-settlement.
  */
 export async function settleMarketRow(m: PropMarket, final: FinalStats): Promise<PropMarket> {
+  // Guard: a 1st-half market whose event stream had gaps can't be settled
+  // correctly (no cumulative H1 snapshot to fall back on). Leave it OPEN rather
+  // than pay the wrong side — a later sweep re-checks, and a complete stream
+  // (or the deterministic demo) settles it normally.
+  if (skipUnreliable1H(m.kind, final)) return m;
+
   const { winningOutcome, statValue } = resolveMarket(m, final);
 
   // a real TxLINE record id anchors the proof; use the latest event for the match
@@ -165,6 +171,11 @@ export async function finalStatsFromDb(matchId: string): Promise<FinalStats | nu
     totalCorners: Math.max(cCorners, nCorners),
     totalCards: Math.max(cCards, nCards),
     corners1H, cards1H,
+    // reliable when the counted events reconcile with (are not below) the
+    // cumulative totals — i.e. no corner/card record was dropped. If the stream
+    // undercounts the whole match, its H1 subset can't be trusted either.
+    corners1HReliable: nCorners >= cCorners,
+    cards1HReliable: nCards >= cCards,
     btts: homeScore > 0 && awayScore > 0,
     firstScorer,
   };

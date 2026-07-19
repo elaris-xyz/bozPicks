@@ -11,7 +11,8 @@ placeholder once the videos are uploaded.
 
 # Track 1 — bozSettle (Prediction Markets & Settlement)
 
-**Link to Your Submission:** https://github.com/elaris-xyz/bozPicks
+**Link to Your Submission:** _(most useful link)_ — the Track 1 demo video once
+uploaded; until then use the live page: https://boz-picks.vercel.app/markets
 
 **Project Title:** bozSettle — Trustless Prediction Markets & Settlement
 
@@ -79,7 +80,8 @@ on-chain Merkle proof behind every payout.
 
 # Track 2 — bozPicks (Consumer & Fan Experiences)
 
-**Link to Your Submission:** https://github.com/elaris-xyz/bozPicks
+**Link to Your Submission:** _(most useful link)_ — the Track 2 demo video once
+uploaded; until then use the live page: https://boz-picks.vercel.app/play
 
 **Project Title:** bozPicks — Read the Game as it Happens
 
@@ -135,7 +137,8 @@ feed into a glanceable, playable experience fans actually *feel*.
 
 # Track 3 — bozAgent (Trading Tools & Agents)
 
-**Link to Your Submission:** https://github.com/elaris-xyz/bozPicks
+**Link to Your Submission:** _(most useful link)_ — the Track 3 demo video once
+uploaded; until then use the live page: https://boz-picks.vercel.app/agent
 
 **Project Title:** bozAgent — Three Autonomous Agents on One Live Feed
 

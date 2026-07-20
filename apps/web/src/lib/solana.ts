@@ -29,11 +29,20 @@ const RPC_URL =
   clusterApiUrl('devnet');
 
 // $1 → lamports. 0.001 SOL per dollar by default (a $100 deposit = 0.1 SOL).
-export const LAMPORTS_PER_USD = Number(process.env.TREASURY_LAMPORTS_PER_USD ?? 1_000_000);
+// Parsed defensively: a blank/garbled env value must fall back to the default,
+// never become NaN — an NaN peg made microUsdcToLamports return NaN, which blew
+// up cash-out with "NaN cannot be converted to a BigInt" when building the
+// transfer (and silently let deposit verification pass vacuously).
+function parsePeg(v: string | undefined, fallback = 1_000_000): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+export const LAMPORTS_PER_USD = parsePeg(process.env.TREASURY_LAMPORTS_PER_USD);
 
-/** USDC micro-units (1e6 = $1) → lamports, using the devnet peg above. */
+/** USDC micro-units (1e6 = $1) → lamports (integer ≥ 0), using the devnet peg. */
 export function microUsdcToLamports(micro: number): number {
-  return Math.round((micro / 1_000_000) * LAMPORTS_PER_USD);
+  const lamports = Math.round((micro / 1_000_000) * LAMPORTS_PER_USD);
+  return Number.isFinite(lamports) && lamports >= 0 ? lamports : 0;
 }
 
 let _conn: Connection | null = null;
@@ -145,6 +154,9 @@ export async function verifyDepositTx(
 export async function sendFromTreasury(toWallet: string, lamports: number): Promise<string> {
   const kp = treasuryKeypair();
   if (!kp) throw new Error('treasury signer not configured');
+  if (!Number.isInteger(lamports) || lamports <= 0) {
+    throw new Error(`invalid lamports (${lamports}) — check the *_LAMPORTS_PER_USD peg`);
+  }
   const conn = getConnection();
   const to = new PublicKey(toWallet);
   // A simple, known-good transfer from a funded treasury: skip the preflight

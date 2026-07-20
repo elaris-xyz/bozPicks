@@ -21,6 +21,14 @@ test('microUsdcToLamports applies the $1 peg to micro-USDC', () => {
   assert.equal(microUsdcToLamports(0), 0);
 });
 
+test('microUsdcToLamports never returns NaN (defensive vs a bad input/peg)', () => {
+  // an NaN here previously reached SystemProgram.transfer and blew up cash-out
+  // with "NaN cannot be converted to a BigInt"; it must degrade to 0 instead
+  assert.equal(microUsdcToLamports(Number.NaN), 0);
+  assert.ok(Number.isFinite(microUsdcToLamports(1_000_000)));
+  assert.ok(Number.isInteger(microUsdcToLamports(1_234_567)));
+});
+
 // minimal parsed-tx shaped like what getParsedTransaction returns
 function parsedTx(
   transfers: { source: string; destination: string; lamports: number }[],

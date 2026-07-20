@@ -22,7 +22,9 @@ const MEMO_PROGRAM = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'
 // devnet SOL to it (the server verifies the transfer before crediting) instead
 // of just signing a memo. Peg must match the server's TREASURY_LAMPORTS_PER_USD.
 const TREASURY_ADDRESS = process.env.NEXT_PUBLIC_TREASURY_ADDRESS;
-const LAMPORTS_PER_USD = Number(process.env.NEXT_PUBLIC_LAMPORTS_PER_USD ?? 1_000_000);
+// defensive: a blank/garbled peg env must fall back to the default, never NaN
+const _peg = Number(process.env.NEXT_PUBLIC_LAMPORTS_PER_USD);
+const LAMPORTS_PER_USD = Number.isFinite(_peg) && _peg > 0 ? _peg : 1_000_000;
 
 export interface LedgerEntry {
   id: string; kind: 'DEPOSIT' | 'STAKE' | 'WIN' | 'REFUND' | 'WITHDRAW';

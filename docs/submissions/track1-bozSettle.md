@@ -46,9 +46,14 @@ receipt** for every market (stat key/value, Merkle root, proof nodes, and the
 - **Vault-backed stakes:** users deposit devnet SOL once into the vault and
   stake instantly (Postgres ledger + on-chain reconciliation) — no per-bet
   wallet friction, clean cash-out path.
-- **Judge-runnable proof:** `pnpm --filter=web test` — 53 deterministic tests
+- **Judge-runnable proof:** `pnpm --filter=web test` — 71 deterministic tests
   covering every Command-Bridge scenario → market resolution → parimutuel payout
   (pool conservation, refunds, odds/implied consistency). Zero mocks.
+- **Judge-runnable REAL on-chain proof:** `pnpm --filter=keeper onchain:e2e`
+  drives the deployed program through a full parimutuel cycle on devnet with real
+  SPL escrow (create_pool → two players stake USDC → settle_pool → winner claims
+  +7.84 of an 8.00 pool, 2% fee retained; the loser's claim is rejected on-chain).
+  Every step lands a real explorer tx — the escrow + payout are REAL, not simulated.
 - **Command Bridge** (bottom-left ⚡ on every page): pick a real TxLINE fixture,
   choose the exact outcome, run — all eight markets settle to it, verifiably.
 

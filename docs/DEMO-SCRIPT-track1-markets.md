@@ -96,7 +96,7 @@ Wait ~1s for the rows to turn green.
 suite.
 **SAY:**
 > "The settlement program is deployed on Solana devnet — here it is on Explorer.
-> And every resolution path is covered by 53 deterministic tests judges can run
+> And every resolution path is covered by 71 deterministic tests judges can run
 > themselves with `pnpm test` — zero mocks, the exact functions the keeper uses
 > in production. We stress-tested the accounting ourselves too: staking across
 > every market, running settlement, and reconciling the vault to the last cent

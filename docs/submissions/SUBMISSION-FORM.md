@@ -50,7 +50,7 @@ on-chain Merkle proof behind every payout.
   own committed root. Confirmed on England 1–2 Argentina (fixture 18241006,
   `game_finalised` seq 962, `period=100`).
 - **Parimutuel** needs no price oracle or LPs; **USDC/SOL only** for value.
-- **53 deterministic unit tests** (no mocks) cover every scenario → resolution →
+- **71 deterministic unit tests** (no mocks) cover every scenario → resolution →
   payout. Honest receipts: synthetic demos are labelled SIMULATED, never
   "verified".
 - Two programs live on devnet: the parimutuel + USDC escrow and the

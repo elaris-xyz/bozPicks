@@ -31,8 +31,21 @@ Pubkey: `2kmkkcBoQ5noGA1gJGuNd8XDhjfNxpgupn9sqNJYpscd`
 ### Verify
 - Check the CI run went green on GitHub after the pushes.
 
-## Not done — next big item
-**Day 4: real on-chain parimutuel showcase** (USDC escrow → `settle_pool` →
-`claim_payout` for one market, real payout on Explorer). Deferred — it needs
-Anchor program integration + wallet testing, which shouldn't ship untested and
-unattended. This is the top candidate to pick up next.
+## Day 4 — real on-chain parimutuel: DONE ✅
+The deployed settlement program was driven through a full cycle on devnet with
+real SPL escrow and **verified**: `create_pool → two players stake USDC →
+settle_pool → winner claims +7.84 of an 8.00 pool (2% fee retained); loser's
+claim rejected on-chain`. Reproducible anytime:
+
+```
+TREASURY_SECRET_KEY="$(cat treasury.keypair.json)" pnpm --filter=keeper onchain:e2e
+```
+
+Instructions are built manually (anchor discriminator + borsh) since the program's
+IDL isn't published on-chain. The escrow + payout are REAL, not simulated.
+
+### Remaining (optional, needs a wallet): wire it into the UI
+The proof shows the program works; routing a *live* market through it from the
+web UI (players staking their own wallet USDC, keeper settling, claim button)
+is the last mile. It needs a persistent devnet USDC mint + real wallet testing,
+so it's a with-you task, not an unattended one.

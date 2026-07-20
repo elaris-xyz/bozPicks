@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { moveVault, InsufficientFunds } from '@/lib/vault';
 import { displayToUsdc } from '@bozpicks/shared';
 import { isTreasurySignerConfigured, sendFromTreasury, microUsdcToLamports } from '@/lib/solana';
@@ -36,6 +37,18 @@ export async function POST(req: NextRequest) {
     if (isTreasurySignerConfigured()) {
       try {
         const sig = await sendFromTreasury(wallet, microUsdcToLamports(micro));
+        // The debit row was written before we had the on-chain signature (and a
+        // real cash-out carries no client txSig). Attach the treasury transfer
+        // sig to that row now so the ledger links to the explorer. Target the
+        // most recent unsigned DEBIT (amount<0) for this wallet — never a
+        // reversal credit — so a prior failed attempt's row isn't mislabelled.
+        await db.query(
+          `UPDATE boz_vault_ledger SET tx_sig=$1
+           WHERE id = (SELECT id FROM boz_vault_ledger
+                       WHERE wallet_address=$2 AND kind='WITHDRAW' AND amount_micro < 0 AND tx_sig IS NULL
+                       ORDER BY created_at DESC LIMIT 1)`,
+          [sig, wallet],
+        ).catch(() => { /* link is best-effort; the transfer already succeeded */ });
         return NextResponse.json({ ok: true, balance, txSig: sig });
       } catch (transferErr) {
         // Transfer didn't confirm — reverse the debit so the player keeps their

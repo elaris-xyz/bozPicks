@@ -1,6 +1,6 @@
 import { connectOddsStream, connectScoresStream, txlineRest, buildPlayerMap } from '@bozpicks/txline-client';
 import type { TxOddsPayload, TxScores, TxFixture, ResolvedPlayer } from '@bozpicks/txline-client';
-import { oddsEventToBozEvent, scoresEventToBozEvent } from './normalizer';
+import { oddsEventToBozEvent, scoresEventToBozEvent, deriveStatEvents } from './normalizer';
 import { publish, redis } from './publisher';
 import { record, db } from './recorder';
 import { pollDemoJobs } from './demoRunner';
@@ -90,12 +90,15 @@ async function start() {
       // claim this Seq so the poller skips it in turn.
       const seq = (scores as unknown as { Seq?: number }).Seq ?? 0;
       if (seq && seq <= (lastSeqByFixture[fid] ?? 0)) return;
-      const event = scoresEventToBozEvent(scores, fixtureNames[fid], await ensurePlayers(fid));
-      if (!event) return;
+      const fPlayers = await ensurePlayers(fid);
+      const event = scoresEventToBozEvent(scores, fixtureNames[fid], fPlayers);
+      const extra = deriveStatEvents(scores, fixtureNames[fid], fPlayers);
+      if (!event && extra.length === 0) return;
       if (seq) lastSeqByFixture[fid] = Math.max(lastSeqByFixture[fid] ?? 0, seq);
-      await Promise.all([publish(event), record(event)]);
-      if (process.env.LOG_EVENTS === 'true') {
-        console.log(`[SCORE] ${event.type} match=${event.matchId} min=${event.matchMinute}`);
+      const evs = event ? [event, ...extra] : extra;
+      await Promise.all(evs.flatMap(e => [publish(e), record(e)]));
+      if (event && process.env.LOG_EVENTS === 'true') {
+        console.log(`[SCORE] ${event.type} match=${event.matchId} min=${event.matchMinute} (+${extra.length} stat)`);
       }
     },
     onHeartbeat: () => { /* silent */ },
@@ -163,7 +166,9 @@ async function start() {
           if (seq <= seen) continue;
           maxSeq = Math.max(maxSeq, seq);
           const event = scoresEventToBozEvent(s, fixtureNames[id], fixturePlayers[id]);
-          if (event) await Promise.all([publish(event), record(event)]);
+          const extra = deriveStatEvents(s, fixtureNames[id], fixturePlayers[id]);
+          const evs = event ? [event, ...extra] : extra;
+          if (evs.length) await Promise.all(evs.flatMap(e => [publish(e), record(e)]));
         }
         // the SSE may have advanced this while we awaited — never rewind it
         lastSeqByFixture[id] = Math.max(lastSeqByFixture[id] ?? 0, maxSeq);
@@ -239,10 +244,13 @@ async function start() {
       if (inWindow && !fixtureStreams[id]) {
         fixtureStreams[id] = connectScoresStream(f.FixtureId, {
           onMessage: async (scores: TxScores) => {
-            const event = scoresEventToBozEvent(scores, fixtureNames[id], await ensurePlayers(id));
-            if (!event) return;
-            await Promise.all([publish(event), record(event)]);
-            if (process.env.LOG_EVENTS === 'true') console.log(`[SCORE:${id}] ${event.type} min=${event.matchMinute}`);
+            const sPlayers = await ensurePlayers(id);
+            const event = scoresEventToBozEvent(scores, fixtureNames[id], sPlayers);
+            const extra = deriveStatEvents(scores, fixtureNames[id], sPlayers);
+            if (!event && extra.length === 0) return;
+            const evs = event ? [event, ...extra] : extra;
+            await Promise.all(evs.flatMap(e => [publish(e), record(e)]));
+            if (event && process.env.LOG_EVENTS === 'true') console.log(`[SCORE:${id}] ${event.type} min=${event.matchMinute} (+${extra.length} stat)`);
           },
           onHeartbeat: () => { /* silent */ },
           onError: () => { /* watchdog/backoff in sse.ts handles it */ },

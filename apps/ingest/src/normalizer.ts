@@ -173,11 +173,15 @@ function classifyReal(action: string, r: RawScore): BozEventType | null {
   // the goal record (there is no separate 'goal' for it); missed/saved ones
   // are just score noise
   if (a === 'penalty_outcome') return r.Data?.Outcome === 'Scored' ? 'GOAL' : 'SCORE_UPDATE';
-  if (a === 'red_card' || a === 'second_yellow' || a === 'second_yellow_card') return 'RED_CARD';
-  if (a === 'yellow_card') return 'YELLOW_CARD';
+  // CORNER / YELLOW_CARD / RED_CARD are NOT classified from the action here —
+  // TxLINE sends those discrete records sparsely (a real fixture logged 4 of 13
+  // corners, 1 of 4 yellows, 0 of 1 reds as actions), so the timeline came out
+  // nearly empty. They're derived instead from increments of the cumulative
+  // Stats map via statDeltaEvents(), which is complete. A card action record
+  // still lands here as SCORE_UPDATE; its player name is picked up by the delta
+  // event fired on the same record.
   if (a === 'var' || a === 'var_end') return 'VAR';
   if (a === 'substitution' || a === 'sub') return 'SUBSTITUTION';
-  if (a === 'corner') return 'CORNER';
   if (a === 'shot') return 'SHOT';
   if (a === 'offside') return 'OFFSIDE';
   if (a === 'free_kick') return r.Data?.FreeKickType === 'Offside' ? 'OFFSIDE' : 'FOUL';
@@ -314,6 +318,118 @@ export function scoresEventToBozEvent(
     stats,
     rawPayload: scores as unknown as object,
   };
+}
+
+// ─── Discrete events from cumulative-stat increments ─────────────────────────
+// The Stats map (corners keys 7/8, yellows 3/4, reds 5/6) carries the COMPLETE
+// running total on every record, whereas discrete corner/card action records
+// arrive sparsely. So we build the timeline's corner/card pips from increments
+// of these totals — one CORNER/YELLOW_CARD/RED_CARD per unit the total advances,
+// attributed to the side whose total moved. This guarantees the timeline always
+// matches the final stats (13 corners → 13 corner events), the same
+// max(cumulative, count) philosophy the settlement resolver uses.
+
+export interface SideCounts { cH: number; cA: number; yH: number; yA: number; rH: number; rA: number }
+
+function countsOf(r: RawScore): SideCounts {
+  const S = r.Stats ?? {};
+  const sc = r.Score ?? {};
+  const isHome1 = r.Participant1IsHome !== false;
+  const y1 = S['3'] ?? n(sc.Participant1?.Total?.YellowCards);
+  const y2 = S['4'] ?? n(sc.Participant2?.Total?.YellowCards);
+  const rr1 = S['5'] ?? n(sc.Participant1?.Total?.RedCards);
+  const rr2 = S['6'] ?? n(sc.Participant2?.Total?.RedCards);
+  const c1 = S['7'] ?? n(sc.Participant1?.Total?.Corners);
+  const c2 = S['8'] ?? n(sc.Participant2?.Total?.Corners);
+  return {
+    cH: isHome1 ? c1 : c2, cA: isHome1 ? c2 : c1,
+    yH: isHome1 ? y1 : y2, yA: isHome1 ? y2 : y1,
+    rH: isHome1 ? rr1 : rr2, rA: isHome1 ? rr2 : rr1,
+  };
+}
+
+/**
+ * PURE: given the previous per-side counts and the current record, emit a
+ * discrete event for each unit a corner/yellow/red total advanced. `prev`
+ * undefined = baseline (first record for the fixture) → no events, just seed the
+ * counts, so joining a match mid-stream doesn't dump a burst at one minute.
+ * A card event carries the booked player's name when this very record is the
+ * card action that moved the total.
+ */
+export function statDeltaEvents(
+  prev: SideCounts | undefined,
+  scores: TxScores,
+  names?: { home: string; away: string },
+  players?: Map<number, { name: string; number?: string }>,
+): { events: BozEvent[]; counts: SideCounts } {
+  const r = scores as unknown as RawScore;
+  const cur = countsOf(r);
+  if (!prev) return { events: [], counts: cur };
+
+  const clockSec = n(r.Clock?.Seconds);
+  const minute = Math.min(130, Math.floor(clockSec / 60));
+  const isHome1 = r.Participant1IsHome !== false;
+  const S = r.Stats ?? {};
+  const sc = r.Score ?? {};
+  const g1 = S['1'] ?? n(sc.Participant1?.Total?.Goals);
+  const g2 = S['2'] ?? n(sc.Participant2?.Total?.Goals);
+  const home = isHome1 ? g1 : g2;
+  const away = isHome1 ? g2 : g1;
+
+  const d = r.Data;
+  const action = (r.Action ?? '').toLowerCase();
+  const isCardAction = action === 'yellow_card' || action === 'red_card'
+    || action === 'second_yellow' || action === 'second_yellow_card';
+  const bookedPlayer = (): string | undefined => {
+    const pid = d?.PlayerId;
+    if (!pid) return undefined;
+    const hit = players?.get(pid);
+    return hit ? (hit.number ? `${hit.name} · #${hit.number}` : hit.name) : `Player #${pid}`;
+  };
+
+  const events: BozEvent[] = [];
+  const emit = (type: BozEventType, side: 'home' | 'away', count: number, canName: boolean) => {
+    for (let i = 0; i < count; i++) {
+      events.push({
+        id: randomUUID(),
+        matchId: String(r.FixtureId),
+        type,
+        timestamp: safeTs(r.Ts),
+        matchMinute: minute,
+        score: { home, away },
+        seq: r.Seq,
+        team: names ? (side === 'home' ? names.home : names.away) : undefined,
+        // only the increment on the actual card action gets the player name
+        player: canName && isCardAction && i === count - 1 ? bookedPlayer() : undefined,
+        rawPayload: scores as unknown as object,
+      });
+    }
+  };
+  emit('CORNER', 'home', Math.max(0, cur.cH - prev.cH), false);
+  emit('CORNER', 'away', Math.max(0, cur.cA - prev.cA), false);
+  emit('YELLOW_CARD', 'home', Math.max(0, cur.yH - prev.yH), true);
+  emit('YELLOW_CARD', 'away', Math.max(0, cur.yA - prev.yA), true);
+  emit('RED_CARD', 'home', Math.max(0, cur.rH - prev.rH), true);
+  emit('RED_CARD', 'away', Math.max(0, cur.rA - prev.rA), true);
+  return { events, counts: cur };
+}
+
+// Live wrapper: keeps per-fixture counts across streamed records.
+const lastCounts = new Map<string, SideCounts>();
+export function deriveStatEvents(
+  scores: TxScores,
+  names?: { home: string; away: string },
+  players?: Map<number, { name: string; number?: string }>,
+): BozEvent[] {
+  const id = String((scores as unknown as RawScore).FixtureId ?? '');
+  if (!id) return [];
+  const { events, counts } = statDeltaEvents(lastCounts.get(id), scores, names, players);
+  lastCounts.set(id, counts);
+  return events;
+}
+/** Reset the per-fixture stat baseline — used by backfill (folds counts itself). */
+export function resetStatCounts(fixtureId?: string): void {
+  if (fixtureId) lastCounts.delete(fixtureId); else lastCounts.clear();
 }
 
 // ─── TxOddsPayload → BozEvent ────────────────────────────────────────────────

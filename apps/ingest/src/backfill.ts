@@ -13,11 +13,15 @@ import { Pool } from 'pg';
 import Redis from 'ioredis';
 import { txlineRest, buildPlayerMap } from '@bozpicks/txline-client';
 import type { TxScores, TxOddsPayload } from '@bozpicks/txline-client';
-import { scoresEventToBozEvent, oddsEventToBozEvent } from './normalizer';
+import { scoresEventToBozEvent, oddsEventToBozEvent, statDeltaEvents, type SideCounts } from './normalizer';
 import type { BozEvent } from '@bozpicks/shared';
 
 const db = new Pool({ connectionString: process.env.DATABASE_URL });
-const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: 2 });
+// swallow connection errors — Redis only backs the optional odds-list write at
+// the very end; an unreachable Redis must never crash the run or wipe the DB
+// commit (which lands before it). Without a listener ioredis' 'error' throws.
+redis.on('error', () => {});
 
 /**
  * The fixture's real in-play odds history, normalised to ODDS_UPDATE events.
@@ -123,7 +127,20 @@ async function backfillFixture(fixtureId: string): Promise<void> {
   // goals, cards, subs, penalties, VAR, corners, shots, offsides, kickoff/HT/FT.
   const KEEP = new Set(['GOAL', 'PENALTY', 'YELLOW_CARD', 'RED_CARD', 'SUBSTITUTION',
     'VAR', 'CORNER', 'SHOT', 'OFFSIDE', 'MATCH_START', 'HALFTIME', 'MATCH_END']);
-  const scoreEvents = goalDeduped.filter(e => KEEP.has(e.type));
+
+  // Corners + cards come from cumulative-stat increments, not the sparse action
+  // records (which classifyReal no longer maps). Fold statDeltaEvents over the
+  // same Seq-ordered records so every corner/card the final stats claim appears
+  // on the timeline, at the minute its total advanced.
+  let statCounts: SideCounts | undefined;
+  const statEvents: BozEvent[] = [];
+  for (const rec of sorted) {
+    const res = statDeltaEvents(statCounts, rec, names, players);
+    statCounts = res.counts;
+    statEvents.push(...res.events);
+  }
+
+  const scoreEvents = [...goalDeduped.filter(e => KEEP.has(e.type)), ...statEvents];
 
   // Merge in the real in-play odds ticks, interleaved by minute. These are what
   // the Match Odds panel, Odds Movement and Turning Points all read — a real
@@ -203,6 +220,14 @@ async function backfillFixture(fixtureId: string): Promise<void> {
     rpPlace.push(`($${c + 1},$${c + 2},NOW(),$${c + 3},$${c + 4})`);
     rpCols.push(j.id, fixtureId, delayMs, JSON.stringify(e));
   });
+
+  // Safety: never let an empty fetch (fixture aged out of TxLINE, transient API
+  // hiccup) wipe a match's existing timeline. Only replace when we actually
+  // rebuilt something.
+  if (deduped.length === 0) {
+    console.warn(`[backfill] ${fixtureId}: 0 events rebuilt — leaving existing events untouched`);
+    return;
+  }
 
   await db.query('BEGIN');
   try {

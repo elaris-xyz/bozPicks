@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node --env-file=../../.env -r tsx/cjs src/index.ts",
     "dev": "node --env-file=../../.env -r tsx/cjs src/index.ts",
-    "start:prod": "node -r tsx/cjs src/index.ts"
+    "start:prod": "node -r tsx/cjs src/index.ts",
+    "type-check": "tsc --noEmit",
+    "test": "tsx --test src/normalizer.test.ts"
   },
   "dependencies": {
     "@bozpicks/shared": "workspace:*",

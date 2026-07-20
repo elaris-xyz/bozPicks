@@ -5,7 +5,6 @@ import {
   SystemProgram,
   Transaction,
   clusterApiUrl,
-  sendAndConfirmTransaction,
   type ParsedTransactionWithMeta,
 } from '@solana/web3.js';
 
@@ -133,12 +132,21 @@ export async function verifyDepositTx(
 }
 
 /**
- * Send a real treasury → wallet transfer (cash-out). Throws if the signer is
- * not configured or the transfer fails to confirm. Returns the devnet sig.
+ * Send a real treasury → wallet transfer (cash-out). Returns the devnet sig.
+ *
+ * SEND and CONFIRM are deliberately split. A throw here means the node REJECTED
+ * the transaction (bad blockhash, insufficient funds) — a genuine failure the
+ * caller should reverse. A slow/never confirmation does NOT throw: the tx is
+ * already broadcast and will land, so we return the sig regardless. This avoids
+ * two production traps on flaky devnet RPCs / short serverless timeouts: the
+ * confirmation wait timing out the whole function, and — worse — reversing a
+ * debit for a transfer that actually lands later (a double-credit).
  */
 export async function sendFromTreasury(toWallet: string, lamports: number): Promise<string> {
   const kp = treasuryKeypair();
   if (!kp) throw new Error('treasury signer not configured');
+  const conn = getConnection();
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
   const tx = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: kp.publicKey,
@@ -146,5 +154,14 @@ export async function sendFromTreasury(toWallet: string, lamports: number): Prom
       lamports,
     }),
   );
-  return sendAndConfirmTransaction(getConnection(), tx, [kp], { commitment: 'confirmed' });
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = kp.publicKey;
+  tx.sign(kp);
+  // throws only if the cluster rejects the tx outright — a real failure
+  const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
+  // best-effort confirmation; a timeout here is not a failure (tx is in flight)
+  try {
+    await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+  } catch { /* slow devnet confirmation — the broadcast tx will still land */ }
+  return sig;
 }

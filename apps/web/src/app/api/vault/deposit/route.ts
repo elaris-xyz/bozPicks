@@ -5,6 +5,8 @@ import { displayToUsdc } from '@bozpicks/shared';
 import { isRealVaultEnabled, verifyDepositTx, microUsdcToLamports } from '@/lib/solana';
 
 export const dynamic = 'force-dynamic';
+// verifying the deposit tx is an on-chain read that can be slow on devnet RPCs
+export const maxDuration = 30;
 
 /**
  * POST /api/vault/deposit  { wallet, amountUsdc, txSig }

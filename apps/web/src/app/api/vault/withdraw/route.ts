@@ -4,6 +4,9 @@ import { displayToUsdc } from '@bozpicks/shared';
 import { isTreasurySignerConfigured, sendFromTreasury, microUsdcToLamports } from '@/lib/solana';
 
 export const dynamic = 'force-dynamic';
+// real cash-out signs + broadcasts an on-chain transfer; give it room beyond the
+// default so a slow devnet confirmation can't time out the whole function
+export const maxDuration = 30;
 
 /**
  * POST /api/vault/withdraw  { wallet, amountUsdc, txSig }

@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TxScores } from '@bozpicks/txline-client';
-import { statDeltaEvents, type SideCounts } from './normalizer';
+import { statDeltaEvents, scoresEventToBozEvent, type SideCounts } from './normalizer';
 
 const NAMES = { home: 'Spain', away: 'Argentina' };
 
@@ -89,6 +89,14 @@ test('participant2-is-home flips the side attribution', () => {
   // p1Home=false → participant1 corners (c1) belong to AWAY
   const { events } = statDeltaEvents(prev, rec({ p1Home: false, c1: 1, c2: 0 }), NAMES);
   assert.equal(events[0].team, 'Argentina');
+});
+
+test('MATCH_END floors to the furthest minute (extra time), not a flat 90', () => {
+  // an extra-time record at 118', then the finalised record (Clock.Seconds=0)
+  scoresEventToBozEvent(rec({ seq: 900, clockMin: 118, action: 'update' }), NAMES);
+  const end = scoresEventToBozEvent(rec({ seq: 901, clockMin: 0, action: 'game_finalised' }), NAMES);
+  assert.equal(end?.type, 'MATCH_END');
+  assert.equal(end?.matchMinute, 118); // was hardcoded to 90 → sorted before ET events
 });
 
 test('folding the whole match yields events matching the final totals', () => {

@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node --env-file=../../.env -r tsx/cjs src/index.ts",
     "dev": "node --env-file=../../.env -r tsx/cjs src/index.ts",
+    "type-check": "tsc --noEmit",
     "start:prod": "node -r tsx/cjs src/index.ts"
   },
   "dependencies": {

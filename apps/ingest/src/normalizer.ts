@@ -198,6 +198,12 @@ const n = (v: number | undefined): number => (typeof v === 'number' ? v : 0);
 // map is otherwise authoritative per record.
 const lastScore = new Map<string, { home: number; away: number }>();
 
+// Furthest match minute seen per fixture — used to floor the full-time record
+// (which carries Clock.Seconds=0) to the real end. A hardcoded 90 put MATCH_END
+// BEFORE an extra-time match's own 90'–120' events, so "FULL TIME" landed in the
+// middle of the timeline and the match read as half-finished.
+const lastMaxMinute = new Map<string, number>();
+
 // ─── TxScores → BozEvent (real PascalCase shape) ─────────────────────────────
 
 export function scoresEventToBozEvent(
@@ -255,8 +261,13 @@ export function scoresEventToBozEvent(
   // the game_finalised record carries Clock.Seconds=0 — don't stamp full-time /
   // late events at 0'; floor them to 90' (or ET if the clock says so)
   let minute = Math.min(130, Math.floor(clockSec / 60));
+  const fid = String(id);
+  if (minute > 0) lastMaxMinute.set(fid, Math.max(lastMaxMinute.get(fid) ?? 0, minute));
   if ((type === 'MATCH_END' || type === 'HALFTIME') && minute === 0) {
-    minute = type === 'HALFTIME' ? 45 : 90;
+    // finalisation carries clock 0 — floor HT to 45' and full-time to the
+    // furthest minute seen (so an extra-time match ends at ~120', not 90'),
+    // but never below the regulation 90'.
+    minute = type === 'HALFTIME' ? 45 : Math.max(90, lastMaxMinute.get(fid) ?? 90);
   }
 
   const stats: MatchStats = {

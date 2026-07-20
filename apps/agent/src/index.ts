@@ -60,6 +60,13 @@ sub.on('pmessage', async (_pattern: string, channel: string, message: string) =>
   }
 });
 
+// Cooldown per stance (match + outcome + direction). Without it the detector
+// re-fires on EVERY odds tick while the delta stays above threshold, so one move
+// produces thousands of near-duplicate signals (a real fixture logged 4,686,
+// milliseconds apart). Mirrors the backfill's 3-minute per-stance cooldown.
+const SHARP_COOLDOWN_MS = parseInt(process.env.SHARP_COOLDOWN_MS ?? '180000', 10);
+const lastFired = new Map<string, number>();
+
 async function handleOddsUpdate(matchId: string, event: BozEvent): Promise<void> {
   const current = event.odds!;
 
@@ -76,6 +83,12 @@ async function handleOddsUpdate(matchId: string, event: BozEvent): Promise<void>
 
   const signal = detectSharpMove(matchId, current, history, context, lastEvent?.id, liveThreshold, liveWindowMs);
   if (!signal) return;
+
+  // de-flood: one signal per stance per cooldown window
+  const stance = `${matchId}:${signal.affectedOutcome}:${signal.deltaPercent >= 0 ? '+' : '-'}`;
+  const now = Date.now();
+  if (now - (lastFired.get(stance) ?? -Infinity) < SHARP_COOLDOWN_MS) return;
+  lastFired.set(stance, now);
 
   signalCount++;
   console.log(`[boz-agent] SIGNAL #${signalCount} | ${signal.affectedOutcome} ${signal.deltaPercent.toFixed(1)}% | ${signal.confidence}`);

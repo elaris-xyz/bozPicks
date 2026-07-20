@@ -7,6 +7,19 @@ import { pollDemoJobs } from './demoRunner';
 
 console.log('[boz-ingest] starting...');
 
+// Odds ticks are PUBLISHED to Redis on every message (the sharp detector / agent
+// arena need the full granularity), but only PERSISTED at ~1 tick per fixture
+// per 55s. A live match logged 6148 odds rows where a backfilled one thins to
+// ~120 — that flood bloats the DB and drowns the order-flow rail without adding
+// signal to the stored timeline.
+const lastOddsRecordMs: Record<string, number> = {};
+async function recordOddsThrottled(event: Parameters<typeof record>[0]): Promise<void> {
+  const now = Date.now();
+  if (now - (lastOddsRecordMs[event.matchId] ?? 0) < 55_000) return;
+  lastOddsRecordMs[event.matchId] = now;
+  await record(event);
+}
+
 // ─── Load fixtures and start streams ────────────────────────────────────────
 
 async function start() {
@@ -111,7 +124,7 @@ async function start() {
     onMessage: async (odds: TxOddsPayload) => {
       const event = oddsEventToBozEvent(odds);
       if (!event) return;
-      await Promise.all([publish(event), record(event)]);
+      await Promise.all([publish(event), recordOddsThrottled(event)]);
       if (process.env.LOG_EVENTS === 'true') {
         console.log(`[ODDS] match=${event.matchId}`);
       }
@@ -215,7 +228,7 @@ async function start() {
         lastOddsMsg[id] = latest.MessageId;
         const event = oddsEventToBozEvent(latest, ko);
         if (event) {
-          await Promise.all([publish(event), record(event)]);
+          await Promise.all([publish(event), recordOddsThrottled(event)]);
           if (process.env.LOG_EVENTS === 'true') console.log(`[ODDS-POLL] ${id} tick published`);
         }
       } catch (e) {
@@ -269,7 +282,7 @@ async function start() {
           onMessage: async (odds: TxOddsPayload) => {
             const event = oddsEventToBozEvent(odds);
             if (!event) return;
-            await Promise.all([publish(event), record(event)]);
+            await Promise.all([publish(event), recordOddsThrottled(event)]);
             if (process.env.LOG_EVENTS === 'true') console.log(`[ODDS:${id}] in-play tick`);
           },
           onHeartbeat: () => { /* silent */ },

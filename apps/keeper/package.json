@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "onchain:e2e": "tsx scripts/onchain-parimutuel-e2e.mts",
     "type-check": "tsc --noEmit",
     "start:prod": "node -r tsx/cjs src/index.ts"
   },

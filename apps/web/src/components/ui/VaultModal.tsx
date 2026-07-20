@@ -230,7 +230,7 @@ export function VaultModal() {
           <button onClick={run} disabled={busy || amount <= 0 || overdraw || (mode === 'withdraw' && !canWithdraw)}
             className="w-full h-11 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-40 active:scale-[0.99]"
             style={{ background: 'linear-gradient(135deg,#3b82f6,#a78bfa)', boxShadow: '0 0 18px rgba(59,130,246,0.35)' }}>
-            {busy ? 'Signing on devnet…'
+            {busy ? (mode === 'deposit' ? 'Signing on devnet…' : 'Cashing out…')
               : mode === 'deposit' ? `Deposit ${amount} USDC` : `Cash out ${amount} USDC`}
           </button>
           <p className="text-[10px] text-gray-500 text-center mt-2">
@@ -250,13 +250,17 @@ export function VaultModal() {
               <circle cx="12" cy="12" r="9" /><path d="M12 8h.01M11 12h1v4h1" />
             </svg>
             {process.env.NEXT_PUBLIC_TREASURY_ADDRESS ? (
-              <p className="text-[10px] text-gray-400 leading-snug">
-                Real devnet {mode === 'deposit' ? 'deposit' : 'cash-out'}. Your signature
-                {mode === 'deposit'
-                  ? <> moves <b className="text-gray-300">real devnet SOL</b> to the vault treasury, </>
-                  : <> triggers a <b className="text-gray-300">real</b> treasury&rarr;wallet transfer, </>}
-                verified on-chain before your balance updates.
-              </p>
+              mode === 'deposit' ? (
+                <p className="text-[10px] text-gray-400 leading-snug">
+                  Real devnet deposit. Your signature moves <b className="text-gray-300">real devnet SOL</b> to
+                  the vault treasury, verified on-chain before your balance updates.
+                </p>
+              ) : (
+                <p className="text-[10px] text-gray-400 leading-snug">
+                  Real devnet cash-out. The <b className="text-gray-300">treasury</b> sends real SOL back to your
+                  wallet on-chain — <b className="text-gray-300">no signature needed</b>.
+                </p>
+              )
             ) : (
               <p className="text-[10px] text-gray-400 leading-snug">
                 Simulated devnet balance. Your signature writes an on-chain <b className="text-gray-300">memo</b> that

@@ -171,7 +171,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     if (!wallet) return false;
     setBusy(true);
     try {
-      const txSig = await signAnchor({ bozVault: 'withdraw', amountUsdc });
+      // Real-vault mode: the TREASURY signs the payout server-side, so the user
+      // signs NOTHING. The old client memo-signature here was pointless (the
+      // server does the real transfer) and actively broke cash-out — the wallet
+      // prompt would sit until the blockhash expired ("Transaction expired").
+      // Memo mode (no treasury) still anchors the movement with a signature.
+      const txSig = TREASURY_ADDRESS ? undefined : await signAnchor({ bozVault: 'withdraw', amountUsdc });
       const res = await fetch('/api/vault/withdraw', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wallet, amountUsdc, txSig }),

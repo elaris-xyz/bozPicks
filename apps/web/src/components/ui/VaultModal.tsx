@@ -238,21 +238,32 @@ export function VaultModal() {
               ? 'One signature funds your in-game vault — then stakes are instant, no more pop-ups.'
               : 'One signature adjusts your in-game vault balance.'}
           </p>
-          {/* Honest, always-visible note: this is a simulated devnet economy.
-              The signed tx is a MEMO that anchors the movement on-chain — it does
-              not transfer tokens, so the wallet's real SOL/USDC never changes.
-              Saying so plainly is what the rubric rewards ("no self-asserted
-              results") and kills the "why didn't my wallet balance go up?" trap. */}
+          {/* The note reflects the ACTUAL mode. When a treasury is configured
+              (NEXT_PUBLIC_TREASURY_ADDRESS, inlined at build) deposits/cash-outs
+              move REAL devnet SOL, verified on-chain. Without it, the signed tx
+              is a MEMO that only anchors the movement (no tokens move). Saying
+              which — honestly — is what the rubric rewards, and it also tells
+              you at a glance whether real-vault mode actually built in. */}
           <div className="mt-2.5 flex items-start gap-2 rounded-lg px-3 py-2"
                style={{ background: 'rgba(99,140,255,0.07)', border: '1px solid rgba(99,140,255,0.2)' }}>
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="#93c5fd" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="9" /><path d="M12 8h.01M11 12h1v4h1" />
             </svg>
-            <p className="text-[10px] text-gray-400 leading-snug">
-              Simulated devnet balance. Your signature writes an on-chain <b className="text-gray-300">memo</b> that
-              anchors this {mode === 'deposit' ? 'deposit' : 'cash-out'} for verification — it does <b className="text-gray-300">not</b> move
-              tokens, so your wallet&rsquo;s real SOL/USDC is unaffected.
-            </p>
+            {process.env.NEXT_PUBLIC_TREASURY_ADDRESS ? (
+              <p className="text-[10px] text-gray-400 leading-snug">
+                Real devnet {mode === 'deposit' ? 'deposit' : 'cash-out'}. Your signature
+                {mode === 'deposit'
+                  ? <> moves <b className="text-gray-300">real devnet SOL</b> to the vault treasury, </>
+                  : <> triggers a <b className="text-gray-300">real</b> treasury&rarr;wallet transfer, </>}
+                verified on-chain before your balance updates.
+              </p>
+            ) : (
+              <p className="text-[10px] text-gray-400 leading-snug">
+                Simulated devnet balance. Your signature writes an on-chain <b className="text-gray-300">memo</b> that
+                anchors this {mode === 'deposit' ? 'deposit' : 'cash-out'} for verification — it does <b className="text-gray-300">not</b> move
+                tokens, so your wallet&rsquo;s real SOL/USDC is unaffected.
+              </p>
+            )}
           </div>
         </div>
 

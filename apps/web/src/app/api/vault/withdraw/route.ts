@@ -41,11 +41,14 @@ export async function POST(req: NextRequest) {
         // Transfer didn't confirm — reverse the debit so the player keeps their
         // balance. A positive-delta WITHDRAW restores both balance and the
         // lifetime withdrawn counter (which uses -delta), exactly undoing it.
+        // Carry the real error into the ledger ref so it's visible in Recent
+        // Activity (helps diagnose without server-log access).
+        const why = (transferErr as Error).message.slice(0, 80);
         balance = await moveVault({
-          wallet, delta: micro, kind: 'WITHDRAW', ref: 'Cash-out reversed (transfer failed)',
+          wallet, delta: micro, kind: 'WITHDRAW', ref: `Cash-out reversed: ${why}`,
         }).catch(() => balance);
         return NextResponse.json(
-          { error: `withdraw transfer failed: ${(transferErr as Error).message}`, balance },
+          { error: `withdraw transfer failed: ${why}`, balance },
           { status: 502 },
         );
       }

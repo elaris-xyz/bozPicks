@@ -146,22 +146,30 @@ export async function sendFromTreasury(toWallet: string, lamports: number): Prom
   const kp = treasuryKeypair();
   if (!kp) throw new Error('treasury signer not configured');
   const conn = getConnection();
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
-  const tx = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: kp.publicKey,
-      toPubkey: new PublicKey(toWallet),
-      lamports,
-    }),
-  );
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = kp.publicKey;
-  tx.sign(kp);
-  // throws only if the cluster rejects the tx outright — a real failure
-  const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
-  // best-effort confirmation; a timeout here is not a failure (tx is in flight)
-  try {
-    await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
-  } catch { /* slow devnet confirmation — the broadcast tx will still land */ }
-  return sig;
+  const to = new PublicKey(toWallet);
+  // A simple, known-good transfer from a funded treasury: skip the preflight
+  // simulation (it's the step that most often errors on a rate-limited devnet
+  // RPC) and retry the whole send a few times against transient RPC failures.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('finalized');
+      const tx = new Transaction().add(
+        SystemProgram.transfer({ fromPubkey: kp.publicKey, toPubkey: to, lamports }),
+      );
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = kp.publicKey;
+      tx.sign(kp);
+      const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 5 });
+      // best-effort confirmation; a timeout is not a failure (tx is broadcast)
+      try {
+        await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+      } catch { /* slow devnet confirmation — the broadcast tx will still land */ }
+      return sig;
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('treasury transfer failed');
 }

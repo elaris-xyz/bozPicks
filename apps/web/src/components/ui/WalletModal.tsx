@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletReadyState, type WalletName } from '@solana/wallet-adapter-base';
+import { WalletReadyState, type WalletName, type Adapter } from '@solana/wallet-adapter-base';
 import { IconWallet } from './Icons';
 
 /**
@@ -56,38 +56,21 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
   const addr = publicKey?.toBase58() ?? '';
   const shortAddr = addr ? `${addr.slice(0, 4)}…${addr.slice(-4)}` : '';
 
-  const pick = async (name: WalletName) => {
-    setError(null);
-    const w = wallets.find(x => x.adapter.name === name);
-    if (!w) return;
-    const a = w.adapter;
-    setPending(name);
-    // Never let the spinner (which disables every wallet button) get stuck if the
-    // adapter's connect promise never settles — a dismissed extension popup can
-    // leave it pending forever. Releasing here doesn't cancel the connect: a late
-    // approval still lands via the provider's `connect` event and closes the modal.
-    const release = window.setTimeout(
-      () => setPending(cur => (cur === name ? null : cur)), 45_000);
+  // Runs the actual connect on an adapter, with a stuck-spinner safety release
+  // and benign-error filtering. Shared by the two entry paths below.
+  const runConnect = useCallback(async (a: Adapter) => {
+    // A dismissed extension popup can leave connect() pending forever; never let
+    // the spinner (which disables every button) get stuck. This doesn't cancel
+    // the connect — a late approval still lands via the provider's event.
+    const release = window.setTimeout(() => setPending(cur => (cur === a.name ? null : cur)), 45_000);
     try {
-      // select so the provider tracks this adapter, then connect the adapter
-      // DIRECTLY inside the click gesture → the approval popup actually opens.
-      if (wallet?.adapter.name !== name) select(name);
-      // Re-picking an ALREADY-selected wallet is the trap: select() is a no-op
-      // for the same name, so the only action is connect() — and if the adapter
-      // is half-open (connected at the adapter level but not surfaced, or wedged
-      // from a prior dismissed popup) connect() hits its internal
-      // `if (connected || connecting) return` guard and silently does nothing.
-      // That was the "click Solflare, nothing happens" bug — the workaround was
-      // to switch wallets and back (which disconnects the adapter). Do that reset
-      // here so a plain re-click always reaches a clean connect().
-      if (a.connected || a.connecting) {
-        await a.disconnect().catch(() => {});
-      }
+      // If the adapter is half-open (wedged from a prior dismissed popup) a plain
+      // connect() hits its `if (connected||connecting) return` guard and does
+      // nothing — reset it first so a re-click always reaches a clean connect.
+      if (a.connected || a.connecting) await a.disconnect().catch(() => {});
       await a.connect();
     } catch (e) {
       const err = e as Error;
-      // The user closing/declining the approval popup isn't a failure worth a
-      // red banner — only surface genuine problems.
       const benign = err.name === 'WalletWindowClosedError'
         || /reject|declin|cancel|clos|denied|user/i.test(err.message || '');
       if (!benign) {
@@ -98,8 +81,44 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
     } finally {
       window.clearTimeout(release);
       setPending(null);
+      pendingRef.current = null;
+    }
+  }, []);
+
+  // The wallet awaiting connection after a select() that hasn't landed yet.
+  const pendingRef = useRef<WalletName | null>(null);
+
+  const pick = (name: WalletName) => {
+    setError(null);
+    const w = wallets.find(x => x.adapter.name === name);
+    if (!w) return;
+    setPending(name);
+    if (wallet?.adapter.name === name) {
+      // Already the provider's active adapter (listeners wired) → connect right
+      // here inside the click gesture, so a first-ever approval popup can open.
+      void runConnect(w.adapter);
+    } else {
+      // Needs a select first (nothing remembered, or switching wallets).
+      // Connecting in the SAME tick raced the provider's adapter switch: on a
+      // fresh state (cleared cookies) a silent, already-trusted connect fired
+      // before the provider wired its listeners, so `connected` never flipped
+      // and the click looked dead. Select now; the effect below connects once
+      // the provider is actually tracking this adapter.
+      pendingRef.current = name;
+      select(name);
     }
   };
+
+  // Second half of the select→connect path: fire once `select()` has landed and
+  // the provider is tracking the wallet we're waiting on.
+  useEffect(() => {
+    const name = pendingRef.current;
+    if (!name || connected) return;
+    if (wallet?.adapter.name !== name) return;              // select hasn't landed yet
+    if (wallet.adapter.connected || wallet.adapter.connecting) return;
+    pendingRef.current = null;
+    void runConnect(wallet.adapter);
+  }, [wallet, connected, runConnect]);
 
   const copy = () => {
     navigator.clipboard?.writeText(addr).then(() => {

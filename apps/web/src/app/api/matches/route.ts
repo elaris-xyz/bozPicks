@@ -20,6 +20,17 @@ export async function GET() {
        AND last_updated < NOW() - INTERVAL '3 minutes'`
   ).catch(() => {});
 
+  // ── Heal stale SCHEDULED fixtures ────────────────────────────────────────
+  // The frontend tabs purely on status, so a real match stuck at SCHEDULED sits
+  // in "Upcoming" forever — a friendly dated 3 days ago showed as upcoming when
+  // TxLINE never sent a clean finish (we only caught its odds). A football match
+  // is decided within ~3.5h of kickoff, so a SCHEDULED fixture whose kickoff is
+  // older than that has obviously been played → mark it FINISHED.
+  await db.query(
+    `UPDATE boz_matches SET status='FINISHED', last_updated=NOW()
+     WHERE status='SCHEDULED' AND kickoff_time < NOW() - INTERVAL '3.5 hours'`
+  ).catch(() => {});
+
   const { rows } = await db.query(
     // Homepage order: LIVE first, then most-recently-played, then soonest
     // upcoming. (Was `kickoff_time ASC` — which surfaced the OLDEST fixtures

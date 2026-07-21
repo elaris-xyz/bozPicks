@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import type { Adapter } from '@solana/wallet-adapter-base';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
 import { clusterApiUrl } from '@solana/web3.js';
@@ -20,18 +21,30 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  // autoConnect ONLY silently reconnects the wallet remembered at page load, and
+  // only once. A wallet the user picks in the modal is connected there via the
+  // context connect() (a FULL connect). We must NOT let autoConnect fire on a
+  // manual select: it calls adapter.autoConnect() = connect({onlyIfTrusted}),
+  // which shows no popup and, for Phantom on a not-yet-trusted site, throws
+  // "WalletConnectionError: Unexpected error".
+  const restored = useRef(false);
+  const autoConnect = useCallback(async (adapter: Adapter) => {
+    if (restored.current) return false;
+    let remembered: string | null = null;
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem('walletName') : null;
+      remembered = raw ? (JSON.parse(raw) as string) : null;
+    } catch { remembered = null; }
+    if (remembered && adapter.name === remembered) { restored.current = true; return true; }
+    return false;
+  }, []);
+
   return (
     <ConnectionProvider endpoint={ENDPOINT}>
-      {/* No WalletModalProvider — the in-house WalletModal owns select/disconnect
-          (the third-party modal positioned itself off-screen and clashed with
-          the theme). But CONNECTING is left to the provider via autoConnect: the
-          modal only calls select(), and autoConnect connects the selected wallet
-          so the React context actually tracks it. The modal used to call
-          adapter.connect() itself — which connected the wallet but bypassed the
-          provider's listeners, so on a fresh state the adapter reported
-          connected:true with a publicKey while the context never updated and the
-          UI stayed on "Ready". autoConnect=true also reconnects on refresh. */}
-      <WalletProvider wallets={wallets} autoConnect>
+      {/* No WalletModalProvider — the in-house WalletModal owns select + the
+          full connect() (the third-party modal positioned itself off-screen and
+          clashed with the theme). autoConnect is the guarded reconnect above. */}
+      <WalletProvider wallets={wallets} autoConnect={autoConnect}>
         {children}
       </WalletProvider>
     </ConnectionProvider>

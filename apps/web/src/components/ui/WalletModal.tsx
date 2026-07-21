@@ -62,27 +62,33 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
     setPending(null);
   };
 
-  // Connecting is the PROVIDER's job, not ours. Calling adapter.connect()
-  // directly connected the wallet but bypassed the provider's listeners, so on a
-  // fresh state the adapter reported connected:true + a publicKey while the React
-  // context never updated and the UI stayed on "Ready". So: just select() the
-  // wallet — the provider's autoConnect connects it and the context tracks it.
-  // A re-click of the ALREADY-selected wallet (select is a no-op then, so
-  // autoConnect won't re-fire) retries through the context connect().
+  // Connecting must go THROUGH the provider (context connect()), not
+  // adapter.connect() — a direct adapter connect updated the wallet but bypassed
+  // the provider's listeners, so on a fresh state the adapter reported
+  // connected:true while the React context stayed on "Ready". The modal only
+  // select()s; the effect below runs the full connect once the provider tracks
+  // the wallet. (A full connect() also makes Phantom show its approval instead
+  // of autoConnect's onlyIfTrusted, which threw "Unexpected error".)
   const pick = (name: WalletName) => {
     setError(null);
-    const w = wallets.find(x => x.adapter.name === name);
-    if (!w) return;
+    if (!wallets.find(x => x.adapter.name === name)) return;
     setPending(name);
-    if (wallet?.adapter.name !== name) {
-      select(name);
-    } else {
-      void connect().catch((e) => surfaceError(e as Error));
-    }
+    if (wallet?.adapter.name !== name) select(name);
   };
 
-  // Release the click-spinner once the connection lands (or after a safety
-  // timeout) — the connect itself is driven by the provider now.
+  // Fire the connect once select() has landed (provider is tracking the pending
+  // wallet). Guarded so it runs at most once per pending — connect() flips
+  // `connecting`, which would otherwise re-trigger this effect.
+  const attempted = useRef<WalletName | null>(null);
+  useEffect(() => {
+    if (!pending || connected) { attempted.current = null; return; }
+    if (wallet?.adapter.name !== pending) return;   // wait for select() to land
+    if (connecting || attempted.current === pending) return;
+    attempted.current = pending;
+    connect().catch((e) => surfaceError(e as Error));
+  }, [pending, wallet, connected, connecting, connect]);
+
+  // Release the click-spinner once connected, or after a safety timeout.
   useEffect(() => {
     if (!pending) return;
     if (connected) { setPending(null); return; }

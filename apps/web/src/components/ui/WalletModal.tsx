@@ -17,7 +17,7 @@ import { IconWallet } from './Icons';
 const PANEL_BG = 'linear-gradient(180deg, #101a30, #0a0f1e)';
 
 export function WalletModal({ onClose }: { onClose: () => void }) {
-  const { publicKey, disconnect, connected, connecting, wallet, wallets, select } = useWallet();
+  const { publicKey, disconnect, connected, connecting, wallet, wallets, select, connect } = useWallet();
   const [pending, setPending] = useState<WalletName | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -36,11 +36,6 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Connection is triggered directly from the click (see pick) so the wallet's
-  // approval popup opens inside the user gesture. A deferred connect() in an
-  // effect (which also raced autoConnect's `connecting` flag) was why Phantom
-  // showed "Ready" but never opened.
-
   // Auto-close ONLY when the connection happened inside this modal session
   // (fresh connect → brief success beat → close). Opening the modal while
   // already connected is the ACCOUNT view — it must stay open so the user can
@@ -56,59 +51,44 @@ export function WalletModal({ onClose }: { onClose: () => void }) {
   const addr = publicKey?.toBase58() ?? '';
   const shortAddr = addr ? `${addr.slice(0, 4)}…${addr.slice(-4)}` : '';
 
-  const pick = async (name: WalletName) => {
+  const surfaceError = (err: Error) => {
+    const benign = err.name === 'WalletWindowClosedError'
+      || /reject|declin|cancel|clos|denied|user/i.test(err.message || '');
+    if (!benign) {
+      setError(err.name === 'WalletNotReadyError'
+        ? 'Wallet not ready — is the extension unlocked?'
+        : err.message || 'Connection failed — try again.');
+    }
+    setPending(null);
+  };
+
+  // Connecting is the PROVIDER's job, not ours. Calling adapter.connect()
+  // directly connected the wallet but bypassed the provider's listeners, so on a
+  // fresh state the adapter reported connected:true + a publicKey while the React
+  // context never updated and the UI stayed on "Ready". So: just select() the
+  // wallet — the provider's autoConnect connects it and the context tracks it.
+  // A re-click of the ALREADY-selected wallet (select is a no-op then, so
+  // autoConnect won't re-fire) retries through the context connect().
+  const pick = (name: WalletName) => {
     setError(null);
     const w = wallets.find(x => x.adapter.name === name);
     if (!w) return;
-    const a = w.adapter;
     setPending(name);
-    // Never let the spinner (which disables every wallet button) get stuck if the
-    // adapter's connect promise never settles — a dismissed extension popup can
-    // leave it pending forever. Releasing here doesn't cancel the connect: a late
-    // approval still lands via the provider's `connect` event and closes the modal.
-    const release = window.setTimeout(
-      () => setPending(cur => (cur === name ? null : cur)), 45_000);
-    // ── TEMP diagnostics (fresh-state connect bug) — open DevTools console ──
-    console.log('[wallet] pick', name,
-      '| readyState=', a.readyState,
-      '| currentlySelected=', wallet?.adapter.name ?? '(none)',
-      '| a.connected=', a.connected, '| a.connecting=', a.connecting);
-    try {
-      // select so the provider tracks this adapter, then connect the adapter
-      // DIRECTLY inside the click gesture → the approval popup actually opens.
-      if (wallet?.adapter.name !== name) { console.log('[wallet] select()', name); select(name); }
-      // Re-picking an ALREADY-selected wallet is the trap: select() is a no-op
-      // for the same name, so the only action is connect() — and if the adapter
-      // is half-open (connected at the adapter level but not surfaced, or wedged
-      // from a prior dismissed popup) connect() hits its internal
-      // `if (connected || connecting) return` guard and silently does nothing.
-      // That was the "click Solflare, nothing happens" bug — the workaround was
-      // to switch wallets and back (which disconnects the adapter). Do that reset
-      // here so a plain re-click always reaches a clean connect().
-      if (a.connected || a.connecting) {
-        console.log('[wallet] resetting half-open adapter (disconnect first)');
-        await a.disconnect().catch(() => {});
-      }
-      console.log('[wallet] calling connect()', name);
-      await a.connect();
-      console.log('[wallet] connect() RESOLVED', name, '| a.connected=', a.connected, '| publicKey=', a.publicKey?.toBase58?.() ?? '(none)');
-    } catch (e) {
-      const err = e as Error;
-      console.error('[wallet] connect() THREW', name, '| name=', err.name, '| message=', err.message);
-      // The user closing/declining the approval popup isn't a failure worth a
-      // red banner — only surface genuine problems.
-      const benign = err.name === 'WalletWindowClosedError'
-        || /reject|declin|cancel|clos|denied|user/i.test(err.message || '');
-      if (!benign) {
-        setError(err.name === 'WalletNotReadyError'
-          ? 'Wallet not ready — is the extension unlocked?'
-          : err.message || 'Connection failed — try again.');
-      }
-    } finally {
-      window.clearTimeout(release);
-      setPending(null);
+    if (wallet?.adapter.name !== name) {
+      select(name);
+    } else {
+      void connect().catch((e) => surfaceError(e as Error));
     }
   };
+
+  // Release the click-spinner once the connection lands (or after a safety
+  // timeout) — the connect itself is driven by the provider now.
+  useEffect(() => {
+    if (!pending) return;
+    if (connected) { setPending(null); return; }
+    const t = window.setTimeout(() => setPending(null), 45_000);
+    return () => window.clearTimeout(t);
+  }, [pending, connected]);
 
   const copy = () => {
     navigator.clipboard?.writeText(addr).then(() => {

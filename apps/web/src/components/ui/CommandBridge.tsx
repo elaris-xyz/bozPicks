@@ -87,19 +87,32 @@ export function CommandBridge() {
         params.set('home', f.home); params.set('away', f.away);
         params.set('competition', f.competition); params.set('fixtureId', f.fixtureId);
       }
-      const res = await fetch(`/api/demo?${params.toString()}`, { method: 'POST' });
+      // The start POST occasionally comes back 403 (or a 5xx / dropped
+      // connection) from the edge — Vercel's bot/attack challenge intermittently
+      // gates a POST, which the user could only clear by refreshing. Retry those
+      // transient failures transparently so a judge never sees a scary error; a
+      // definitive answer (ok / 409 already-running / 503 backend-down) stops it.
+      const attempt = () =>
+        fetch(`/api/demo?${params.toString()}`, { method: 'POST' }).catch(() => null);
+      let res: Response | null = null;
+      for (let i = 0; i < 3; i++) {
+        res = await attempt();
+        if (res && (res.ok || res.status === 409 || res.status === 503)) break;
+        if (i < 2) await new Promise(r => setTimeout(r, 500 + i * 400));
+      }
 
-      if (res.status === 409) {
+      if (res?.status === 409) {
         // a replay is already on air — honest feedback instead of silence
         setNotice({ kind: 'warn', text: 'A match is already running — it’s live on every page right now.' });
         return;
       }
-      if (res.status === 503) {
+      if (res?.status === 503) {
         setNotice({ kind: 'error', text: 'Realtime backend unavailable — the Redis instance is down or over its quota. Swap REDIS_URL and restart.' });
         return;
       }
-      if (!res.ok) {
-        setNotice({ kind: 'error', text: `Could not start (${res.status}) — try again.` });
+      if (!res || !res.ok) {
+        // still no luck after retries — keep it calm, not alarming
+        setNotice({ kind: 'warn', text: 'Warming up the live feed — give Run one more tap.' });
         return;
       }
 

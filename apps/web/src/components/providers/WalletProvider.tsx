@@ -24,8 +24,18 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
     <ConnectionProvider endpoint={ENDPOINT}>
       {/* No WalletModalProvider — the in-house WalletModal handles select/
           connect/disconnect itself (the third-party modal positioned itself
-          off-screen and clashed with the theme). */}
-      <WalletProvider wallets={wallets} autoConnect>
+          off-screen and clashed with the theme).
+
+          autoConnect is deliberately OFF. With it ON, selecting a wallet made
+          the provider fire its OWN adapter.connect() in the background, which
+          raced the manual connect() in the click: the adapter wedged at
+          connecting=true, the manual connect hit its internal `if (connecting)
+          return` guard and did nothing, and no popup opened — the recurring
+          "click Phantom/Solflare, brief spinner, nothing happens" bug. The
+          in-house modal owns the single connect path inside the click gesture.
+          (Trade-off: no silent reconnect after a page refresh — a reconnect
+          click is needed, which is the reliable behaviour.) */}
+      <WalletProvider wallets={wallets} autoConnect={false}>
         {children}
       </WalletProvider>
     </ConnectionProvider>

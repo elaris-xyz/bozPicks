@@ -52,7 +52,7 @@ async function fetchOddsEvents(fixtureId: string, kickoffMs: number): Promise<Bo
   return events;
 }
 
-async function backfillFixture(fixtureId: string): Promise<void> {
+export async function backfillFixture(fixtureId: string): Promise<void> {
   console.log(`\n[backfill] ${fixtureId} …`);
 
   // team names for event attribution — try the fixtures feed first, then fall
@@ -84,12 +84,20 @@ async function backfillFixture(fixtureId: string): Promise<void> {
   // 1-2 result). The lineup records live in the snapshot, so fetch both and
   // build the player map from whichever has them.
   let records: TxScores[] = [];
-  try { records = await txlineRest.scoresUpdatesFull(Number(fixtureId)); } catch { /* fall back below */ }
-  const snap = await txlineRest.scoresSnapshot(Number(fixtureId)).catch(() => [] as TxScores[]);
+  let fetchErr: unknown;
+  try { records = await txlineRest.scoresUpdatesFull(Number(fixtureId)); } catch (e) { fetchErr = e; }
+  const snap = await txlineRest.scoresSnapshot(Number(fixtureId)).catch((e) => { fetchErr = e; return [] as TxScores[]; });
   if (!Array.isArray(records) || records.length < (Array.isArray(snap) ? snap.length : 0)) {
     records = Array.isArray(snap) ? snap : [];
   }
-  if (records.length === 0) { console.warn(`[backfill] ${fixtureId}: no records`); return; }
+  if (records.length === 0) {
+    // Distinguish a real FETCH FAILURE (auth/network) from a genuinely empty
+    // fixture. The old code swallowed the error and reported "no records",
+    // which looked identical to an aged-out fixture and hid a bad API key.
+    if (fetchErr) throw new Error(`TxLINE fetch failed for ${fixtureId}: ${(fetchErr as Error).message}`);
+    console.warn(`[backfill] ${fixtureId}: no records (fixture may have aged out of TxLINE)`);
+    return;
+  }
 
   // lineups arrive in the snapshot; the updates stream may also carry them
   const players = buildPlayerMap([...(Array.isArray(snap) ? snap : []), ...records]);
@@ -322,4 +330,9 @@ async function main() {
   await db.end();
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+// Only run as a CLI. When another module imports backfillFixture (auto-backfill
+// on match finish), main() must NOT run — it would read the host's argv, print
+// usage and process.exit(1), killing the importing process.
+if (process.argv[1] && /backfill(\.ts|\.js)?$/.test(process.argv[1])) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}

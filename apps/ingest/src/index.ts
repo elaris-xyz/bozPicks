@@ -1,6 +1,7 @@
 import { connectOddsStream, connectScoresStream, txlineRest, buildPlayerMap } from '@bozpicks/txline-client';
 import type { TxOddsPayload, TxScores, TxFixture, ResolvedPlayer } from '@bozpicks/txline-client';
 import { oddsEventToBozEvent, scoresEventToBozEvent, deriveStatEvents } from './normalizer';
+import { backfillFixture } from './backfill';
 import { publish, redis } from './publisher';
 import { record, db } from './recorder';
 import { pollDemoJobs } from './demoRunner';
@@ -18,6 +19,27 @@ async function recordOddsThrottled(event: Parameters<typeof record>[0]): Promise
   if (now - (lastOddsRecordMs[event.matchId] ?? 0) < 55_000) return;
   lastOddsRecordMs[event.matchId] = now;
   await record(event);
+}
+
+// When a match finishes, rebuild it from the FULL TxLINE history via backfill
+// (adds the kickoff marker, thins odds, and lays out a complete corner/card
+// timeline). This unifies the two data paths: live ingestion is best-effort and
+// can be sparse/gappy, so the final stored copy of every finished match comes
+// from the same clean backfill the demo/replay already rely on. The delay lets
+// TxLINE settle the final records; scheduled at most once per fixture.
+const backfillScheduled = new Set<string>();
+function scheduleAutoBackfill(fid: string, events: { type: string }[]): void {
+  if (backfillScheduled.has(fid) || !events.some(e => e.type === 'MATCH_END')) return;
+  backfillScheduled.add(fid);
+  console.log(`[boz-ingest] ${fid} FINISHED — auto-backfill scheduled (+90s)`);
+  setTimeout(() => {
+    backfillFixture(fid)
+      .then(() => console.log(`[boz-ingest] auto-backfill complete: ${fid}`))
+      .catch((err) => {
+        backfillScheduled.delete(fid); // allow a retry on the next finish signal
+        console.error(`[boz-ingest] auto-backfill failed ${fid}:`, (err as Error).message);
+      });
+  }, 90_000);
 }
 
 // ─── Load fixtures and start streams ────────────────────────────────────────
@@ -110,6 +132,7 @@ async function start() {
       if (seq) lastSeqByFixture[fid] = Math.max(lastSeqByFixture[fid] ?? 0, seq);
       const evs = event ? [event, ...extra] : extra;
       await Promise.all(evs.flatMap(e => [publish(e), record(e)]));
+      scheduleAutoBackfill(fid, evs);
       if (event && process.env.LOG_EVENTS === 'true') {
         console.log(`[SCORE] ${event.type} match=${event.matchId} min=${event.matchMinute} (+${extra.length} stat)`);
       }
@@ -182,6 +205,7 @@ async function start() {
           const extra = deriveStatEvents(s, fixtureNames[id], fixturePlayers[id]);
           const evs = event ? [event, ...extra] : extra;
           if (evs.length) await Promise.all(evs.flatMap(e => [publish(e), record(e)]));
+          scheduleAutoBackfill(id, evs);
         }
         // the SSE may have advanced this while we awaited — never rewind it
         lastSeqByFixture[id] = Math.max(lastSeqByFixture[id] ?? 0, maxSeq);
@@ -263,6 +287,7 @@ async function start() {
             if (!event && extra.length === 0) return;
             const evs = event ? [event, ...extra] : extra;
             await Promise.all(evs.flatMap(e => [publish(e), record(e)]));
+            scheduleAutoBackfill(id, evs);
             if (event && process.env.LOG_EVENTS === 'true') console.log(`[SCORE:${id}] ${event.type} min=${event.matchMinute} (+${extra.length} stat)`);
           },
           onHeartbeat: () => { /* silent */ },

@@ -9,6 +9,7 @@
  *
  * Usage:  pnpm --dir apps/ingest tsx src/backfill.ts <fixtureId> [<fixtureId> …]
  */
+import { randomUUID } from 'crypto';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import { txlineRest, buildPlayerMap } from '@bozpicks/txline-client';
@@ -148,7 +149,41 @@ export async function backfillFixture(fixtureId: string): Promise<void> {
     statEvents.push(...res.events);
   }
 
-  const scoreEvents = [...goalDeduped.filter(e => KEEP.has(e.type)), ...statEvents];
+  // Goal reconciliation: the running SCORE (Stats keys 1/2) is authoritative and
+  // complete, but TxLINE doesn't always send a 'goal' action for every one — an
+  // extra-time goal here advanced the score with NO goal record, leaving a 1-0
+  // match goalless. Derive one GOAL per score increment (side-attributed, at the
+  // minute it advanced) and borrow the scorer/kind from an action-goal when one
+  // lines up, so real scorers survive but a goal is never dropped.
+  const richGoals = goalDeduped.filter(e => e.type === 'GOAL');
+  const scoreGoals: BozEvent[] = [];
+  let pgH = 0, pgA = 0, gi = 0;
+  for (const e of raw) {
+    const h = e.score?.home ?? pgH, a = e.score?.away ?? pgA;
+    const bumps: ('home' | 'away')[] = [];
+    for (let k = pgH; k < h; k++) bumps.push('home');
+    for (let k = pgA; k < a; k++) bumps.push('away');
+    for (const side of bumps) {
+      const rich = richGoals[gi++];
+      scoreGoals.push({
+        ...e,
+        id: rich?.id ?? randomUUID(),
+        type: 'GOAL',
+        team: side === 'home' ? names?.home : names?.away,
+        player: rich?.player,
+        goalKind: rich?.goalKind,
+        isPenalty: rich?.isPenalty,
+        isOwnGoal: rich?.isOwnGoal,
+      });
+    }
+    pgH = Math.max(pgH, h); pgA = Math.max(pgA, a);
+  }
+
+  const scoreEvents = [
+    ...goalDeduped.filter(e => e.type !== 'GOAL' && KEEP.has(e.type)),
+    ...scoreGoals,
+    ...statEvents,
+  ];
 
   // Merge in the real in-play odds ticks, interleaved by minute. These are what
   // the Match Odds panel, Odds Movement and Turning Points all read — a real

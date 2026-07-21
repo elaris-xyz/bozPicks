@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import type { Adapter } from '@solana/wallet-adapter-base';
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
 import { clusterApiUrl } from '@solana/web3.js';
@@ -20,22 +21,36 @@ export function SolanaWalletProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  // Reconnect on refresh WITHOUT re-introducing the race that broke the click.
+  //
+  // A plain `autoConnect` connects whenever a wallet is SELECTED — including a
+  // manual select inside the modal's click — so its background connect() raced
+  // the modal's connect(), wedged the adapter at connecting=true, and the click
+  // did nothing (the "brief spinner, nothing happens" bug). But turning it fully
+  // off dropped reconnect-on-refresh.
+  //
+  // As a FUNCTION, autoConnect is asked per adapter whether to connect. We say
+  // yes only for the wallet that was already remembered at page load, and only
+  // that once — so a refresh silently reconnects, while a wallet the user picks
+  // mid-session is connected solely by the modal's click (no competing connect).
+  const restored = useRef(false);
+  const autoConnect = useCallback(async (adapter: Adapter) => {
+    if (restored.current) return false;
+    let remembered: string | null = null;
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem('walletName') : null;
+      remembered = raw ? (JSON.parse(raw) as string) : null;
+    } catch { remembered = null; }
+    if (remembered && adapter.name === remembered) { restored.current = true; return true; }
+    return false;
+  }, []);
+
   return (
     <ConnectionProvider endpoint={ENDPOINT}>
-      {/* No WalletModalProvider — the in-house WalletModal handles select/
-          connect/disconnect itself (the third-party modal positioned itself
-          off-screen and clashed with the theme).
-
-          autoConnect is deliberately OFF. With it ON, selecting a wallet made
-          the provider fire its OWN adapter.connect() in the background, which
-          raced the manual connect() in the click: the adapter wedged at
-          connecting=true, the manual connect hit its internal `if (connecting)
-          return` guard and did nothing, and no popup opened — the recurring
-          "click Phantom/Solflare, brief spinner, nothing happens" bug. The
-          in-house modal owns the single connect path inside the click gesture.
-          (Trade-off: no silent reconnect after a page refresh — a reconnect
-          click is needed, which is the reliable behaviour.) */}
-      <WalletProvider wallets={wallets} autoConnect={false}>
+      {/* No WalletModalProvider — the in-house WalletModal owns select/connect/
+          disconnect (the third-party modal positioned itself off-screen and
+          clashed with the theme). autoConnect is the guarded function above. */}
+      <WalletProvider wallets={wallets} autoConnect={autoConnect}>
         {children}
       </WalletProvider>
     </ConnectionProvider>

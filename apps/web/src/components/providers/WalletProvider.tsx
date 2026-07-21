@@ -3,8 +3,6 @@
 import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import type { Adapter } from '@solana/wallet-adapter-base';
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
-import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
 import { clusterApiUrl } from '@solana/web3.js';
 
 // devnet endpoint — mainnet-beta when ready. The default cluster RPC is rate-
@@ -16,10 +14,13 @@ const NETWORK = (process.env.NEXT_PUBLIC_SOLANA_NETWORK ?? 'devnet') as 'devnet'
 const ENDPOINT = process.env.NEXT_PUBLIC_RPC_URL || clusterApiUrl(NETWORK);
 
 export function SolanaWalletProvider({ children }: { children: ReactNode }) {
-  const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
-    []
-  );
+  // NO explicit adapters. Phantom, Solflare, etc. register themselves via the
+  // Wallet Standard, so the provider already lists them. Passing
+  // PhantomWalletAdapter/SolflareWalletAdapter too DOUBLE-registered each wallet
+  // (the console warned "can be removed from your app") — the duplicate Phantom
+  // entry is what threw "WalletConnectionError: Unexpected error" and drove a
+  // render loop. Empty array = one Standard-registered entry per wallet.
+  const wallets = useMemo<Adapter[]>(() => [], []);
 
   // autoConnect ONLY silently reconnects the wallet remembered at page load, and
   // only once. A wallet the user picks in the modal is connected there via the

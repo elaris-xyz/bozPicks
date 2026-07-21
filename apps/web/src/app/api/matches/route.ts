@@ -21,9 +21,16 @@ export async function GET() {
   ).catch(() => {});
 
   const { rows } = await db.query(
+    // Homepage order: LIVE first, then most-recently-played, then soonest
+    // upcoming. (Was `kickoff_time ASC` — which surfaced the OLDEST fixtures
+    // first, so finished games from days ago sat above what's on now.)
     `SELECT id, home_team, away_team, home_score, away_score,
             status, current_minute, kickoff_time, last_updated, competition
-     FROM boz_matches ORDER BY kickoff_time ASC`
+     FROM boz_matches
+     ORDER BY
+       (status IN ('LIVE','HALFTIME')) DESC,
+       CASE WHEN status='FINISHED' THEN kickoff_time END DESC NULLS LAST,
+       CASE WHEN status NOT IN ('LIVE','HALFTIME','FINISHED') THEN kickoff_time END ASC NULLS LAST`
   );
 
   // odds are an optional Redis cache — never let their failure empty the list

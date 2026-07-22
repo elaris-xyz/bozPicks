@@ -77,10 +77,10 @@ every widget on every page can be shown reacting live, on demand.
 4. Prove determinism offline: `pnpm --filter=web test` — **71 tests, no mocks** —
    the exact pure functions the demo, the markets, and the keeper all run.
 
-> **Two-phase live demo:** each track's video records **Phase A** on a *real*
-> live match (to prove it works on genuine data) and **Phase B** on a replayed
-> match (to show the full controllable cycle through settlement). Scripts live in
-> [`docs/video-script-track{1,2,3}-*.md`](docs).
+> **Live demo:** replays any fixture (live or historical) through the exact
+> same SSE pipeline at 1× / 8× / 60× — judge it in 60 seconds via the
+> **Command Bridge** (bottom-left corner). Every page reacts live: event feed,
+> markets, agents, settlement.
 
 ---
 
@@ -470,13 +470,11 @@ _"Read the market. Act on the move."_ — the **Sharp-Move Detector** scorecard
 
 | Doc | What |
 |---|---|
-| [`docs/WINNING-STRATEGY.md`](docs/WINNING-STRATEGY.md) | the three-track strategy + rubric mapping |
 | [`docs/TXLINE-REFERENCE.md`](docs/TXLINE-REFERENCE.md) | full TxLINE API reference + stat-key legend |
 | [`docs/README-track1-bozSettle.md`](docs/README-track1-bozSettle.md) | Track 1 brief |
 | [`docs/README-track2-bozPicks.md`](docs/README-track2-bozPicks.md) | Track 2 brief |
 | [`docs/README-track3-bozAgent.md`](docs/README-track3-bozAgent.md) | Track 3 brief |
 | [`docs/submissions/`](docs/submissions) | per-track submission text (idea · endpoints · API feedback) |
-| [`docs/video-script-track{1,2,3}-*.md`](docs) | two-phase demo-video scripts |
 | [`docs/DEMO-SCRIPTS.md`](docs/DEMO-SCRIPTS.md) | click-by-click demo walkthroughs |
 
 ---
@@ -484,5 +482,9 @@ _"Read the market. Act on the move."_ — the **Sharp-Move Detector** scorecard
 <div align="center">
 
 **Powered by TxLINE · Settled on Solana devnet · Built as one monorepo, three products.**
+
+---
+
+**Note:** Internal planning documents (deadline tracker, internal strategy, video scripts) have been removed from this public repo for clarity. The source code, deployment guides, and API documentation remain complete.
 
 </div>

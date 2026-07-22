@@ -86,4 +86,4 @@ arena + CLV), and production-readiness (reconnecting SSE, live `/api/agents/stat
 - Tech doc — see `docs/submissions/trackN-*.md` (idea + endpoints used + API feedback).
 - Value: **USDC/SOL only**, settlement via Merkle proof.
 
-See also: [TXLINE-REFERENCE.md](./TXLINE-REFERENCE.md) · [WINNING-STRATEGY.md](./WINNING-STRATEGY.md).
+See also: [TXLINE-REFERENCE.md](./TXLINE-REFERENCE.md).
